@@ -16,8 +16,8 @@ let locUnknown = ({Lexing.position.pos_fname="";},{Lexing.position.pos_fname="";
 	*)		
 (**统计函数中有多少个循环*)
 let count_loop_number (funDec:Cil_types.fundec) = 
-	List.iter (fun stmt ->
-		match stmt.skind with
+    List.iter (fun stmt ->
+       match stmt.skind with
 			| Loop(code_annotation , block , location , stmt1 , stmt2) -> 
 				loop_number := !loop_number + 1;
 			| _ -> loop_number := !loop_number;
@@ -201,12 +201,11 @@ let print_function_stmts fundec visitor=
 		Printf.printf "\n";
 		) fundec.sallstmts
 
-let rec print_block block visitor: = 
+let rec print_block block visitor = 
 	List.iter(fun stmt ->
 		Printf.printf "--------stmt\n";
 		Cil.d_stmt Format.std_formatter stmt;
 		Printf.printf "\n";
-		let vis=(
 		(match stmt.skind with
 				| Instr (instr) ->
 					(match instr with
@@ -224,6 +223,7 @@ let rec print_block block visitor: =
 							Printf.printf "++++set v1v2\n"
 						| Call(lvalo,exp,expl,loc) ->
 							(
+								visitor#vexpr exp;
 								match lvalo with
 									| Some l ->
 										let v1 = !Db.Value.access (Kstmt stmt) l in
@@ -245,9 +245,12 @@ let rec print_block block visitor: =
 				| Loop (code_annotation , block , location , stmt1 , stmt2) ->
 					print_block block;
 					Printf.printf "\n"
+				| Block (subblock) ->
+					print_block subblock visitor;
+					Printf.printf "\n"
 				| _ ->
 					Printf.printf "not Instr\n");
-		Printf.printf "++++++++stmt\n"
+		Printf.printf "++++++++stmt\n";
 		)block.bstmts
 	
 let print_function_body (fundec:fundec) visitor= 
@@ -364,23 +367,42 @@ let get_loop_infor fundec =
 
 class non_zero_divisor prj = object (self)
 	inherit Visitor.generic_frama_c_visitor prj (Cil.copy_visit ())
-	method vexpr e = match e.enode with
-	| BinOp((Div|Mod) ,_, e2 ,_) ->
+	method vexpr (e:exp) = 
+	Printf.printf "non_zero_divisor#vexpr\n";
+	Cil.d_exp Format.std_formatter e;
+	Printf.printf "\n";
+	match e.enode with
+	| BinOp((Div|Mod|Mult|PlusA|MinusA) ,_, e2 ,_) ->
 		let t = Cil.typeOf e2 in
 		let logic_e2 =
 			Logic_const.term
 				(TCastE(t,Logic_utils.expr_to_term ~cast:true e2 )) (Ctype t)
 		in
-		let assertion = Logic_const.prel(Rneq , logic_e2 , Cil.lzero()) in
-	
-		let stmt = Extlib.the(self#current_stmt) in
-
-		Queue.add
-		(fun () ->
-			Cil.d_stmt Format.std_formatter stmt;
-			(*Annotations.add_assert stmt [Ast.self] ~before:true assertion*)
-		);
-			self#get_filling_actions;
+		let assertion = Logic_const.prel (Rneq , logic_e2 , Cil.lzero()) in
+		
+		(match self#current_stmt with
+		| Some stmt ->
+			(*let stmt = Extlib.the self#current_stmt in*)
+			Printf.printf "current_stmt:vexpr.stmt\n";
+			Cil.d_predicate_named Format.std_formatter assertion;
+			Queue.add
+			(fun () ->		
+				Annotations.add_assert stmt [Ast.self] ~before:true assertion
+			);
+				self#get_filling_actions;
+			DoChildren
+		| None ->
+			Printf.printf "current_stmt:vexpr.none\n";
+			SkipChildren
+		)
+	| UnOp((Neg) ,e1 ,_) ->
+		Printf.printf "vexpr.unop\n";
+		DoChildren
+	| Const(con) ->
+		Printf.printf "vexpr.const\n";
+		DoChildren
+	| Lval (lval) ->
+		Printf.printf "vexpr.lval\n";
 		DoChildren
 	| _ -> DoChildren
 end
@@ -389,4 +411,4 @@ let create_syntactic_check_project () =
 	File.create_project_from_visitor " syntactic check " (new non_zero_divisor )
 	
 		
-let visitor = new non_zero_divisor (Project.current ())
+(*let visitor = new non_zero_divisor (Project.current ())*)

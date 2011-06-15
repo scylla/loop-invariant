@@ -74,11 +74,12 @@ end
 
 let rec processOneFile (cil: Cil_types.file) =
   begin
+		Self.result "Hello,this is loop invariant\n"; 
 		Printf.printf "--------the file is to be processed\n%s\n" cil.fileName;		
 		Printf.printf "cil.globinitcalled=%b\n" cil.globinitcalled;
 		
 		(*create_syntactic_check_project ();*)
-		let visitor = new non_zero_divisor in
+		let visitor = new non_zero_divisor (Project.current ()) in
 		
 		Printf.printf "Ast.is_computed=%b\n" (Ast.is_computed ());
 		Printf.printf "anno.length=%d\n" (List.length (Globals.Annotations.get_all ()));
@@ -172,6 +173,7 @@ let rec processOneFile (cil: Cil_types.file) =
 					Function_analysis.count_loop_number fundec;
 					(*Function_analysis.p_visitor visitor;
 					Function_analysis.print_function_stmts fundec visitor;*)
+					
 					Function_analysis.print_function_body fundec visitor;
 					(*let num = Cfg.cfgFun fundec in
 					Printf.printf "\tCfg.cfgFun:num=%d\n" num;*)
@@ -303,7 +305,7 @@ let theMain () =
 				 end
 	);
 	Printf.printf "before Wp\n";
-	let info = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in
+	(*let info = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in*)
 	Printf.printf "after Wp\n";
 	
 	Ast.get ();
@@ -318,13 +320,13 @@ let compute_loop_invariant () =
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
-let print =
+(*let print =
   Dynamic.register
     ~plugin:"Loop Invariant"
     "run"
     ~journalize:true
     (Datatype.func Datatype.unit Datatype.unit)
-    compute_loop_invariant
+    compute_loop_invariant*)
 	
 let run () =  if Enabled.get () then compute_loop_invariant ()
 
