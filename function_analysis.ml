@@ -204,37 +204,85 @@ let print_function_stmts fundec visitor=
 let rec print_block block visitor = 
 	List.iter(fun stmt ->
 		Printf.printf "--------stmt\n";
+		Printf.printf "		--------stmt\n		";
 		Cil.d_stmt Format.std_formatter stmt;
-		Printf.printf "\n";
+		Printf.printf "\n		++++++++stmt\n";
 		(match stmt.skind with
 				| Instr (instr) ->
 					(match instr with
-						| Set(lval,exp,location) ->
+						| Set(lval,exp,location) ->(
+							let texp = constFold true (stripCasts exp) in
+							match texp.enode with
+							| Lval(l) ->(
+								Printf.printf "lval\n"
+							)
+							| BinOp(op, l, r, tt) ->(
+								(*visitor#vexpr texp;
+								Printf.printf "\n\n\n\n";*)
+								(*Cil.d_exp Format.std_formatter l;
+								Cil.d_binop Format.std_formatter op;(*obtaint binary operator*)
+								Cil.d_exp Format.std_formatter r;
+								Cil.d_type Format.std_formatter tt;*)
+								Printf.printf "\nbinop\n"
+							)
+							| _ ->(
+								()
+							)
+							
+							(*let host, off = lval in                     
+		    				let typ = Cil.unrollType (Cil.typeOfLval lval) in
+		    				match typ with
+		    				| TInt(k,attr) ->(
+		    					match host with
+		    					| Var varinfo ->(
+		    						match off with
+		    						| Index(exp,toff) ->(
+		    							Printf.printf "index\n"
+		    						)
+		    						| NoOffset ->(
+		    							Printf.printf "noOffSet\n"
+		    						)
+		    						| Field (fieldinfo, toff) ->(
+		    							Printf.printf "field\n"
+		    						)
+		    					)
+		    					| Mem mexp ->(
+		    						Printf.printf "mem\n"
+		    					)
+		    				)
+		    				| TPtr(ttyp, attr) ->(
+		    					Printf.printf "TPtr\n"
+		    				)
+		    				| _ ->()*)
+		    			)
 							(*let lval2 = visitFramacLval visitor lval in
 							!Ast_printer.d_lval Format.std_formatter lval2;*)
+							(*Printf.printf "lval=";
+							Cil.d_lval Format.std_formatter lval;
+							Printf.printf "\n";
 							visitor#vexpr exp;
-							let v1 = !Db.Value.access (Kstmt stmt) lval in
+							Printf.printf "\n";*)
+							(*let v1 = !Db.Value.access (Kstmt stmt) lval in
 							Printf.printf "----set v1v2\n";
 							Db.Value.pretty Format.std_formatter v1;
 							Printf.printf "\n";
 							let v2 = !Db.Value.access_after (Kstmt stmt) lval in
 							Db.Value.pretty Format.std_formatter v2;
 							Printf.printf "\n";
-							Printf.printf "++++set v1v2\n"
-						| Call(lvalo,exp,expl,loc) ->
-							(
-								visitor#vexpr exp;
-								match lvalo with
-									| Some l ->
-										let v1 = !Db.Value.access (Kstmt stmt) l in
-										Printf.printf "----call v1\n";
-										Db.Value.pretty Format.std_formatter v1;
-										Printf.printf "\n";
-										Printf.printf "++++call v1\n"
+							Printf.printf "++++set v1v2\n"*)
+						| Call(lvalo,exp,expl,loc) ->(
+							visitor#vexpr exp;
+							match lvalo with
+							| Some l ->
+								let v1 = !Db.Value.access (Kstmt stmt) l in
+								Printf.printf "----call v1\n";
+								Db.Value.pretty Format.std_formatter v1;
+								Printf.printf "\n";
+								Printf.printf "++++call v1\n"
 										
-									| _ ->
-										Printf.printf "lvalo\n"
-								)
+							| _ ->
+								Printf.printf "lvalo\n"
+						)
 						| Code_annot(code_annotation,location) ->
 							Printf.printf "Code_annot\n"
 						| Skip(location) ->
@@ -242,10 +290,12 @@ let rec print_block block visitor =
 						| _ ->
 							Printf.printf "Asm\n"
 					)
-				| Loop (code_annotation , block , location , stmt1 , stmt2) ->
-					print_block block;
+				| Loop (code_annotation , subblock , location , stmt1 , stmt2) ->
+					Printf.printf "print_block:loop\n";
+					print_block subblock visitor;
 					Printf.printf "\n"
 				| Block (subblock) ->
+					Printf.printf "print_block:block\n";
 					print_block subblock visitor;
 					Printf.printf "\n"
 				| _ ->
@@ -368,43 +418,43 @@ let get_loop_infor fundec =
 class non_zero_divisor prj = object (self)
 	inherit Visitor.generic_frama_c_visitor prj (Cil.copy_visit ())
 	method vexpr (e:exp) = 
-	Printf.printf "non_zero_divisor#vexpr\n";
-	Cil.d_exp Format.std_formatter e;
-	Printf.printf "\n";
-	match e.enode with
-	| BinOp((Div|Mod|Mult|PlusA|MinusA) ,_, e2 ,_) ->
-		let t = Cil.typeOf e2 in
-		let logic_e2 =
-			Logic_const.term
-				(TCastE(t,Logic_utils.expr_to_term ~cast:true e2 )) (Ctype t)
-		in
-		let assertion = Logic_const.prel (Rneq , logic_e2 , Cil.lzero()) in
+		Printf.printf "non_zero_divisor#vexpr\n";
+		Cil.d_exp Format.std_formatter e;
+		Printf.printf "\n";
+		match e.enode with
+		| BinOp((Div|Mod|Mult|PlusA|MinusA) ,_, e2 ,_) ->
+			let t = Cil.typeOf e2 in
+			let logic_e2 =
+				Logic_const.term
+					(TCastE(t,Logic_utils.expr_to_term ~cast:true e2 )) (Ctype t)
+			in
+			let assertion = Logic_const.prel (Rneq , logic_e2 , Cil.lzero()) in
 		
-		(match self#current_stmt with
-		| Some stmt ->
-			(*let stmt = Extlib.the self#current_stmt in*)
-			Printf.printf "current_stmt:vexpr.stmt\n";
-			Cil.d_predicate_named Format.std_formatter assertion;
-			Queue.add
-			(fun () ->		
-				Annotations.add_assert stmt [Ast.self] ~before:true assertion
-			);
-				self#get_filling_actions;
+			(match self#current_stmt with
+			| Some stmt ->
+				(*let stmt = Extlib.the self#current_stmt in*)
+				Printf.printf "current_stmt:vexpr.stmt\n";
+				Cil.d_predicate_named Format.std_formatter assertion;
+				Queue.add
+				(fun () ->		
+					Annotations.add_assert stmt [Ast.self] ~before:true assertion
+				);
+					self#get_filling_actions;
+				DoChildren
+			| None ->
+				Printf.printf "current_stmt:vexpr.none\n";
+				SkipChildren
+			)
+		| UnOp((Neg) ,e1 ,_) ->
+			Printf.printf "vexpr.unop\n";
 			DoChildren
-		| None ->
-			Printf.printf "current_stmt:vexpr.none\n";
-			SkipChildren
-		)
-	| UnOp((Neg) ,e1 ,_) ->
-		Printf.printf "vexpr.unop\n";
-		DoChildren
-	| Const(con) ->
-		Printf.printf "vexpr.const\n";
-		DoChildren
-	| Lval (lval) ->
-		Printf.printf "vexpr.lval\n";
-		DoChildren
-	| _ -> DoChildren
+		| Const(con) ->
+			Printf.printf "vexpr.const\n";
+			DoChildren
+		| Lval (lval) ->
+			Printf.printf "vexpr.lval\n";
+			DoChildren
+		| _ -> DoChildren
 end
 
 let create_syntactic_check_project () =
