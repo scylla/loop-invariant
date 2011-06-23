@@ -1,8 +1,3 @@
-(** The 'LoopInvariant' plugin.
-    It contains one boolean state [Enabled] which can be set by the
-    command line option "-loop-invariant".
-    When this option is set it .... *)
-
 open LoopInvariant
 open Project
 open Cil_types
@@ -14,14 +9,14 @@ open Db
 open Db_types
 open Ast_printer
 open Globals
-
+open Db.LoopInvariant
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
 module Self =
   Plugin.Register
     (struct
-       let name = "Loop Invariant"
-       let shortname = "loopInvariant"
+       let name = "loop invariant"
+       let shortname = "loopInv"
        let help = "my 'Loop Invariant' plugin"
      end)
 
@@ -30,7 +25,7 @@ module Enabled =
   Self.False
     (struct
        let option_name = "-loop-invariant"
-       let help = "my loop invariant plugin"
+       let help = "my loop invariant plugin. by Liu"
        let kind = `Correctness
      end)
 
@@ -69,7 +64,6 @@ class loopInvariant = object (self)
     !Db.progress ();
     super#vstmt_aux s
 end
-
 
 
 let rec processOneFile (cil: Cil_types.file) =
@@ -320,13 +314,8 @@ let compute_loop_invariant () =
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
-(*let print =
-  Dynamic.register
-    ~plugin:"Loop Invariant"
-    "run"
-    ~journalize:true
-    (Datatype.func Datatype.unit Datatype.unit)
-    compute_loop_invariant*)
+let print =
+  Dynamic.register    ~plugin:"Loop Invariant"    "run"    ~journalize:true    (Datatype.func Datatype.unit Datatype.unit)    compute_loop_invariant
 	
 let run () =  if Enabled.get () then compute_loop_invariant ()
 
