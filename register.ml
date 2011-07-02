@@ -10,6 +10,8 @@ open Db_types
 open Ast_printer
 open Globals
 open Db.LoopInvariant
+open Logic_typing
+
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
 module Self =
@@ -65,13 +67,34 @@ class loopInvariant = object (self)
     super#vstmt_aux s
 end
 
-
+  
 let rec processOneFile (cil: Cil_types.file) =
   begin
 		Self.result "Hello,this is loop invariant\n"; 
 		Printf.printf "--------the file is to be processed\n%s\n" cil.fileName;		
 		Printf.printf "cil.globinitcalled=%b\n" cil.globinitcalled;
 		
+		if cil.globals = [] then
+      		Printf.printf "error\n";
+      		
+      		
+		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
+		
+      	let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
+      	Printf.printf "logic_info_list.length=%d\n" (List.length logic_info_list);(*0?*)
+      	List.iter (fun (node:logic_info) ->
+      		Cil.d_logic_var Format.std_formatter node.l_var_info;
+      	) logic_info_list;
+      	
+      	let pragmas = Interp.pragmas cil in
+   		let pfile = Interp.file cil in
+    
+      	(*let logic_var = Logic_typing.Make.find_var cil.fileName in
+      	Cil.d_logic_var Format.std_formatter logic_var;
+      	let logic_type_info = Logic_env.find_logic_type cil.fileName in
+      	Printf.printf "logic_type_info.name=%s\n" logic_type_info.lt_name;*)
+      	
+      	
 		(*create_syntactic_check_project ();*)
 		let visitor = new non_zero_divisor (Project.current ()) in
 		
@@ -109,6 +132,16 @@ let rec processOneFile (cil: Cil_types.file) =
 		
 		(*!Db.Value.compute ();
 		let visitor = new File.check_file cil.fileName in*)
+		Printf.printf "%b\n" (Ast.is_computed ());
+		let globs = Globals.Annotations.get_all () in
+		Printf.printf "globs.length=";
+		List.length globs;
+		Printf.printf "\n";
+		Globals.Annotations.iter (fun (anno:global_annotation) (isGene:bool) ->
+			Printf.printf "anno\n";
+			(*Cil.d_global Format.std_formatter anno;*)
+		) ;
+		
 		List.iter (function g ->
 			match g with
 				|	(GText text) ->	
@@ -171,10 +204,12 @@ let rec processOneFile (cil: Cil_types.file) =
 					Function_analysis.print_function_body fundec visitor;
 					(*let num = Cfg.cfgFun fundec in
 					Printf.printf "\tCfg.cfgFun:num=%d\n" num;*)
-					let dotName = "/home/lzh/"^fundec.svar.vname^".dot" in
+					
+					(*let dotName = "/home/lzh/"^fundec.svar.vname^".dot" in
 					Cfg.printCfgFilename dotName fundec;
 					let cmdstr = "dot /home/lzh/"^fundec.svar.vname^".dot -Tpng -o /home/lzh/"^fundec.svar.vname^".png" in
-					Sys.command cmdstr;
+					Sys.command cmdstr;*)
+					
 					Printf.printf "%s\n" "";
 						
 					(*Format.print_string "\n";
@@ -182,6 +217,9 @@ let rec processOneFile (cil: Cil_types.file) =
 					Printf.printf "GAsm:location.file=%s\n" location.file;
 				| (GPragma (attribute,location)) -> 
 					Printf.printf "GPragma:location.file=%s\n" location.file;*)
+				| GAnnot(global_annotation , location) ->
+					Cil.d_global Format.std_formatter g;
+					Printf.printf "%s\n" "GAnnot:";
 				| _ -> Printf.printf "%s\n" "I donnot konw.";
 			) cil.globals;
 			
@@ -314,8 +352,8 @@ let compute_loop_invariant () =
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
-let print =
-  Dynamic.register    ~plugin:"Loop Invariant"    "run"    ~journalize:true    (Datatype.func Datatype.unit Datatype.unit)    compute_loop_invariant
+(*let print =
+  Dynamic.register    ~plugin:"Loop Invariant"    "run"    ~journalize:true    (Datatype.func Datatype.unit Datatype.unit)    compute_loop_invariant*)
 	
 let run () =  if Enabled.get () then compute_loop_invariant ()
 

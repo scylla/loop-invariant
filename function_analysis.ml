@@ -7,6 +7,7 @@ open Project
 open Callgraph
 open Db
 open Ast_printer
+open Outputs
 
 type sequence = stmt * lval list * lval list * lval list * stmt ref list
 
@@ -227,7 +228,7 @@ let rec print_block block visitor =
 							)
 							| _ ->(
 								()
-							)
+							)(*end match texp.enode*)
 							
 							(*let host, off = lval in                     
 		    				let typ = Cil.unrollType (Cil.typeOfLval lval) in
@@ -288,7 +289,7 @@ let rec print_block block visitor =
 						| Skip(location) ->
 							Printf.printf "Skip\n"
 						| _ ->
-							Printf.printf "Asm\n"
+							Printf.printf "Asm\n"(*end match instr*)
 					)
 				| Loop (code_annotation , subblock , location , stmt1 , stmt2) ->
 					Printf.printf "print_block:loop\n";
@@ -304,7 +305,16 @@ let rec print_block block visitor =
 		)block.bstmts
 	
 let print_function_body (fundec:fundec) visitor= 
-	print_block fundec.sbody visitor
+	Printf.printf "fundec.sspec\n";
+	let kf = Globals.Functions.get fundec.svar in
+	let t = Kernel_function.dummy () in
+	let name= Kernel_function.get_name t in
+	Printf.printf "name=%s\n" name;
+	let code_annot = Kernel_function.code_annotations t in
+	Printf.printf "length=%d\n" (List.length code_annot);
+	!Db.Outputs.display_external Format.std_formatter kf;
+	Cil.d_funspec Format.std_formatter (Kernel_function.get_spec t)
+	(*print_block fundec.sbody visitor*)
 	(*List.iter(fun var ->
 		Printf.printf "%s\nattribute:" var.vname;
 			List.iter(fun attr ->
