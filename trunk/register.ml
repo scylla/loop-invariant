@@ -77,7 +77,20 @@ let rec processOneFile (cil: Cil_types.file) =
 		if cil.globals = [] then
       		Printf.printf "error\n";
       		
-      		
+      	Globals.Functions.iter (fun kf ->
+		  	let funspec = Kernel_function.get_spec kf in(*funspec = (term, identified_predicate, identified_term) spec
+		  	Cil.d_funspec Format.std_formatter func;*)
+		  	List.iter ( fun bh ->
+		  		List.iter(fun req ->
+		  			Cil.d_identified_predicate Format.std_formatter req;
+		  			(*identified_predicate*)
+		  		) bh.b_requires;
+		  	) funspec.spec_behavior;
+		  	Printf.printf "\n";
+      	);
+      	
+      	
+      	
 		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
 		
       	let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
@@ -86,8 +99,6 @@ let rec processOneFile (cil: Cil_types.file) =
       		Cil.d_logic_var Format.std_formatter node.l_var_info;
       	) logic_info_list;
       	
-      	let pragmas = Interp.pragmas cil in
-   		let pfile = Interp.file cil in
     
       	(*let logic_var = Logic_typing.Make.find_var cil.fileName in
       	Cil.d_logic_var Format.std_formatter logic_var;
