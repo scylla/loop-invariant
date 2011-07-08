@@ -84,8 +84,8 @@ let rec processOneFile (cil: Cil_types.file) =
 		  		List.iter(fun req ->
 		  			Cil.d_identified_predicate Format.std_formatter req;
 		  			(*identified_predicate*)
-		  		) bh.b_requires;
-		  	) funspec.spec_behavior;
+		  		) bh.b_requires;(*interp.requires =*)
+		  	) funspec.spec_behavior;(*rewrite.add_default_behavior,common.malloc_function*)
 		  	Printf.printf "\n";
       	);
       	
