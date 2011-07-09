@@ -11,6 +11,7 @@ open Ast_printer
 open Globals
 open Db.LoopInvariant
 open Logic_typing
+open Kernel_function
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -19,7 +20,7 @@ module Self =
     (struct
        let name = "loop invariant"
        let shortname = "loopInv"
-       let help = "my 'Loop Invariant' plugin"
+       let help = "'Loop Invariant' plugin. Add some new ACSL annotations about loop structure to get better effect of Jessie."
      end)
 
 (** Register the new Frama-C option "-loop-invariant". *)
@@ -68,25 +69,46 @@ class loopInvariant = object (self)
 end
 
   
-let rec processOneFile (cil: Cil_types.file) =
-  begin
-		Self.result "Hello,this is loop invariant\n"; 
-		Printf.printf "--------the file is to be processed\n%s\n" cil.fileName;		
-		Printf.printf "cil.globinitcalled=%b\n" cil.globinitcalled;
-		
-		if cil.globals = [] then
-      		Printf.printf "error\n";
-      		
+let rec loopInvariantAnalysis (cil: Cil_types.file) =
+  begin	
       	Globals.Functions.iter (fun kf ->
-		  	let funspec = Kernel_function.get_spec kf in(*funspec = (term, identified_predicate, identified_term) spec
-		  	Cil.d_funspec Format.std_formatter func;*)
-		  	List.iter ( fun bh ->
-		  		List.iter(fun req ->
-		  			Cil.d_identified_predicate Format.std_formatter req;
-		  			(*identified_predicate*)
-		  		) bh.b_requires;(*interp.requires =*)
-		  	) funspec.spec_behavior;(*rewrite.add_default_behavior,common.malloc_function*)
+      		Self.result "enter function %s.\n" (Kernel_function.get_name kf);
+      		Printf.printf "the funspec is as follow:\n";
+		  	let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
+		  	Cil.d_funspec Format.std_formatter funspec;
 		  	Printf.printf "\n";
+		  	
+		  	Printf.printf "the precondition is as follow:\n";
+		  	let pre = Kernel_function.precondition kf in
+		  	Cil.d_predicate_named Format.std_formatter pre;
+		  	Printf.printf "\n";
+		  	
+		  	Printf.printf "the postcondition is as follow:\n";
+		  	let post = Kernel_function.postcondition kf Cil_types.Normal in
+		  	Cil.d_predicate_named Format.std_formatter post;
+		  	Printf.printf "\n";
+		  	
+		  	Printf.printf "the stmts are as follow:\n";
+		  	let first_stmt = Kernel_function.find_first_stmt kf in
+		  	let first_block = Kernel_function.find_enclosing_block first_stmt in
+		  	
+		  	let rec print_stmt (sl:stmt list) =
+		  	if (List.length sl)>0
+		  	then
+		  	List.iter (fun s_succs ->
+		  	Cil.d_stmt Format.std_formatter s_succs;
+		  	print_stmt s_succs.succs;
+		  	) sl;
+		  	in
+		  	Cil.d_stmt Format.std_formatter first_stmt;
+		  	print_stmt first_stmt.succs;
+		  	Printf.printf "\n";
+		  	
+		  	let state = Cil.selfMachine in
+		  	Printf.printf "%s" (State.get_name state);
+		  	Printf.printf "\n";
+		  	
+		  	Self.result "leave function %s.\n" (Kernel_function.get_name kf);
       	);
       	
       	
@@ -338,33 +360,22 @@ let rec processOneFile (cil: Cil_types.file) =
   end
   
 let theMain () = 
-	Globals.Functions.iter
-      (fun kf ->
-				 let name = Kernel_function.get_name kf in
-				Printf.printf "name=%s\n" name;
-				 if Kernel_function.is_definition kf
-				 then begin
-				     Kernel_function.pretty_name Format.std_formatter kf;
-				 end
-	);
-	Printf.printf "before Wp\n";
-	(*let info = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in*)
-	Printf.printf "after Wp\n";
 	
 	Ast.get ();
-	Printf.printf "%s\n" "over";
+	
+	Self.result "Begin to execute Value Analysis.\n"; 
 	Printf.printf "Db.Value.is_computed=%b\n" (Db.Value.is_computed ());
 	if not (Db.Value.is_computed ()) then !Db.Value.compute ();
-	processOneFile (Ast.get ())
-	(*Function_analysis.print_proj_info;*)
+	Self.result "Value Analysis Over.\n";
+	Self.result "Begin to execute LoopInvariant Analysis.\n"; 
+	loopInvariantAnalysis (Ast.get ());
+	Self.result "LoopInvariant Analysis Over.\n"
     
 let compute_loop_invariant () = 
 	Ast.compute ();
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
-(*let print =
-  Dynamic.register    ~plugin:"Loop Invariant"    "run"    ~journalize:true    (Datatype.func Datatype.unit Datatype.unit)    compute_loop_invariant*)
 	
 let run () =  if Enabled.get () then compute_loop_invariant ()
 

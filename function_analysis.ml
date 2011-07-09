@@ -212,7 +212,18 @@ let rec print_block block visitor =
 				| Instr (instr) ->
 					(match instr with
 						| Set(lval,exp,location) ->(
+							
 							let texp = constFold true (stripCasts exp) in
+							
+							Printf.printf "--------add_alarm\n";
+							Cil.d_exp Format.std_formatter texp;
+							let annot = !Db.Properties.Interp.force_exp_to_assertion texp in
+							(*Annotations.add_assert stmt [] ~before:true pre;
+							Cil.d_predicate_named Format.std_formatter pre;*)
+							Cil.d_code_annotation Format.std_formatter annot;
+							Printf.printf "++++++++add_alarm\n";
+							
+							
 							match texp.enode with
 							| Lval(l) ->(
 								Printf.printf "lval\n"
@@ -305,7 +316,7 @@ let rec print_block block visitor =
 		)block.bstmts
 	
 let print_function_body (fundec:fundec) visitor= 
-	Printf.printf "fundec.sspec\n";
+	(*Printf.printf "fundec.sspec\n";
 	let kf = Globals.Functions.get fundec.svar in
 	let t = Kernel_function.dummy () in
 	let name= Kernel_function.get_name t in
@@ -313,8 +324,8 @@ let print_function_body (fundec:fundec) visitor=
 	let code_annot = Kernel_function.code_annotations t in
 	Printf.printf "length=%d\n" (List.length code_annot);
 	!Db.Outputs.display_external Format.std_formatter kf;
-	Cil.d_funspec Format.std_formatter (Kernel_function.get_spec t)
-	(*print_block fundec.sbody visitor*)
+	Cil.d_funspec Format.std_formatter (Kernel_function.get_spec t)*)
+	print_block fundec.sbody visitor
 	(*List.iter(fun var ->
 		Printf.printf "%s\nattribute:" var.vname;
 			List.iter(fun attr ->
