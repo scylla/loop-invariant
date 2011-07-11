@@ -13,6 +13,8 @@ open Db.LoopInvariant
 open Logic_typing
 open Kernel_function
 open Annotations
+open State_builder
+open Extlib
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -93,15 +95,31 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	Cil.d_predicate_named Format.std_formatter post;
 		  	Printf.printf "\n";
 		  	
-		  	Printf.printf "the stmts are as follow:\n";
-		  	let global = Kernel_function.get_global kf in
-		  	let gannot = Globals.Annotations.get_all () in
+		  	Printf.printf "the global annotations are as follow:\n";
+		  	let gannot_list = Globals.Annotations.get_all () in
 		  	List.iter(fun (g,b) ->
 		  	Printf.printf "%b\n" b;
 		  	Cil.d_annotation Format.std_formatter g;
-		  	)gannot;
+		  	)gannot_list;
+		  	Printf.printf "\n";
 		  	
-		  	(*match global with
+		  	Printf.printf "the code annotations are as follow:\n";
+		  	(*let c_annot_list = Annotations.get_annotations () in(*only this works*)
+		  	List.iter(fun (g_annot,(ba:bool)) ->(
+		  	Cil.d_annotation Format.std_formatter g_annot;
+		  	(*(match r_code_annot with
+		  	| User(code_annotation) -> (
+				Cil.d_code_annotation Format.std_formatter code_annotation;
+		  	)
+		  	| _ -> (
+		  		Printf.printf "\n";
+		  	)
+		  	);*)
+		  	))c_annot_list;
+		  	Printf.printf "\n";*)
+		  	
+		  	let global = Kernel_function.get_global kf in
+		  	match global with
 		  	| GType(typeinfo,location) -> (
 		  		Printf.printf "GType\n";
 		  	)
@@ -127,10 +145,13 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  		List.iter( fun stmt ->
 		  		Cil.d_stmt Format.std_formatter stmt;
 		  		Printf.printf "\n";
-		  		let v = new loopInvariant in
+		  		let annot =  Annotations.get_annotations stmt <> [] in
+		  		let c_annot = !Db.Properties.Interp.code_annot kf stmt ~before:true "abc" in
+		  		Cil.d_code_annotation Format.std_formatter c_annot;
+		  		(*let v = new loopInvariant in
 		  		v#vcode_annot;
 		  		let annot = Annotations.get_annotations in
-		  		(*let state = Cil.selfMachine in
+		  		let state = Cil.selfMachine in
 			  	(*Printf.printf "%s" (State.get_name state);
 				let state = Cil.selfFormalsDecl in
 				Printf.printf "%s" (State.get_name state);*)
@@ -161,7 +182,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	)
 		  	| _ -> (
 		  		Printf.printf "\n";
-		  	);*)
+		  	);
 		  	
 		  	(*Cil.d_global Format.std_formatter global;		  	
 		  	let first_stmt = Kernel_function.find_first_stmt kf in
