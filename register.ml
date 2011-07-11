@@ -12,6 +12,7 @@ open Globals
 open Db.LoopInvariant
 open Logic_typing
 open Kernel_function
+open Annotations
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -66,6 +67,10 @@ class loopInvariant = object (self)
   method vstmt_aux s =
     !Db.progress ();
     super#vstmt_aux s
+   
+  method vcode_annot (c:code_annotation) = 
+  	Cil.d_code_annotation Format.std_formatter c;
+  	DoChildren
 end
 
   
@@ -89,23 +94,108 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	Printf.printf "\n";
 		  	
 		  	Printf.printf "the stmts are as follow:\n";
+		  	let global = Kernel_function.get_global kf in
+		  	let gannot = Globals.Annotations.get_all () in
+		  	List.iter(fun (g,b) ->
+		  	Printf.printf "%b\n" b;
+		  	Cil.d_annotation Format.std_formatter g;
+		  	)gannot;
+		  	
+		  	(*match global with
+		  	| GType(typeinfo,location) -> (
+		  		Printf.printf "GType\n";
+		  	)
+		  	| GCompTag(compinfo,location) -> (
+		  		Printf.printf "GCompTag\n";
+		  	)
+		  	| GCompTagDecl(compinfo,location) -> (
+		  		Printf.printf "GCompTagDecl\n";
+		  	)
+		  	| GEnumTag(enuminfo,location) -> (
+		  		Printf.printf "GEnumTag\n";
+		  	)
+		  	| GEnumTagDecl(enuminfo,location) -> (
+		  		Printf.printf "GEnumTagDecl\n";
+		  	)
+		  	| GVarDecl(funspec,varinfo,location) -> (
+		  		Cil.d_funspec Format.std_formatter funspec;
+		  	)
+		  	| GVar(varinfo,initinfo,location) -> (
+		  		Printf.printf "GVar\n";
+		  	)
+		  	| GFun(fundec,location) -> (
+		  		List.iter( fun stmt ->
+		  		Cil.d_stmt Format.std_formatter stmt;
+		  		Printf.printf "\n";
+		  		let v = new loopInvariant in
+		  		v#vcode_annot;
+		  		let annot = Annotations.get_annotations in
+		  		(*let state = Cil.selfMachine in
+			  	(*Printf.printf "%s" (State.get_name state);
+				let state = Cil.selfFormalsDecl in
+				Printf.printf "%s" (State.get_name state);*)
+				let annotList = Annotations.get_all () in
+				List.iter(fun (annot,ba) ->
+					Cil.d_annotation Format.std_formatter annot;
+					(*match annot with
+					| User(code_anno) -> (
+					Cil.d_code_annotation Format.std_formatter code_anno;
+					)
+					| _ -> (
+					Printf.printf "\n";
+					)*)
+				)annotList;*)
+					Printf.printf "\n";
+		  		)fundec.sallstmts;
+		  	)
+		  	| GAsm(s,location) -> (
+		  		Printf.printf "s\n";
+		  	)
+		  	| GPragma(attribute,location) -> (
+		  		Printf.printf "GPragma\n";
+		  	)
+		  	| GText(s) -> (
+		  		Printf.printf "GText\n";
+		  	)
+		  	| GAnnot(global_annotation,location) -> (
+		  	)
+		  	| _ -> (
+		  		Printf.printf "\n";
+		  	);*)
+		  	
+		  	(*Cil.d_global Format.std_formatter global;		  	
 		  	let first_stmt = Kernel_function.find_first_stmt kf in
 		  	let first_block = Kernel_function.find_enclosing_block first_stmt in
 		  	
 		  	let rec print_stmt (sl:stmt list) =
 		  	if (List.length sl)>0
 		  	then
-		  	List.iter (fun s_succs ->
+		  	List.iter (fun (s_succs:stmt) ->
 		  	Cil.d_stmt Format.std_formatter s_succs;
 		  	print_stmt s_succs.succs;
+		  	
+		  	let state = Cil.selfMachine in
+		  	(*Printf.printf "%s" (State.get_name state);
+			let state = Cil.selfFormalsDecl in
+			Printf.printf "%s" (State.get_name state);*)
+			let annotList = Annotations.get_all () in
+			List.iter(fun (annot,ba) ->
+			Cil.d_annotation Format.std_formatter annot;
+			(*match annot with
+			| User(code_anno) -> (
+			Cil.d_code_annotation Format.std_formatter code_anno;
+			)
+			| _ -> (
+			Printf.printf "\n";
+			)*)
+			)annotList;
+		  	
+		  	Printf.printf "\n";
+			
 		  	) sl;
 		  	in
 		  	Cil.d_stmt Format.std_formatter first_stmt;
-		  	print_stmt first_stmt.succs;
-		  	Printf.printf "\n";
-		  	
-		  	let state = Cil.selfMachine in
-		  	Printf.printf "%s" (State.get_name state);
+		  	print_stmt first_stmt.succs;*)
 		  	Printf.printf "\n";
 		  	
 		  	Self.result "leave function %s.\n" (Kernel_function.get_name kf);
