@@ -104,19 +104,43 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	Printf.printf "\n";
 		  	
 		  	Printf.printf "the code annotations are as follow:\n";
-		  	(*let c_annot_list = Annotations.get_annotations () in(*only this works*)
-		  	List.iter(fun (g_annot,(ba:bool)) ->(
-		  	Cil.d_annotation Format.std_formatter g_annot;
-		  	(*(match r_code_annot with
-		  	| User(code_annotation) -> (
-				Cil.d_code_annotation Format.std_formatter code_annotation;
-		  	)
-		  	| _ -> (
-		  		Printf.printf "\n";
-		  	)
-		  	);*)
-		  	))c_annot_list;
-		  	Printf.printf "\n";*)
+		  	let annot_list = Kernel_function.code_annotations kf in(*(stmt*rooted_code_annotation before_after) list*)
+		  	List.iter(fun (stmt,root_code_annot_ba) ->
+		  		(*Cil.d_stmt Format.std_formatter stmt;*)
+		  		(
+		  		match root_code_annot_ba with
+		  		| Before(annot) ->(
+		  			(
+		  			match annot with
+		  			| User(code_annot) ->(
+		  				Cil.d_code_annotation Format.std_formatter code_annot;
+		  				Format.print_flush ();
+		  				Printf.printf "\n";
+		  			)
+		  			| AI(alarmt,code_annot) ->(
+		  				Cil.d_code_annotation Format.std_formatter code_annot;
+		  				Format.print_flush ();
+		  				Printf.printf "\n";
+		  			)
+		  			);
+		  		)
+		  		| After(annot) ->(
+		  			(
+		  			match annot with
+		  			| User(code_annot) ->(
+		  				Cil.d_code_annotation Format.std_formatter code_annot;
+		  				Format.print_flush ();
+		  				Printf.printf "\n";
+		  			)
+		  			| AI(alarmt,code_annot) ->(
+		  				Cil.d_code_annotation Format.std_formatter code_annot;
+		  				Format.print_flush ();
+		  				Printf.printf "\n";
+		  			)
+		  			);
+		  		)
+		  		);
+		  	)annot_list;
 		  	
 		  	let global = Kernel_function.get_global kf in
 		  	match global with
@@ -142,13 +166,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  		Printf.printf "GVar\n";
 		  	)
 		  	| GFun(fundec,location) -> (
-		  		List.iter( fun stmt ->
-		  		(*Cil.d_stmt Format.std_formatter stmt;
-		  		Printf.printf "\n";Annotations.get_annotations*)
-		  		let annot =  Annotations.AnnotState.find_all_local_data stmt <> [] in
-		  		let c_annot = !Db.Properties.Interp.code_annot kf stmt ~before:true "abc" in
-		  		Cil.d_code_annotation Format.std_formatter c_annot;
-		  		
+		  		List.iter( fun stmt ->		  		
 		  		(
 		  		match stmt.skind with
 		  		| If(exp,block1,block2,location) ->(
@@ -195,25 +213,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  			Printf.printf "\n";
 		  		)
 		  		);
-		  		(*let v = new loopInvariant in
-		  		v#vcode_annot;
-		  		let annot = Annotations.get_annotations in
-		  		let state = Cil.selfMachine in
-			  	(*Printf.printf "%s" (State.get_name state);
-				let state = Cil.selfFormalsDecl in
-				Printf.printf "%s" (State.get_name state);*)
-				let annotList = Annotations.get_all () in
-				List.iter(fun (annot,ba) ->
-					Cil.d_annotation Format.std_formatter annot;
-					(*match annot with
-					| User(code_anno) -> (
-					Cil.d_code_annotation Format.std_formatter code_anno;
-					)
-					| _ -> (
-					Printf.printf "\n";
-					)*)
-				)annotList;*)
-					Printf.printf "\n";
+				Printf.printf "\n";
 		  		)fundec.sallstmts;
 		  		
 		  		(*Cil.d_block Format.std_formatter fundec.sbody;*)
