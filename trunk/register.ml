@@ -143,11 +143,58 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	)
 		  	| GFun(fundec,location) -> (
 		  		List.iter( fun stmt ->
-		  		Cil.d_stmt Format.std_formatter stmt;
-		  		Printf.printf "\n";
-		  		let annot =  Annotations.get_annotations stmt <> [] in
+		  		(*Cil.d_stmt Format.std_formatter stmt;
+		  		Printf.printf "\n";Annotations.get_annotations*)
+		  		let annot =  Annotations.AnnotState.find_all_local_data stmt <> [] in
 		  		let c_annot = !Db.Properties.Interp.code_annot kf stmt ~before:true "abc" in
 		  		Cil.d_code_annotation Format.std_formatter c_annot;
+		  		
+		  		(
+		  		match stmt.skind with
+		  		| If(exp,block1,block2,location) ->(
+		  			let texp = constFold true (stripCasts exp) in
+		  			Printf.printf "if--:\n";
+		  			Cil.d_exp Format.std_formatter texp;
+		  			Format.print_flush ();
+		  			Printf.printf "\n";
+		  			
+		  			let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
+		  			Cil.d_code_annotation Format.std_formatter assert_code_annot;
+		  			Format.print_flush ();
+		  			Printf.printf "\n";
+		  			
+		  			let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
+		  			Cil.d_predicate_named Format.std_formatter pre;
+		  			Format.print_flush ();
+		  			Printf.printf "\n";
+		  			
+		  			let term = !Db.Properties.Interp.force_exp_to_term texp in
+		  			Cil.d_term Format.std_formatter term;
+		  			Format.print_flush ();
+		  			Printf.printf "\n";
+		  			
+		  			Printf.printf "if++:\n";
+		  		)
+		  		| Instr(instr) ->(
+		  			Printf.printf "instr--:\n";		  			
+		  			Cil.d_instr Format.std_formatter instr;
+		  			Format.print_flush ();
+		  			Printf.printf "\n";
+		  			Printf.printf "instr++:\n";
+		  		)
+		  		| Loop(code_annot_list,block,location,stmto1,stmto2) ->(
+		  			Printf.printf "loop--:\n";
+		  		)
+		  		| Block(block) ->(
+		  			Printf.printf "block--:\n";
+		  		)
+		  		| Return(expo,location) ->(
+		  			Printf.printf "return--:\n";
+		  		)
+		  		| _ ->(
+		  			Printf.printf "\n";
+		  		)
+		  		);
 		  		(*let v = new loopInvariant in
 		  		v#vcode_annot;
 		  		let annot = Annotations.get_annotations in
@@ -168,6 +215,8 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 				)annotList;*)
 					Printf.printf "\n";
 		  		)fundec.sallstmts;
+		  		
+		  		(*Cil.d_block Format.std_formatter fundec.sbody;*)
 		  	)
 		  	| GAsm(s,location) -> (
 		  		Printf.printf "s\n";
