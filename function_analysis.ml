@@ -1,5 +1,6 @@
 open Cil
 open Cil_types
+open Cil_datatype
 open File
 open Annotations
 open Visitor
@@ -8,6 +9,7 @@ open Callgraph
 open Db
 open Ast_printer
 open Outputs
+open Logic_const
 
 type sequence = stmt * lval list * lval list * lval list * stmt ref list
 
@@ -75,6 +77,69 @@ let p_visitor visitor =
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor
 
+let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) =
+	(*match loop_stmt.skind with
+	| Loop(code_annot_list,block,location,stmto1,stmto2)->*)
+		List.iter(fun stmt->
+		match stmt.skind with
+		| If(exp,block1,block2,location)->(
+			let texp = constFold true (stripCasts exp) in
+		  	(
+		  	match texp.enode with
+			| BinOp((Div|Mod|Mult|PlusA|MinusA),exp1,exp2,typ)->(
+			  	Cil.d_type Format.std_formatter typ;
+			  	Format.print_flush ();
+			  	Printf.printf "Div\n";		
+			)
+			| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->(
+			  	Cil.d_type Format.std_formatter typ;
+			  	Format.print_flush ();
+			  	Printf.printf "\n";
+			  	let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in
+			  	let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in
+			  	
+			  	let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
+			  		
+			  	let add_code_annot (free_vars:Cil_datatype.Logic_var.Set.t) =
+				  	let annotation =
+						 Logic_const.new_code_annotation
+						 (AInvariant ([],true,Logic_const.unamed (Pforall ((Logic_var.Set.elements 	free_vars),pre_named))
+						  ))
+					in
+					let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+					Annotations.add loop_stmt [Ast.self] root_code_annot_ba;
+			  	in		  		
+			  		
+			  	if (Logic_var.Set.is_empty free_vars)=false
+			  	then add_code_annot free_vars;	
+			  	
+			  	Printf.printf "not equal\n";	  		
+			  	)
+			| _->(
+				Cil.d_stmt Format.std_formatter stmt;
+			)
+			);(*match texp.enode End*)
+			if (List.length block1.bstmts)>0 then
+			generate_loop_annotations loop_stmt block1;
+			if (List.length block2.bstmts)>0 then
+			generate_loop_annotations loop_stmt block2;
+		)(*If End*)
+		| Block(block)->(
+			if (List.length block.bstmts)>0 then
+			generate_loop_annotations loop_stmt block;
+		)
+		| UnspecifiedSequence(l)->(
+			Printf.printf "UnspecifiedSequence\n";
+		)
+		| _->(
+			Cil.d_stmt Format.std_formatter stmt;
+		)
+		)loop_block.bstmts(*List.iter End*)
+	(*)(*Loop End*)
+	| _->(
+	)*)
+
+
 let print_kf_global (global:global) =
 	match global with
 	| GType(typeinfo,location) -> (
@@ -102,31 +167,115 @@ let print_kf_global (global:global) =
 		List.iter( fun stmt ->		  		
 		(
 		match stmt.skind with
-		| If(exp,block1,block2,location) ->(
+		| If(exp,block1,block2,location)->(
 		  	let texp = constFold true (stripCasts exp) in
+		  	(
+		  	match texp.enode with
+		  	| Const(constant)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| Lval(lval)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| SizeOf(typ)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| SizeOfE(exp)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| SizeOfStr(s:string)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| AlignOf(typ)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| AlignOfE(exp)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| UnOp(upop,exp,typ)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| BinOp((Div|Mod|Mult|PlusA|MinusA),exp1,exp2,typ)->(
+		  		Cil.d_type Format.std_formatter typ;
+		  		Format.print_flush ();
+		  		Printf.printf "Div\n";		
+		  	)
+		  	| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->(
+		  		Cil.d_type Format.std_formatter typ;
+		  		Format.print_flush ();
+		  		Printf.printf "not equal\n";
+		  		let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in
+		  		let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in
+		  		
+		  		(*if while_stmt.skind=Loop(_,_,_,_,_) then*)
+		  		let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
+		  		
+		  		let add_code_annot (free_vars:Cil_datatype.Logic_var.Set.t) =
+		  			let annotation =
+				      Logic_const.new_code_annotation
+				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
+		       		in
+		       		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+		       		Annotations.add stmt [Ast.self] root_code_annot_ba;
+		  		in		  		
+		  		
+		  		if (Logic_var.Set.is_empty free_vars)=false
+		  		then add_code_annot free_vars;
+		  		(*else begin
+				(*let annotation =
+				      Logic_const.new_code_annotation
+				      (AInvariant ([],true,Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),pre_named))
+				      ))
+           		in
+           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
+           		add_code_annot free_vars; end*)
+		  		
+           		
+		  		
+		  		Printf.printf "not equal\n";
+		  		(*let term = !Db.Properties.Interp.force_exp_to_term texp in
+		  		let new_code_annot = Logic_const.new_code_annotation (term,*)	  		
+		  	)
+		  	| CastE(typ,exp)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| AddrOf(lval)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| StartOf(lval)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| Info(exp,exp_info)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| _->(
+		  		Printf.printf "\n";
+		  	)
+		  	);
 		  	Printf.printf "if--:\n";
 		  	Cil.d_exp Format.std_formatter texp;
 		  	Format.print_flush ();
 		  	Printf.printf "\n";
-		  			
+		  	
 		  	let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
 		  	Cil.d_code_annotation Format.std_formatter assert_code_annot;
 		  	Format.print_flush ();
 		  	Printf.printf "\n";
-		  			
+		  	
 		  	let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
 		  	Cil.d_predicate_named Format.std_formatter pre;
 		  	Format.print_flush ();
 		  	Printf.printf "\n";
-		  	Annotations.add_assert stmt [Ast.self] ~before:true pre;
-		  			
+		  	(*Annotations.add_assert stmt [Ast.self] ~before:true pre;*)
+		  	
 		  	let term = !Db.Properties.Interp.force_exp_to_term texp in
 		  	Cil.d_term Format.std_formatter term;
 		  	Format.print_flush ();
 		  	Printf.printf "\n";
-		  			
+		  	
 		  	Printf.printf "if++:\n";
-		 )
+		 )(*end If*)
 		 | Instr(instr) ->(
 		 	Printf.printf "instr--:\n";		  			
 		  	Cil.d_instr Format.std_formatter instr;
@@ -135,7 +284,9 @@ let print_kf_global (global:global) =
 		  	Printf.printf "instr++:\n";
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
-		 	Printf.printf "loop--:\n";
+		 	Printf.printf "Enter Loop Now.\n";
+		 	generate_loop_annotations stmt block;
+		 	Printf.printf "Leave Loop Now.\n";
 		 )
 		 | Block(block) ->(
 		  	Printf.printf "block--:\n";
@@ -148,8 +299,8 @@ let print_kf_global (global:global) =
 		 )
 		 );
 		Printf.printf "\n";
-		)fundec.sallstmts;		  		
-		)
+		)fundec.sallstmts;(*List.iter end*)	
+		)(*CFun end*)
 		| GAsm(s,location) -> (
 		  	Printf.printf "s\n";
 		)
@@ -568,8 +719,8 @@ class non_zero_divisor prj = object (self)
 		| _ -> DoChildren
 end
 
-let create_syntactic_check_project () =
+(*let create_syntactic_check_project () =
 	File.create_project_from_visitor " syntactic check " (new non_zero_divisor )
 	
 		
-(*let visitor = new non_zero_divisor (Project.current ())*)
+let visitor = new non_zero_divisor (Project.current ())*)
