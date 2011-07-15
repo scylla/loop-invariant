@@ -1,8 +1,8 @@
 open LoopInvariant
 open Project
 open Cil_types
-open Cil_datatype
 open Cil
+open Cil_datatype
 open Visitor
 open Function_analysis
 open Db
@@ -78,7 +78,7 @@ end
   
 let rec loopInvariantAnalysis (cil: Cil_types.file) =
   begin	
-      	Globals.Functions.iter (fun kf ->
+      	(*Globals.Functions.iter (fun kf ->
       		Self.result "enter function %s.\n" (Kernel_function.get_name kf);
       		Printf.printf "the funspec is as follow:\n";
 		  	let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
@@ -106,18 +106,22 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	Printf.printf "the code annotations are as follow:\n";
 		  	let annot_list = Kernel_function.code_annotations kf in(*(stmt*rooted_code_annotation before_after) list*)
 		  	List.iter(fun (stmt,root_code_annot_ba) ->
-		  		(*Cil.d_stmt Format.std_formatter stmt;*)
+		  		(*Cil.d_stmt Format.std_formatter stmt;*)(*only stmts which own annotations*)
 		  		(
 		  		match root_code_annot_ba with
 		  		| Before(annot) ->(
 		  			(
 		  			match annot with
 		  			| User(code_annot) ->(
+		  				Printf.printf "User before\n";
 		  				Cil.d_code_annotation Format.std_formatter code_annot;
 		  				Format.print_flush ();
 		  				Printf.printf "\n";
 		  			)
 		  			| AI(alarmt,code_annot) ->(
+		  				Printf.printf "AI before\n";
+		  				Alarms.pretty Format.std_formatter alarmt;
+		  				Printf.printf "\n";
 		  				Cil.d_code_annotation Format.std_formatter code_annot;
 		  				Format.print_flush ();
 		  				Printf.printf "\n";
@@ -128,11 +132,15 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  			(
 		  			match annot with
 		  			| User(code_annot) ->(
+		  				Printf.printf "User after\n";
 		  				Cil.d_code_annotation Format.std_formatter code_annot;
 		  				Format.print_flush ();
 		  				Printf.printf "\n";
 		  			)
 		  			| AI(alarmt,code_annot) ->(
+		  				Printf.printf "AI after\n";
+		  				Alarms.pretty Format.std_formatter alarmt;
+		  				Printf.printf "\n";
 		  				Cil.d_code_annotation Format.std_formatter code_annot;
 		  				Format.print_flush ();
 		  				Printf.printf "\n";
@@ -143,135 +151,17 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	)annot_list;
 		  	
 		  	let global = Kernel_function.get_global kf in
-		  	match global with
-		  	| GType(typeinfo,location) -> (
-		  		Printf.printf "GType\n";
-		  	)
-		  	| GCompTag(compinfo,location) -> (
-		  		Printf.printf "GCompTag\n";
-		  	)
-		  	| GCompTagDecl(compinfo,location) -> (
-		  		Printf.printf "GCompTagDecl\n";
-		  	)
-		  	| GEnumTag(enuminfo,location) -> (
-		  		Printf.printf "GEnumTag\n";
-		  	)
-		  	| GEnumTagDecl(enuminfo,location) -> (
-		  		Printf.printf "GEnumTagDecl\n";
-		  	)
-		  	| GVarDecl(funspec,varinfo,location) -> (
-		  		Cil.d_funspec Format.std_formatter funspec;
-		  	)
-		  	| GVar(varinfo,initinfo,location) -> (
-		  		Printf.printf "GVar\n";
-		  	)
-		  	| GFun(fundec,location) -> (
-		  		List.iter( fun stmt ->		  		
-		  		(
-		  		match stmt.skind with
-		  		| If(exp,block1,block2,location) ->(
-		  			let texp = constFold true (stripCasts exp) in
-		  			Printf.printf "if--:\n";
-		  			Cil.d_exp Format.std_formatter texp;
-		  			Format.print_flush ();
-		  			Printf.printf "\n";
-		  			
-		  			let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
-		  			Cil.d_code_annotation Format.std_formatter assert_code_annot;
-		  			Format.print_flush ();
-		  			Printf.printf "\n";
-		  			
-		  			let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
-		  			Cil.d_predicate_named Format.std_formatter pre;
-		  			Format.print_flush ();
-		  			Printf.printf "\n";
-		  			
-		  			let term = !Db.Properties.Interp.force_exp_to_term texp in
-		  			Cil.d_term Format.std_formatter term;
-		  			Format.print_flush ();
-		  			Printf.printf "\n";
-		  			
-		  			Printf.printf "if++:\n";
-		  		)
-		  		| Instr(instr) ->(
-		  			Printf.printf "instr--:\n";		  			
-		  			Cil.d_instr Format.std_formatter instr;
-		  			Format.print_flush ();
-		  			Printf.printf "\n";
-		  			Printf.printf "instr++:\n";
-		  		)
-		  		| Loop(code_annot_list,block,location,stmto1,stmto2) ->(
-		  			Printf.printf "loop--:\n";
-		  		)
-		  		| Block(block) ->(
-		  			Printf.printf "block--:\n";
-		  		)
-		  		| Return(expo,location) ->(
-		  			Printf.printf "return--:\n";
-		  		)
-		  		| _ ->(
-		  			Printf.printf "\n";
-		  		)
-		  		);
-				Printf.printf "\n";
-		  		)fundec.sallstmts;
-		  		
-		  		(*Cil.d_block Format.std_formatter fundec.sbody;*)
-		  	)
-		  	| GAsm(s,location) -> (
-		  		Printf.printf "s\n";
-		  	)
-		  	| GPragma(attribute,location) -> (
-		  		Printf.printf "GPragma\n";
-		  	)
-		  	| GText(s) -> (
-		  		Printf.printf "GText\n";
-		  	)
-		  	| GAnnot(global_annotation,location) -> (
-		  	)
-		  	| _ -> (
-		  		Printf.printf "\n";
-		  	);
-		  	
-		  	(*Cil.d_global Format.std_formatter global;		  	
-		  	let first_stmt = Kernel_function.find_first_stmt kf in
-		  	let first_block = Kernel_function.find_enclosing_block first_stmt in
-		  	
-		  	let rec print_stmt (sl:stmt list) =
-		  	if (List.length sl)>0
-		  	then
-		  	List.iter (fun (s_succs:stmt) ->
-		  	Cil.d_stmt Format.std_formatter s_succs;
-		  	print_stmt s_succs.succs;
-		  	
-		  	let state = Cil.selfMachine in
-		  	(*Printf.printf "%s" (State.get_name state);
-			let state = Cil.selfFormalsDecl in
-			Printf.printf "%s" (State.get_name state);*)
-			let annotList = Annotations.get_all () in
-			List.iter(fun (annot,ba) ->
-			Cil.d_annotation Format.std_formatter annot;
-			(*match annot with
-			| User(code_anno) -> (
-			Cil.d_code_annotation Format.std_formatter code_anno;
-			)
-			| _ -> (
-			Printf.printf "\n";
-			)*)
-			)annotList;
-		  	
-		  	Printf.printf "\n";
-			
-		  	) sl;
-		  	in
-		  	Cil.d_stmt Format.std_formatter first_stmt;
-		  	print_stmt first_stmt.succs;*)
+		  	Function_analysis.print_kf_global global;
+		  			  	
 		  	Printf.printf "\n";
 		  	
 		  	Self.result "leave function %s.\n" (Kernel_function.get_name kf);
-      	);
+      	);*)
       	
-      	
+      	List.iter(fun g ->(
+      	Function_analysis.print_kf_global g;
+      	)
+      	)cil.globals;
       	
 		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
 		
@@ -335,86 +225,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 			(*Cil.d_global Format.std_formatter anno;*)
 		) ;
 		
-		List.iter (function g ->
-			match g with
-				|	(GText text) ->	
-					Printf.printf "location.file=%s\n" text;
-				| (GVarDecl (funspec,varinfo,location)) -> 
-					(*Printf.printf "GVarDecl:location.file=%s\n" (get_loc_str location);*)
-					Cil.d_var Format.err_formatter varinfo;
-					Cil.d_loc Format.str_formatter location;
-					Printf.printf "GVarDecl:varinfo.vname=%s\n" varinfo.vname;
-					(*Cil.printType plainCilPrinter () varinfo.vtype;
-					Format.print_string "\n";*)
-				| (GType (typeinfo,location)) -> 
-					Printf.printf "GType:typeinfo.tname=%s\n" typeinfo.tname;
-					(*Printf.printf "GType:location.file=%s\n" (get_loc_str location);*)
-				| (GCompTag (compinfo,location)) -> 
-					Printf.printf "GCompTag:compinfo.cname=%s\n" compinfo.cname;
-					(*Printf.printf "GCompTag:location.file=%s\n" (get_loc_str location);*)
-				| (GCompTagDecl (compinfo,location)) -> 
-					Printf.printf "GCompTagDecl:compinfo.cname=%s\n" compinfo.cname;
-					(*Printf.printf "GCompTagDecl:location.file=%s\n" (get_loc_str location);*)
-				| (GEnumTag (enuminfo,location)) -> 
-					Printf.printf "GEnumTagDecl:enuminfo.ename=%s\n" enuminfo.ename;
-					(*Printf.printf "GEnumTag:location.file=%s\n" (get_loc_str location);*)
-				| (GEnumTagDecl (enuminfo,location)) -> 
-					Printf.printf "GEnumTagDecl:enuminfo.ename=%s\n" enuminfo.ename;
-					(*Printf.printf "GEnumTagDecl:location.file=%s\n" (get_loc_str location);*)
-				| (GVarDecl (funspec,varinfo,location)) -> 
-					Printf.printf "GVarDecl:varinfo.vname=%s\n" varinfo.vname; 
-					(*Printf.printf "GVarDecl:location.file=%s\n" (get_loc_str location);*)
-				| (GVar (varinfo,initinfo,location)) -> 
-					Printf.printf "GVar:varinfo.vname=%s\n" varinfo.vname;
-					(*Printf.printf "GVar:location.file=%s\n" (get_loc_str location);*)
-					Printf.printf "Gvar:varinfo.vname=%s\n" varinfo.vname;
-				| (GFun (fundec,location)) -> 
-					Printf.printf "%s\n" "GFun:";
-					(*Printf.printf "%s" "loc:";
-					Cil.d_loc Format.std_formatter location;
-					Printf.printf "%s" "**\n";
-					(*Printf.printf "\tlocation.file=%s\n" (get_loc_str location);*)
-					Printf.printf "fundec.name=%s\n" fundec.svar.vname;
-					
-					Printf.printf "%s\n" "----fundec.slocals";
-					List.iter (fun varinfo ->
-						Printf.printf "%s\n" varinfo.vname;
-						) fundec.slocals;
-					Printf.printf "%s\n" "++++fundec.slocals";
-					Printf.printf "%s\n" "----fundec.sformals";
-					List.iter (fun ele ->
-						Printf.printf "%s\n" ele.vname;
-						) fundec.sformals;
-					Printf.printf "%s\n" "++++fundec.sformals";*)
-					
-					Cfg.clearCFGinfo ~clear_id:false fundec;
-					Cfg.cfgFun fundec;
-					(*Function_analysis.get_loop_infor fundec;*)
-					Function_analysis.count_loop_number fundec;
-					(*Function_analysis.p_visitor visitor;
-					Function_analysis.print_function_stmts fundec visitor;*)
-					
-					Function_analysis.print_function_body fundec visitor;
-					(*let num = Cfg.cfgFun fundec in
-					Printf.printf "\tCfg.cfgFun:num=%d\n" num;*)
-					
-					(*let dotName = "/home/lzh/"^fundec.svar.vname^".dot" in
-					Cfg.printCfgFilename dotName fundec;
-					let cmdstr = "dot /home/lzh/"^fundec.svar.vname^".dot -Tpng -o /home/lzh/"^fundec.svar.vname^".png" in
-					Sys.command cmdstr;*)
-					
-					Printf.printf "%s\n" "";
-						
-					(*Format.print_string "\n";
-				| (GAsm (asm,location)) -> 
-					Printf.printf "GAsm:location.file=%s\n" location.file;
-				| (GPragma (attribute,location)) -> 
-					Printf.printf "GPragma:location.file=%s\n" location.file;*)
-				| GAnnot(global_annotation , location) ->
-					Cil.d_global Format.std_formatter g;
-					Printf.printf "%s\n" "GAnnot:";
-				| _ -> Printf.printf "%s\n" "I donnot konw.";
-			) cil.globals;
+		
 			
 			(*let mainname = ref "main" in
 			let theFile : global list ref = ref [] in
@@ -437,7 +248,6 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
             theFile := g :: !theFile (* Now put the global back *)
         end
         cil.globals;*)
-		Printf.printf "numbers of loops in the program=%n\n" !Function_analysis.loop_number;
 		Printf.printf "%s\n" "++++cil.globals";
 		
 		(**get CallGraph and print*)
