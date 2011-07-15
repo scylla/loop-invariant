@@ -75,6 +75,96 @@ let p_visitor visitor =
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor
 
+let print_kf_global (global:global) =
+	match global with
+	| GType(typeinfo,location) -> (
+		  Printf.printf "GType\n";
+	)
+	| GCompTag(compinfo,location) -> (
+		  Printf.printf "GCompTag\n";
+	)
+	| GCompTagDecl(compinfo,location) -> (
+		  Printf.printf "GCompTagDecl\n";
+	)
+	| GEnumTag(enuminfo,location) -> (
+		  Printf.printf "GEnumTag\n";
+	)
+	| GEnumTagDecl(enuminfo,location) -> (
+		  Printf.printf "GEnumTagDecl\n";
+	)
+	| GVarDecl(funspec,varinfo,location) -> (
+		  Cil.d_funspec Format.std_formatter funspec;
+	)
+	| GVar(varinfo,initinfo,location) -> (
+		 Printf.printf "GVar\n";
+	)
+	| GFun(fundec,location) -> (
+		List.iter( fun stmt ->		  		
+		(
+		match stmt.skind with
+		| If(exp,block1,block2,location) ->(
+		  	let texp = constFold true (stripCasts exp) in
+		  	Printf.printf "if--:\n";
+		  	Cil.d_exp Format.std_formatter texp;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  			
+		  	let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
+		  	Cil.d_code_annotation Format.std_formatter assert_code_annot;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  			
+		  	let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
+		  	Cil.d_predicate_named Format.std_formatter pre;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  	Annotations.add_assert stmt [Ast.self] ~before:true pre;
+		  			
+		  	let term = !Db.Properties.Interp.force_exp_to_term texp in
+		  	Cil.d_term Format.std_formatter term;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  			
+		  	Printf.printf "if++:\n";
+		 )
+		 | Instr(instr) ->(
+		 	Printf.printf "instr--:\n";		  			
+		  	Cil.d_instr Format.std_formatter instr;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  	Printf.printf "instr++:\n";
+		 )
+		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
+		 	Printf.printf "loop--:\n";
+		 )
+		 | Block(block) ->(
+		  	Printf.printf "block--:\n";
+		 )
+		 | Return(expo,location) ->(
+		  	Printf.printf "return--:\n";
+		 )
+		 | _ ->(
+		  	Printf.printf "\n";
+		 )
+		 );
+		Printf.printf "\n";
+		)fundec.sallstmts;		  		
+		)
+		| GAsm(s,location) -> (
+		  	Printf.printf "s\n";
+		)
+		| GPragma(attribute,location) -> (
+		  	Printf.printf "GPragma\n";
+		)
+		| GText(s) -> (
+			Printf.printf "GText\n";
+		)
+		| GAnnot(global_annotation,location) -> (
+		)
+		| _ -> (
+			Printf.printf "\n";
+		)
+		  	
 (**语句类型*)
 let print_function_stmt_kind stmt visitor= 
 	(*let loop_visitor = new Visitor.frama_c_inplace in
