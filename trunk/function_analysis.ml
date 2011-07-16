@@ -134,35 +134,72 @@ let rec generate_predicate_list_from_block pre_list block =
 	pre_list
 	end
 	
-let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) =
+let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (tp_namedl:predicate named list) (ep_namedl:predicate named list) =
 	(*match loop_stmt.skind with
 	| Loop(code_annot_list,block,location,stmto1,stmto2)->*)
-	Printf.printf "generate_predicate_list_from_block---\n";	
+	(*Printf.printf "generate_predicate_list_from_block---\n";	
 	let p_list = generate_predicate_list_from_block [] loop_block in
 	Printf.printf "p_list.length=%d\n" (List.length p_list);
 	List.iter(fun p->
 	Cil.d_predicate_named Format.std_formatter p;
 	Format.print_flush ();
 	)p_list;
-	Printf.printf "generate_predicate_list_from_block+++\n";	
+	Printf.printf "generate_predicate_list_from_block+++\n";*)	
 	
 		List.iter(fun stmt->
 		match stmt.skind with
 		| If(exp,block1,block2,location)->(
 			let texp = constFold true (stripCasts exp) in
-		  	(
+		  	(*(
 		  	match texp.enode with
-			| BinOp((Div|Mod|Mult|PlusA|MinusA),exp1,exp2,typ)->(
+			| BinOp(binop,exp1,exp2,typ)->(
 			  	Cil.d_type Format.std_formatter typ;
 			  	Format.print_flush ();
-			  	Printf.printf "Div\n";		
-			)
-			| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->(
-			  	Cil.d_type Format.std_formatter typ;
-			  	Format.print_flush ();
-			  	Printf.printf "\n";
-			  	let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in
-			  	let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in
+			  	Printf.printf "\n";			  	
+				
+			  	let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in*)
+			  	let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in(*get condition predicate*)
+			  	(*let t_pre_list = [pre_named] in
+			  	let e_pre_list = [pre_named] in*)
+			  	let tp_namedl = [pre_named] in
+			  	let ep_namedl = [pre_named] in
+				Printf.printf "pre_list.length0=%d\n" (List.length tp_namedl);
+			  	let generate_block_predicate (b:block) =
+			  	????
+			  	List.iter(fun s->
+			  	match s.skind with
+			  	| Instr(instr)->(
+			  		match instr with
+			  		| Set(lval,exp,location)->(
+			  			let texp = constFold true (stripCasts exp) in
+			  			match texp.enode with
+			  			| BinOp(binop,exp1,exp2,typ)->(
+				  			let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+							let tr = !Db.Properties.Interp.force_exp_to_term exp in
+							let tnode = TLval(tlval) in
+							let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
+							let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+							let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+							let tp_namedl = List.append [p_named] tp_namedl in
+							(*let tp_namedl = p_named::tp_namedl in*)
+							Printf.printf "pre_list.length1=%d\n" (List.length tp_namedl);
+			  			)
+			  			| _->(
+			  			);(*match texp.enode End*)
+			  		)(*Set End*)
+			  		| _->(
+			  		);(*match instr End*)
+					Printf.printf "pre_list.length2=%d\n" (List.length tp_namedl);
+			  	)(*Instr End*)
+			  	| _->(
+			  	);(*match s.skind End*)
+			  	Printf.printf "pre_list.length3=%d\n" (List.length tp_namedl);
+			  	)block1.bstmts;
+			  	Printf.printf "pre_list.length4=%d\n" (List.length tp_namedl);
+			  	
+			  	List.iter(fun s->
+			  	()
+			  	)block2.bstmts;
 			  	
 			  	let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
 			  		
@@ -174,25 +211,28 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) =
 					in
 					let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
 					Annotations.add loop_stmt [Ast.self] root_code_annot_ba;
-			  	in		  		
+			  	in
 			  		
 			  	if (Logic_var.Set.is_empty free_vars)=false
 			  	then add_code_annot free_vars;	
 			  	
 			  	Printf.printf "not equal\n";	  		
-			  	)
+			  	(*)
 			| _->(
 				Cil.d_stmt Format.std_formatter stmt;
 			)
-			);(*match texp.enode End*)
-			if (List.length block1.bstmts)>0 then
-			generate_loop_annotations loop_stmt block1;
+			);*)(*match texp.enode End*)
+			(*if (List.length block1.bstmts)>0 then
+			generate_loop_annotations loop_stmt block1 t_pre_list e_pre_list;
 			if (List.length block2.bstmts)>0 then
-			generate_loop_annotations loop_stmt block2;
+			generate_loop_annotations loop_stmt block2 t_pre_list e_pre_list;*)
 		)(*If End*)
 		| Block(block)->(
+			let t_pre_list = [] in
+			let e_pre_list = [] in
 			if (List.length block.bstmts)>0 then
-			generate_loop_annotations loop_stmt block;
+			generate_loop_annotations loop_stmt block t_pre_list e_pre_list;
+			Printf.printf "t_pre_list.length=%d\n" (List.length t_pre_list);
 		)
 		| UnspecifiedSequence(l)->(
 			Printf.printf "UnspecifiedSequence\n";
@@ -381,7 +421,10 @@ let print_kf_global (global:global) =
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
-		 	generate_loop_annotations stmt block;
+			let t_pre_list = [] in
+			let e_pre_list = [] in
+		 	generate_loop_annotations stmt block t_pre_list e_pre_list;
+			Printf.printf "t_pre_list.length=%d\n" (List.length t_pre_list);
 		 	Printf.printf "Leave Loop Now.\n";
 		 )
 		 | Block(block) ->(
