@@ -76,10 +76,76 @@ let p_stmt_value kinstr visitor =
 let p_visitor visitor = 
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor
+	
+(*let p_named = 'a Cil_type.named*)
 
+let rec generate_predicate_list_from_block pre_list block =
+	if (List.length block.bstmts)=0 then pre_list
+	else
+	begin
+	List.iter(fun stmt ->
+	match stmt.skind with
+	| Instr(instr)->(
+		match instr with
+		| Set(lval,exp,location)->((*An assignment*)
+			let lexpr = constFold true (stripCasts exp) in
+			match lexpr.enode with
+			| UnOp(unop,exp,typ)->(
+				Printf.printf "UnOp\n";
+				Cil.d_exp Format.std_formatter exp;
+				Format.print_flush ();
+				Printf.printf "\n";
+			
+				Cil.d_lval Format.std_formatter lval;
+				Format.print_flush ();
+				Printf.printf "\n";
+			
+				Cil.d_exp Format.std_formatter lexpr;
+				Format.print_flush ();
+				Printf.printf "\n";
+			)
+			| BinOp(binop,exp1,exp2,typ)->(
+				Printf.printf "BinOp\n";
+				
+				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+				let tr = !Db.Properties.Interp.force_exp_to_term exp in
+				let tnode = TLval(tlval) in
+				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
+				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+				let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+				let pre_list = p_named::pre_list in
+				Printf.printf "pre_list.length1=%d\n" (List.length pre_list);
+				()
+			)
+			| _->(
+			);(*match lexpr.enode End*)
+			()
+		)
+		| _->(
+		);(*match instr End*)
+		
+	)(*Instr End*)
+	| Break(location)->(
+	)(*Break End*)
+	| _->(
+	);(*match stmt.skind End*)	
+	)block.bstmts;(*List.iter End*)
+	Printf.printf "pre_list.length2=%d\n" (List.length pre_list);
+	pre_list
+	end
+	
 let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) =
 	(*match loop_stmt.skind with
 	| Loop(code_annot_list,block,location,stmto1,stmto2)->*)
+	Printf.printf "generate_predicate_list_from_block---\n";	
+	let p_list = generate_predicate_list_from_block [] loop_block in
+	Printf.printf "p_list.length=%d\n" (List.length p_list);
+	List.iter(fun p->
+	Cil.d_predicate_named Format.std_formatter p;
+	Format.print_flush ();
+	)p_list;
+	Printf.printf "generate_predicate_list_from_block+++\n";	
+	
 		List.iter(fun stmt->
 		match stmt.skind with
 		| If(exp,block1,block2,location)->(
@@ -215,9 +281,9 @@ let print_kf_global (global:global) =
 				      Logic_const.new_code_annotation
 				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
 		       		in
-		       		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-		       		Annotations.add stmt [Ast.self] root_code_annot_ba;
-		  		in		  		
+		       		let assert_root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+		       		Annotations.add stmt [Ast.self] assert_root_code_annot_ba;
+		  		in
 		  		
 		  		if (Logic_var.Set.is_empty free_vars)=false
 		  		then add_code_annot free_vars;
@@ -254,7 +320,7 @@ let print_kf_global (global:global) =
 		  	)
 		  	);
 		  	Printf.printf "if--:\n";
-		  	Cil.d_exp Format.std_formatter texp;
+		  	(*Cil.d_exp Format.std_formatter texp;
 		  	Format.print_flush ();
 		  	Printf.printf "\n";
 		  	
@@ -266,21 +332,51 @@ let print_kf_global (global:global) =
 		  	let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
 		  	Cil.d_predicate_named Format.std_formatter pre;
 		  	Format.print_flush ();
-		  	Printf.printf "\n";
+		  	Printf.printf "\n";*)
 		  	(*Annotations.add_assert stmt [Ast.self] ~before:true pre;*)
 		  	
-		  	let term = !Db.Properties.Interp.force_exp_to_term texp in
+		  	(*let term = !Db.Properties.Interp.force_exp_to_term texp in
 		  	Cil.d_term Format.std_formatter term;
 		  	Format.print_flush ();
-		  	Printf.printf "\n";
+		  	Printf.printf "\n";*)
 		  	
 		  	Printf.printf "if++:\n";
 		 )(*end If*)
 		 | Instr(instr) ->(
-		 	Printf.printf "instr--:\n";		  			
+		 	Printf.printf "instr--:\n";	  			
 		  	Cil.d_instr Format.std_formatter instr;
 		  	Format.print_flush ();
 		  	Printf.printf "\n";
+		  	match instr with
+		  	| Set(lval,exp,location)->(
+			  	let lexpr = constFold true (stripCasts exp) in
+				match lexpr.enode with
+				| UnOp(unop,exp,typ)->(
+					Printf.printf "g UnOp\n";
+					
+					let pre = !Db.Properties.Interp.force_exp_to_predicate exp in
+				  	Cil.d_predicate_named Format.std_formatter pre;
+				  	Format.print_flush ();
+				  	Printf.printf "\n";
+				)
+				| BinOp(binop,exp1,exp2,typ)->(
+					Printf.printf "g BinOp\n";
+					
+					let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+					let tr = !Db.Properties.Interp.force_exp_to_term exp in
+					let tnode = TLval(tlval) in
+					let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
+					let pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+					Cil.d_identified_predicate Format.std_formatter pre;
+					Format.print_flush ();
+					Printf.printf "\n";		  	
+				)
+				| _->(
+				);(*match lexpr.enode End*)
+			)
+			| _->(
+			);(*match instr End*)
+		  	Format.print_flush ();
 		  	Printf.printf "instr++:\n";
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
