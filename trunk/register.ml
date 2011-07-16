@@ -183,8 +183,37 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		
 		Printf.printf "Ast.is_computed=%b\n" (Ast.is_computed ());
 		Printf.printf "anno.length=%d\n" (List.length (Globals.Annotations.get_all ()));
-		List.iter(fun (annot,gene) ->
-			Cil.d_annotation Format.std_formatter annot;
+		List.iter(fun (g_annot,gene) ->
+		(*Cil.d_annotation Format.std_formatter g_annot;*)
+		match g_annot with
+		| Dlemma(s,b,logic_label_l,s_list,p_named,location)->(		
+			Printf.printf "Dlemma---\n";
+			Cil.d_annotation Format.std_formatter g_annot;
+			Printf.printf "string1=%s\n" s;
+			List.iter(fun label->
+			match label with
+			| LogicLabel(stmto,s1)->(
+				Printf.printf "logic_label=%s\n" s1;
+			)
+			| StmtLabel(stmtr)->(
+				Printf.printf "StmtLabel=";
+				Cil.d_stmt Format.std_formatter !stmtr;
+				Format.print_flush ();
+				Printf.printf "\n";()
+			);(*match label End*)
+			)logic_label_l;
+			List.iter(fun s1->
+			Printf.printf "s_list=%s\n" s1;
+			)s_list;
+			
+			Cil.d_predicate_named Format.std_formatter p_named;(*empty?*)
+			Format.print_flush ();
+			Printf.printf "\n";
+			
+			Printf.printf "Dlemma+++\n";
+		)
+		| _->(
+		);(*match g_annot End*)
 		)(Globals.Annotations.get_all ()); 
 		
 		Printf.printf "length=cil.globals=%d\n" (List.length cil.globals);
@@ -215,15 +244,6 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		
 		(*!Db.Value.compute ();
 		let visitor = new File.check_file cil.fileName in*)
-		Printf.printf "%b\n" (Ast.is_computed ());
-		let globs = Globals.Annotations.get_all () in
-		Printf.printf "globs.length=";
-		List.length globs;
-		Printf.printf "\n";
-		Globals.Annotations.iter (fun (anno:global_annotation) (isGene:bool) ->
-			Printf.printf "anno\n";
-			(*Cil.d_global Format.std_formatter anno;*)
-		) ;
 		
 		
 			
