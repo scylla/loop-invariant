@@ -150,23 +150,11 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		match stmt.skind with
 		| If(exp,block1,block2,location)->(
 			let texp = constFold true (stripCasts exp) in
-		  	(*(
-		  	match texp.enode with
-			| BinOp(binop,exp1,exp2,typ)->(
-			  	Cil.d_type Format.std_formatter typ;
-			  	Format.print_flush ();
-			  	Printf.printf "\n";			  	
-				
-			  	let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in*)
-			  	let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in(*get condition predicate*)
-			  	(*let t_pre_list = [pre_named] in
-			  	let e_pre_list = [pre_named] in*)
-			  	let tp_namedl = [pre_named] in
-			  	let ep_namedl = [pre_named] in
-				Printf.printf "pre_list.length0=%d\n" (List.length tp_namedl);
-				
-			  	let generate_block_predicate (b:block) =
-			  	List.map(fun s->
+			  	let cp_named = !Db.Properties.Interp.force_exp_to_predicate texp in(*get condition predicate*)
+			  	let lt = ref [] in
+			  		
+			  	let rec generate_block_predicate (b:block) =
+			  	List.iter(fun s->
 			  	match s.skind with
 			  	| Instr(instr)->(
 			  		match instr with
@@ -180,24 +168,34 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 							let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
 							let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
 							let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-							p_named;
+							lt := p_named::!lt;();
 			  			)
 			  			| _->(
-			  				Logic_const.ptrue;
 			  			);(*match texp.enode End*)
 			  		)(*Set End*)
 			  		| _->(
-			  			Logic_const.ptrue;
 			  		);(*match instr End*)
 			  	)(*Instr End*)
+			  	| If(exp_temp,b1,b2,l)->(
+					let texp_temp = constFold true (stripCasts exp_temp) in
+			  		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
+			  		cp_named_temp::(generate_block_predicate b1);
+			  		lt := List.merge(fun a b->1) (cp_named_temp::(generate_block_predicate b1)) !lt;
+			  		(*lt := (Logic_const.pnot ~loc:l cp_named_temp)::(generate_block_predicate b2);*)
+			  		(*lt := List.merge(fun a b->1) ((Logic_const.pnot ~loc:l cp_named_temp)::(generate_block_predicate b1)) !lt;*)
+			  		Printf.printf "lt.length1=%d\n" (List.length !lt);
+			  		();
+			  	)(*If End*)
 			  	| _->(
-			  		Logic_const.ptrue;
 			  	);(*match s.skind End*)
 			  	) b.bstmts;(*List.map End*)
+			  	Printf.printf "lt.length2=%d\n" (List.length !lt);
+			  	!lt;
 			  	in
 			  	
-			  	
+			  	Printf.printf "lt.length3=%d\n" (List.length !lt);
 			  	let tp_namedl = generate_block_predicate block1 in
+			  	let tp_namedl = List.rev tp_namedl in
 			  	let tp_named = Logic_const.pands tp_namedl in
 			  	
 			  	List.iter(fun pn->
@@ -208,6 +206,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			  	Printf.printf "tpre_list.length4=%d\n" (List.length tp_namedl);
 			  	
 			  	let ep_namedl = generate_block_predicate block2 in
+			  	let ep_namedl = List.rev ep_namedl in
 			  	let ep_named = Logic_const.pands ep_namedl in
 			  	
 			  	List.iter(fun pn->
@@ -217,10 +216,11 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			  	)ep_namedl;
 			  	Printf.printf "epre_list.length4=%d\n" (List.length ep_namedl);
 			  	
-			  	let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
-			  	let cp_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),pre_named)) in
-			  	let ti_named = Logic_const.pand ~loc:location (cp_named,tp_named) in
-			  	let ei_named = Logic_const.pand ~loc:location (cp_named,(Logic_const.pnot ~loc:location ep_named)) in
+			  	let free_vars = Cil.extract_free_logicvars_from_predicate cp_named in			  	
+			  	let tp_named = Logic_const.pand ~loc:location (cp_named,tp_named) in
+			  	let ti_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),tp_named)) in
+			  	let ep_named = Logic_const.pand ~loc:location ((Logic_const.pnot ~loc:location cp_named),ep_named) in
+			  	let ei_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),ep_named)) in
 			  	
 			  	let t_annotation = Logic_const.new_code_annotation(AInvariant([],true,ti_named)) in
 			  	let e_annotation = Logic_const.new_code_annotation(AInvariant([],true,ei_named)) in
@@ -247,10 +247,6 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 				Cil.d_stmt Format.std_formatter stmt;
 			)
 			);*)(*match texp.enode End*)
-			(*if (List.length block1.bstmts)>0 then
-			generate_loop_annotations loop_stmt block1 t_pre_list e_pre_list;
-			if (List.length block2.bstmts)>0 then
-			generate_loop_annotations loop_stmt block2 t_pre_list e_pre_list;*)
 		)(*If End*)
 		| Block(block)->(
 			(*let t_pre_list = [] in
