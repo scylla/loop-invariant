@@ -182,10 +182,14 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		let texp_temp = constFold true (stripCasts exp_temp) in
 		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
 		let free_vars = Cil.extract_free_logicvars_from_predicate cp_named_temp in
+		lt := cp_named_temp::(generate_block_predicate b1);
 		
-		lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),cp_named_temp)))::(generate_block_predicate b1);(*List.merge(fun a b->1) ( ) !lt;*)
+		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pands !lt)))];
+		(*lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),cp_named_temp)))::(generate_block_predicate b1);*)(*List.merge(fun a b->1) ( ) !lt;*)
 		total_lt := !lt::!total_lt;
-		lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pnot ~loc:l cp_named_temp))))::(generate_block_predicate b2);
+		lt := (Logic_const.pnot ~loc:l cp_named_temp)::(generate_block_predicate b2);
+		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pands !lt)))];
+		(*lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pnot ~loc:l cp_named_temp))))::(generate_block_predicate b2);*)
 		total_lt := !lt::!total_lt;
 		lt := [];
 			  		
