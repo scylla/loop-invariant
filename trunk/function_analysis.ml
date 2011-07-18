@@ -146,54 +146,74 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	)p_list;
 	Printf.printf "generate_predicate_list_from_block+++\n";*)	
 	
+	let lt = ref [] in
+	let total_lt = ref [] in
+	let count = ref 0 in
+		
+	let rec generate_block_predicate (b:block) =
+	List.iter(fun s->
+	Printf.printf "count=%d\n" !count;
+	Cil.d_stmt Format.std_formatter s;
+	Format.print_flush ();
+	Printf.printf "\n\n";
+	count := !count+1;
+	
+	match s.skind with
+	| Instr(instr)->(
+		match instr with
+		| Set(lval,exp,location)->((*An assignment*)
+			let texp = constFold true (stripCasts exp) in
+			let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+			let tr = !Db.Properties.Interp.force_exp_to_term exp in
+			let tnode = TLval(tlval) in
+			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
+			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+			let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+			lt := p_named::!lt;();
+		)(*Set End*)
+		| _->(
+		);(*match instr End*)
+		if (List.length s.succs)=0 then 
+		begin total_lt := !lt::!total_lt;lt := []; end
+	)(*Instr End*)
+	| If(exp_temp,b1,b2,l)->(
+		total_lt := !lt::!total_lt;
+		lt := [];
+		let texp_temp = constFold true (stripCasts exp_temp) in
+		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
+		let free_vars = Cil.extract_free_logicvars_from_predicate cp_named_temp in
+		
+		lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),cp_named_temp)))::(generate_block_predicate b1);(*List.merge(fun a b->1) ( ) !lt;*)
+		total_lt := !lt::!total_lt;
+		lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pnot ~loc:l cp_named_temp))))::(generate_block_predicate b2);
+		total_lt := !lt::!total_lt;
+		lt := [];
+			  		
+		();
+	)(*If End*)
+	| Block(b2)->(
+		generate_block_predicate b2;();
+	)(*Block End*)
+	| _->(
+	);(*match s.skind End*)
+	) b.bstmts;(*List.map End*)
+	!lt;
+	in
+	
+	generate_block_predicate loop_block;
+	total_lt
+			  	
+			  	
+			  	
+			  	
+		(*
 		List.iter(fun stmt->
 		match stmt.skind with
 		| If(exp,block1,block2,location)->(
 			let texp = constFold true (stripCasts exp) in
 			  	let cp_named = !Db.Properties.Interp.force_exp_to_predicate texp in(*get condition predicate*)
-			  	let lt = ref [] in
-			  		
-			  	let rec generate_block_predicate (b:block) =
-			  	List.iter(fun s->
-			  	match s.skind with
-			  	| Instr(instr)->(
-			  		match instr with
-			  		| Set(lval,exp,location)->(
-			  			let texp = constFold true (stripCasts exp) in
-			  			match texp.enode with
-			  			| BinOp(binop,exp1,exp2,typ)->(
-				  			let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
-							let tr = !Db.Properties.Interp.force_exp_to_term exp in
-							let tnode = TLval(tlval) in
-							let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
-							let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
-							let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-							lt := p_named::!lt;();
-			  			)
-			  			| _->(
-			  			);(*match texp.enode End*)
-			  		)(*Set End*)
-			  		| _->(
-			  		);(*match instr End*)
-			  	)(*Instr End*)
-			  	| If(exp_temp,b1,b2,l)->(
-					let texp_temp = constFold true (stripCasts exp_temp) in
-			  		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
-			  		cp_named_temp::(generate_block_predicate b1);
-			  		lt := List.merge(fun a b->1) (cp_named_temp::(generate_block_predicate b1)) !lt;
-			  		(*lt := (Logic_const.pnot ~loc:l cp_named_temp)::(generate_block_predicate b2);*)
-			  		(*lt := List.merge(fun a b->1) ((Logic_const.pnot ~loc:l cp_named_temp)::(generate_block_predicate b1)) !lt;*)
-			  		Printf.printf "lt.length1=%d\n" (List.length !lt);
-			  		();
-			  	)(*If End*)
-			  	| _->(
-			  	);(*match s.skind End*)
-			  	) b.bstmts;(*List.map End*)
-			  	Printf.printf "lt.length2=%d\n" (List.length !lt);
-			  	!lt;
-			  	in
 			  	
-			  	Printf.printf "lt.length3=%d\n" (List.length !lt);
+			  	
 			  	let tp_namedl = generate_block_predicate block1 in
 			  	let tp_namedl = List.rev tp_namedl in
 			  	let tp_named = Logic_const.pands tp_namedl in
@@ -215,6 +235,18 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			  	Printf.printf "\n";
 			  	)ep_namedl;
 			  	Printf.printf "epre_list.length4=%d\n" (List.length ep_namedl);
+			  	
+			  	Printf.printf "total_lt.length3=%d\n" (List.length !total_lt);
+			  	List.iter(fun tl->(
+			  	List.iter(fun pn->(
+			  	Cil.d_predicate_named Format.std_formatter pn;
+			  	Format.print_flush ();
+			  	Printf.printf "\n";
+			  	)
+			  	)tl;
+			  	Printf.printf "\n";
+			  	)
+			  	)!total_lt;
 			  	
 			  	let free_vars = Cil.extract_free_logicvars_from_predicate cp_named in			  	
 			  	let tp_named = Logic_const.pand ~loc:location (cp_named,tp_named) in
@@ -265,7 +297,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	(*)(*Loop End*)
 	| _->(
 	)*)
-
+	*)
 
 let print_kf_global (global:global) =
 	match global with
@@ -415,22 +447,19 @@ let print_kf_global (global:global) =
 				| UnOp(unop,exp,typ)->(
 					Printf.printf "g UnOp\n";
 					
-					let pre = !Db.Properties.Interp.force_exp_to_predicate exp in
+					(*let pre = !Db.Properties.Interp.force_exp_to_predicate exp in
 				  	Cil.d_predicate_named Format.std_formatter pre;
 				  	Format.print_flush ();
-				  	Printf.printf "\n";
+				  	Printf.printf "\n";*)
 				)
 				| BinOp(binop,exp1,exp2,typ)->(
 					Printf.printf "g BinOp\n";
 					
-					let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+					(*let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
 					let tr = !Db.Properties.Interp.force_exp_to_term exp in
 					let tnode = TLval(tlval) in
 					let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
-					let pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
-					Cil.d_identified_predicate Format.std_formatter pre;
-					Format.print_flush ();
-					Printf.printf "\n";		  	
+					let pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in*)
 				)
 				| _->(
 				);(*match lexpr.enode End*)
@@ -442,7 +471,27 @@ let print_kf_global (global:global) =
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
-		 	generate_loop_annotations stmt block;
+		 	let total_lt = generate_loop_annotations stmt block in
+		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
+		 	List.iter(fun tl->(
+		 	
+			(*let tl = List.rev tl in*)
+			let t_named = Logic_const.pands tl in
+			  	
+			let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
+			Annotations.add stmt [Ast.self] root_code_annot_ba;
+			  	
+			(*List.iter(fun pn->(
+			  	Cil.d_predicate_named Format.std_formatter pn;
+			  	Format.print_flush ();
+			  	Printf.printf "\n"; 	
+			)
+			)tl;
+			Printf.printf "\n";*)
+			)
+			)!total_lt;
+			  	
 		 	Printf.printf "Leave Loop Now.\n";
 		 )
 		 | Block(block) ->(
