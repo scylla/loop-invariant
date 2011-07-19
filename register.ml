@@ -75,7 +75,7 @@ class loopInvariant = object (self)
   	DoChildren
 end
 
-  
+	 
 let rec loopInvariantAnalysis (cil: Cil_types.file) =
   begin	
       	(*Globals.Functions.iter (fun kf ->
