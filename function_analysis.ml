@@ -194,6 +194,30 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			  		
 		();
 	)(*If End*)
+	| Break(location)|Continue(location)->(
+		let len = List.length s.preds in
+		let i = ref 0 in
+		for i=0 to len-1 do
+		(*search preds of s to find the nearest enclosing Loop or Switch condition*)
+			let s_pred = List.nth s.preds i in
+			match s_pred.skind with
+			| If(exp,_,_,_)->(
+				Printf.printf "the nearest enclosing if\n";
+				Cil.d_stmt Format.std_formatter s_pred;
+				Format.print_flush ();
+				Printf.printf "\n";
+				List.iter(fun s_succs->(
+				Cil.d_stmt Format.std_formatter s_succs;
+				Format.print_flush ();
+				Printf.printf "\n";
+				)
+				)s.succs;
+			)
+			| _->(
+			);
+		done;
+		();
+	)(*Break End*)
 	| Block(b2)->(
 		generate_block_predicate b2;();
 	)(*Block End*)
