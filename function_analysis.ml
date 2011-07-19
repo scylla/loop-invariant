@@ -76,8 +76,6 @@ let p_stmt_value kinstr visitor =
 let p_visitor visitor = 
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor
-	
-(*let p_named = 'a Cil_type.named*)
 
 let rec generate_predicate_list_from_block pre_list block =
 	if (List.length block.bstmts)=0 then pre_list
@@ -182,14 +180,15 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		let texp_temp = constFold true (stripCasts exp_temp) in
 		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
 		let free_vars = Cil.extract_free_logicvars_from_predicate cp_named_temp in
-		lt := cp_named_temp::(generate_block_predicate b1);
 		
-		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pands !lt)))];
-		(*lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),cp_named_temp)))::(generate_block_predicate b1);*)(*List.merge(fun a b->1) ( ) !lt;*)
+		let tp_named = Logic_const.pands (generate_block_predicate b1) in
+		let tp_named = Logic_const.unamed(Pimplies(cp_named_temp,tp_named)) in
+		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),tp_named))];
 		total_lt := !lt::!total_lt;
-		lt := (Logic_const.pnot ~loc:l cp_named_temp)::(generate_block_predicate b2);
-		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pands !lt)))];
-		(*lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),(Logic_const.pnot ~loc:l cp_named_temp))))::(generate_block_predicate b2);*)
+		
+		let ep_named = Logic_const.pands (generate_block_predicate b2) in
+		let ep_named = Logic_const.unamed(Pimplies(Logic_const.unamed(Pnot(cp_named_temp)),ep_named)) in
+		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),ep_named))];
 		total_lt := !lt::!total_lt;
 		lt := [];
 			  		
@@ -206,102 +205,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	
 	generate_block_predicate loop_block;
 	total_lt
-			  	
-			  	
-			  	
-			  	
-		(*
-		List.iter(fun stmt->
-		match stmt.skind with
-		| If(exp,block1,block2,location)->(
-			let texp = constFold true (stripCasts exp) in
-			  	let cp_named = !Db.Properties.Interp.force_exp_to_predicate texp in(*get condition predicate*)
-			  	
-			  	
-			  	let tp_namedl = generate_block_predicate block1 in
-			  	let tp_namedl = List.rev tp_namedl in
-			  	let tp_named = Logic_const.pands tp_namedl in
-			  	
-			  	List.iter(fun pn->
-			  	Cil.d_predicate_named Format.std_formatter pn;
-			  	Format.print_flush ();
-			  	Printf.printf "\n";
-			  	)tp_namedl;
-			  	Printf.printf "tpre_list.length4=%d\n" (List.length tp_namedl);
-			  	
-			  	let ep_namedl = generate_block_predicate block2 in
-			  	let ep_namedl = List.rev ep_namedl in
-			  	let ep_named = Logic_const.pands ep_namedl in
-			  	
-			  	List.iter(fun pn->
-			  	Cil.d_predicate_named Format.std_formatter pn;
-			  	Format.print_flush ();
-			  	Printf.printf "\n";
-			  	)ep_namedl;
-			  	Printf.printf "epre_list.length4=%d\n" (List.length ep_namedl);
-			  	
-			  	Printf.printf "total_lt.length3=%d\n" (List.length !total_lt);
-			  	List.iter(fun tl->(
-			  	List.iter(fun pn->(
-			  	Cil.d_predicate_named Format.std_formatter pn;
-			  	Format.print_flush ();
-			  	Printf.printf "\n";
-			  	)
-			  	)tl;
-			  	Printf.printf "\n";
-			  	)
-			  	)!total_lt;
-			  	
-			  	let free_vars = Cil.extract_free_logicvars_from_predicate cp_named in			  	
-			  	let tp_named = Logic_const.pand ~loc:location (cp_named,tp_named) in
-			  	let ti_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),tp_named)) in
-			  	let ep_named = Logic_const.pand ~loc:location ((Logic_const.pnot ~loc:location cp_named),ep_named) in
-			  	let ei_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),ep_named)) in
-			  	
-			  	let t_annotation = Logic_const.new_code_annotation(AInvariant([],true,ti_named)) in
-			  	let e_annotation = Logic_const.new_code_annotation(AInvariant([],true,ei_named)) in
-			  	let t_root_code_annot_ba = Db_types.Before(Db_types.User(t_annotation)) in
-			  	let e_root_code_annot_ba = Db_types.Before(Db_types.User(e_annotation)) in
-			  	Annotations.add loop_stmt [Ast.self] t_root_code_annot_ba;
-			  	Annotations.add loop_stmt [Ast.self] e_root_code_annot_ba;
-			  	(*let add_code_annot (free_vars:Cil_datatype.Logic_var.Set.t) =
-				  	let annotation =
-						 Logic_const.new_code_annotation
-						 (AInvariant ([],true,)
-						  ))
-					in
-					let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-					Annotations.add loop_stmt [Ast.self] root_code_annot_ba;
-			  	in
-			  		
-			  	if (Logic_var.Set.is_empty free_vars)=false
-			  	then add_code_annot free_vars;*)
-			  	
-			  	Printf.printf "not equal\n";	  		
-			  	(*)
-			| _->(
-				Cil.d_stmt Format.std_formatter stmt;
-			)
-			);*)(*match texp.enode End*)
-		)(*If End*)
-		| Block(block)->(
-			(*let t_pre_list = [] in
-			let e_pre_list = [] in
-			if (List.length block.bstmts)>0 then*)
-			generate_loop_annotations loop_stmt block;
-			Printf.printf "Block\n";
-		)
-		| UnspecifiedSequence(l)->(
-			Printf.printf "UnspecifiedSequence\n";
-		)
-		| _->(
-			Cil.d_stmt Format.std_formatter stmt;
-		)
-		)loop_block.bstmts(*List.iter End*)
-	(*)(*Loop End*)
-	| _->(
-	)*)
-	*)
+
 
 let print_kf_global (global:global) =
 	match global with
@@ -481,7 +385,7 @@ let print_kf_global (global:global) =
 		 	
 			(*let tl = List.rev tl in*)
 			let t_named = Logic_const.pands tl in
-			  	
+			
 			let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
 			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
 			Annotations.add stmt [Ast.self] root_code_annot_ba;
