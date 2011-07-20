@@ -157,7 +157,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	count := !count+1;
 	
 	match s.skind with
-	| Instr(instr)->(
+	| Instr(instr)->(		
 		match instr with
 		| Set(lval,exp,location)->((*An assignment*)
 			let texp = constFold true (stripCasts exp) in
@@ -171,6 +171,22 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		)(*Set End*)
 		| _->(
 		);(*match instr End*)
+		
+		if (List.length s.predicate_list)>0 then
+		begin
+			Printf.printf "add predicate_list:\n";
+			Cil.d_stmt Format.std_formatter s;
+			Format.print_flush ();
+			Printf.printf "add predicate_list\n";
+			
+			List.iter(fun p_n->(
+			Cil.d_predicate_named Format.std_formatter p_n;
+			Format.print_flush ();
+			lt := p_n::!lt;();
+			)
+			)s.predicate_list;
+		end;
+		
 		if (List.length s.succs)=0 then 
 		begin total_lt := !lt::!total_lt;lt := []; end
 	)(*Instr End*)
@@ -191,7 +207,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),ep_named))];
 		total_lt := !lt::!total_lt;
 		lt := [];
-			  		
+		
 		();
 	)(*If End*)
 	| Break(location)|Continue(location)->(
@@ -201,17 +217,56 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		(*search preds of s to find the nearest enclosing Loop or Switch condition*)
 			let s_pred = List.nth s.preds i in
 			match s_pred.skind with
-			| If(exp,_,_,_)->(
+			| If(exp,b1,b2,l)->(
 				Printf.printf "the nearest enclosing if\n";
 				Cil.d_stmt Format.std_formatter s_pred;
 				Format.print_flush ();
 				Printf.printf "\n";
-				List.iter(fun s_succs->(
-				Cil.d_stmt Format.std_formatter s_succs;
+				
+				Printf.printf "exp:\n";
+				Cil.d_exp Format.std_formatter exp;
 				Format.print_flush ();
 				Printf.printf "\n";
-				)
-				)s.succs;
+				Printf.printf "b1:\n";
+				Cil.d_block Format.std_formatter b1;
+				Format.print_flush ();
+				Printf.printf "\n";
+				Printf.printf "b2:\n";
+				Cil.d_block Format.std_formatter b2;
+				Format.print_flush ();
+				Printf.printf "\n";
+				Printf.printf "b2.bstmts.length=%d\n" (List.length b2.bstmts);
+				
+				if (List.length b2.bstmts)>0 then(*has no else branch,add predicate to succs of If*)
+				begin
+				List.iter(fun s_succs->(
+					Cil.d_stmt Format.std_formatter s_succs;
+					Format.print_flush ();
+					Printf.printf "\n";
+					let texp_temp = constFold true (stripCasts exp) in
+					let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
+					let rec add_predicate (st:stmt) = 
+						st.predicate_list <- List.append [Logic_const.pnot ~loc:l cp_named_temp] s_succs.predicate_list;
+						List.iter(fun s_succs_succs->(
+							add_predicate s_succs_succs;
+						)
+						)st.succs;
+					in
+					
+					add_predicate s_succs;
+					
+					(*s_succs.predicate_list <- List.append [Logic_const.pnot ~loc:l cp_named_temp] s_succs.predicate_list;
+				
+					Printf.printf "s_succs_succs:\n";
+					List.iter(fun s_succs_succs->(
+						Cil.d_stmt Format.std_formatter s_succs_succs;
+						Format.print_flush ();
+						Printf.printf "\n";
+						)
+					)s_succs.succs;*)
+					)
+				)s_pred.succs;
+				end
 			)
 			| _->(
 			);
@@ -219,6 +274,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		();
 	)(*Break End*)
 	| Block(b2)->(
+		Printf.printf "block predicate_list.length=%d\n" (List.length s.predicate_list);
 		generate_block_predicate b2;();
 	)(*Block End*)
 	| _->(
@@ -254,7 +310,8 @@ let print_kf_global (global:global) =
 	| GVar(varinfo,initinfo,location) -> (
 		 Printf.printf "GVar\n";
 	)
-	| GFun(fundec,location) -> (
+	| GFun(fundec,location) -> (		
+      	(*Cfg.prepareCFG fundec;*)
 		List.iter( fun stmt ->		  		
 		(
 		match stmt.skind with
@@ -403,6 +460,22 @@ let print_kf_global (global:global) =
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
+		 	(*match stmto1 with
+		 	| Some(stmt)->(
+				Printf.printf "stmto1 begin\n";
+		 		Cil.d_stmt Format.std_formatter stmt;
+				Format.print_flush ();
+				Printf.printf "stmto1 end\n";
+				List.iter(fun s_succs_succs->(
+						Cil.d_stmt Format.std_formatter s_succs_succs;
+						Format.print_flush ();
+						Printf.printf "\n";
+						)
+				)stmt.succs;
+				Printf.printf "succs end\n";
+		 	)
+		 	| _->(
+		 	);*)
 		 	let total_lt = generate_loop_annotations stmt block in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	List.iter(fun tl->(
@@ -413,7 +486,7 @@ let print_kf_global (global:global) =
 			let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
 			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
 			Annotations.add stmt [Ast.self] root_code_annot_ba;
-			  	
+			
 			(*List.iter(fun pn->(
 			  	Cil.d_predicate_named Format.std_formatter pn;
 			  	Format.print_flush ();
