@@ -19,15 +19,10 @@
 (*  for more details (enclosed in the file licenses/LGPLv2.1).            *)
 (*                                                                        *)
 (**************************************************************************)
+(*open Cil_state_builder
 
-(*include Plugin.Register
-    (struct
-			let name = "Loop Invariant"
-       let shortname = "loopInvariant"
-       let help = "my 'Loop Invariant' plugin"
-       let module_name = "LoopInvariant"
-    end)
-
+let stmt_pn = Cil_state_builder.Stmt_hashtbl*)(*how to use*)
+(*
 module ForceValues =
   Action
     (struct
@@ -346,9 +341,4 @@ let () =
       SlevelFunction.self;
       Subdivide_float_in_expr.self;
     ]
-*)
-(*
-Local Variables:
-compile-command: "make -C ../.."
-End:
 *)
