@@ -156,6 +156,27 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	Printf.printf "\n\n";
 	count := !count+1;
 	
+	if (List.length s.predicate_list)>0 then
+	begin
+		Printf.printf "add predicate_list:\n";
+		List.iter(fun p_n->(
+		let free_vars = Cil.extract_free_logicvars_from_predicate p_n in
+		
+		let p_n_temp = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),p_n)) in
+		
+		let tp_named = Logic_const.pands !lt in
+		let tp_named = Logic_const.unamed(Pimplies(p_n,tp_named)) in
+		lt := (Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),tp_named)))::!lt;
+		(*lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),tp_named))];
+		total_lt := !lt::!total_lt;*)
+		
+		Cil.d_predicate_named Format.std_formatter p_n_temp;
+		Format.print_flush ();
+		(*lt := p_n_temp::!lt;();*)
+		)
+		)s.predicate_list;
+		Printf.printf "add predicate_list over\n";
+	end;
 	match s.skind with
 	| Instr(instr)->(		
 		match instr with
@@ -237,23 +258,48 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 				Printf.printf "\n";
 				Printf.printf "b2.bstmts.length=%d\n" (List.length b2.bstmts);
 				
-				if (List.length b2.bstmts)>0 then(*has no else branch,add predicate to succs of If*)
-				begin
+				let succs = s_pred.succs in
+				let texp_temp = constFold true (stripCasts exp) in
+				let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
+				(*if (List.length b1.bstmts)>0 then(*has no else branch,add predicate to succs of If*)
+				begin*)
 				List.iter(fun s_succs->(
+				match s_succs.skind with
+				| Block(b3)->(
+					List.iter(fun s->(
+					Printf.printf "add pre to:\n";
+					Cil.d_stmt Format.std_formatter s;
+					Format.print_flush ();
+					s.predicate_list <- List.append [Logic_const.pnot ~loc:l cp_named_temp] s_succs.predicate_list;
+					Printf.printf "add pre over\n";
+					)
+					)b3.bstmts;
+				)
+				| _->(
+				);
+				)
+				)s_pred.succs;
+					(*Printf.printf "add pre to:\n";
 					Cil.d_stmt Format.std_formatter s_succs;
 					Format.print_flush ();
 					Printf.printf "\n";
 					let texp_temp = constFold true (stripCasts exp) in
 					let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in
+					
 					let rec add_predicate (st:stmt) = 
+						Printf.printf "add_predicate:\n";
+						Cil.d_stmt Format.std_formatter st;
+						Format.print_flush ();
+						Printf.printf "add_predicate over\n";
 						st.predicate_list <- List.append [Logic_const.pnot ~loc:l cp_named_temp] s_succs.predicate_list;
-						List.iter(fun s_succs_succs->(
+						(*List.iter(fun s_succs_succs->(
 							add_predicate s_succs_succs;
 						)
-						)st.succs;
+						)st.succs;*)
 					in
 					
 					add_predicate s_succs;
+					Printf.printf "add pre over\n";
 					
 					(*s_succs.predicate_list <- List.append [Logic_const.pnot ~loc:l cp_named_temp] s_succs.predicate_list;
 				
@@ -265,8 +311,8 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 						)
 					)s_succs.succs;*)
 					)
-				)s_pred.succs;
-				end
+				)s_pred.succs;*)
+				(*end*)
 			)
 			| _->(
 			);
