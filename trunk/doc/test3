@@ -1,0 +1,1 @@
+./bin/toplevel.opt -print -main binary_search -loop-invariant tests/binary_search1.c -ocode b.c > log
