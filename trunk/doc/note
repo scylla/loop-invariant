@@ -1,0 +1,160 @@
+﻿在Eclipse中安装插件OcaIDE，方便编辑O'Caml 。安装新软件中，添加如下地址：
+http://www.algo-prog.info/ocaide/
+
+编译安装
+./configure --libdir /usr/local/lib/ --datarootdir /usr/local/share/
+sudo make
+sudo make install
+
+
+WP开始的部分修改为：
+ifndef FRAMAC_SHARE
+FRAMAC_SHARE  :=/usr/local/share/frama-c
+endif
+ifndef FRAMAC_LIBDIR
+FRAMAC_LIBDIR :=/usr/local/lib/frama-c
+endif
+
+更改/usr/share/frama-c/Makefile.config文件，将
+###############
+# Ocaml stuff #
+###############
+部分改为如下，即去掉opt
+
+# compilers and others executables
+OCAMLC  	?=ocamlc
+OCAMLOPT	?=ocamlopt
+OCAMLDEP	?=ocamldep -slash
+OCAMLLEX	?=ocamllex
+OCAMLYACC	?=ocamlyacc
+OCAMLMKTOP	?=ocamlmktop
+OCAMLDOC	?=ocamldoc
+OCAMLCP		?=ocamlcp
+
+添加自己的插件，集成到系统中时，在configure.in中增加如下行
+# Add the following lines after other plug−in configurations ,
+# in the section ’ Plug−in sections ’ .
+# hello
+## # #
+###
+check_plugin(hello,src/hello,[support for hello plugin],yes,no,[src/hello])
+可能要安装autoconf
+
+eclipse使用OcaIDE时，引用的外部文件要手动指明目标文件，系统得到的指示接口，没有模块的具体实现文件；自己指明要生成exe的模快。run as选择Ocaml toplevel，不知道为什么executable不可行，也许要在win下才可以。会自动生成Makefile文件。
+
+frama-c -val value5.c -print -ocode v.c   将插装的结果保存到文件中。
+ntfs-config
+
+
+frama-c -val value5.c -print -ocode v.c   将插装的结果保存到文件中。
+
+安装why时，修改去掉opt，安装ocamlgraph，sudo make
+
+SAFETY的意思主要是：自己不要出事，防范自己无意地造成事故、损害、伤亡。无论生物还是核的SAFETY，它指的是，通过人员培训、 教育，操作规程的设计和严格执行，设备、设施的设计等，来保证自己不要出事，防范自己无意地造成事故、损害、伤亡。
+SECURITY的含义，虽然也是要防范出现事故、损害、伤亡，但要防范、抵御的是外人、敌人有意地来造成事故、损害、伤亡。所以，在SICURITY方面的措施,虽然当然可以包括上述的几条,但是又不限于此,例如可以有: 布置警卫、岗哨，部署防空袭力量，采取防间谍措施等等超出SAFETY范围的东西 。
+一个是防"无意地破坏安全";，一个是防"有意地破坏安全"
+
+感谢来自google group-QA&QC的Parichay Pathak提供的帮助
+safety涵盖了security，security关心的是保护你的数据和软件不被非法的访问和获取，security具有不同的级别。
+safety则涵盖了软件security和软件的健壮性等，覆盖的外围也更广，比如保密性，功能健壮性，防数据丢失，防程序崩溃，传输安全性（如果涉及到网络传输的话）等等。
+举一个例子来说：
+  在许多嵌入式系统中，都要求real-time这个特性，如果在运行中，不符合的话，很容易整个down机。对于这种系统而言，注重的就是safety,而不是security.safety能保证在不满足real-time 时，嵌入式系统还能比较优雅的处理。因此safety确实更注重的是整个系统运行的稳定性，安全性，健状性。而对于应用在商业上的data-processing software,由于其中记录了许多类似于商业机密的资料，因此Security，也就是数据的安全性是重要的。
+
+
+value分析中，skein实际操作结果与手册中不一致，给出的结果没有手册中的多。
+
+在哪里写注释，什么位置
+
+-print转换的结果有部分ACSL注释？如何转换的？
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------书写安装插件-----------------------------------------------------------------------------------------
+###############################################################
+配置plugin
+###############################################################
+configure.in
+
+# hello
+check_plugin(hello,src/hello,[support for hello plugin],yes,no)
+
+# Loop Invariant
+check_plugin(loopInv,/home/lzh/workspace/LoopInvariant/src,[support for loopInv plugin],yes,no)
+
+# jessie
+check_plugin(jessie,src/jessie,[support for jessie plugin],yes,no)
+
+
+Makefile
+
+# hello
+PLUGIN_ENABLE:=@ENABLE_HELLO@
+PLUGIN_NAME:=Hello
+PLUGIN_DIR:=src/hello
+PLUGIN_CMO:= register
+PLUGIN_NO_TEST:=yes
+include share/Makefile.plugin
+
+# Loop Invariant
+PLUGIN_ENABLE:=@ENABLE_LOOPINV@
+PLUGIN_NAME:=LoopInv
+PLUGIN_DIR:=/home/lzh/workspace/LoopInvariant/src
+PLUGIN_CMO:= register
+PLUGIN_NO_TEST:=yes
+PLUGIN_HAS_MLI:=yes
+include share/Makefile.plugin
+
+why到frama-c plugin的makefile开始到地方改为
+ifndef FRAMAC_SHARE
+FRAMAC_SHARE  :=/usr/local/share/frama-c
+endif
+ifndef FRAMAC_LIBDIR
+FRAMAC_LIBDIR :=/usr/local/lib/frama-c
+endif
+就可以安装成功jessie了。wp也有类似的问题。
+
+安装wp：
+先安装Alt-ergo
+globals.mli中有很多有用的东西
+visitor要自己实现访问的工作？？
+void __globinit_whole_program(void) 从哪里来的？为什么自带的插件生成的程序没有？？
+---------------------------------------------------------------------------书写安装插件-----------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------获取ACSL信息----------------------------------------------------------------------------------------
+Globals.Functions.Iter()--->
+kernel_function.get_spec--->
+(** function contract. *)
+and funspec = (term, identified_predicate, identified_term) spec
+从这里可以得到ACSL的信息
+
+
+The types of annotations are part of Cil_types among the other types of 
+the AST.
+
+These annotations are available in 3 different modules:
+- Globals.Annotations for global annotations (e.g. lemmas)
+- Annotations for code annotations (e.g. assertions)
+- Kernel_function for function contracts
+
+It is also possible to visit annotations by using a Frama-C visitor.
+---------------------------------------------------------------------------获取ACSL信息----------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+工作过程：jessie插件可以将带ACSL注释的C程序转换成jessie文件，然后调用why来证明里面的属性。因此，工作是增加进自己分析得到的式子，用ACSL表达出来，加入文件，得到修改后的C程序，调用命令frama-c -jessie file.c即可完成证明过程。由于加入了分析的结果，将对证明过程起到帮助，获得更好的证明效果。
+
+
+
+
+
+logic_utils
+val named_of_identified_predicate: identified_predicate -> predicate named
+logic_typing
+val append_pre_label: pre_is_old:bool -> Lenv.t -> Lenv.t
+logic_const
+let por ?(loc=Lexing.dummy_pos,Lexing.dummy_pos) (p1, p2) =
+
+要先安装graphviz otags liblablgtk2-ocaml-dev liblablgtk2-gnome-ocaml-dev libgtksourceview2.0-dev liblablgtksourceview2-ocaml-dev
+安装why前要先安装libocamlgraph-ocaml-dev，至少一个定理证明器
+
+修改CIL：stmt中增加一个域predicate_list，存放它之前的if条件谓词
