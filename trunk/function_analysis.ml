@@ -168,7 +168,8 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			if (List.length s.predicate_list)>0 then
 			begin
 				Printf.printf "add predicate_list:\n";
-				List.iter(fun p_n->(
+				s.predicate_list <- List.rev s.predicate_list;
+				(*List.iter(fun p_n->(
 					let free_vars = Cil.extract_free_logicvars_from_predicate p_n in
 		
 		
@@ -183,7 +184,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 					Cil.d_predicate_named Format.std_formatter p_n_temp;
 					Format.print_flush ();
 				)
-				)s.predicate_list;
+				)s.predicate_list;*)
 				Printf.printf "\n";
 				Printf.printf "add predicate_list over\n";
 			end;
@@ -194,18 +195,29 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			let tnode = TLval(tlval) in
 			
 			let lvars = Cil.extract_varinfos_from_lval lval in
-			List.iter(fun var->(
-				let tv = Logic_const.tvar(cvar_to_lvar var) in
-				Printf.printf "tv:\n";
-				Cil.d_term Format.std_formatter tv;
-				Format.print_flush ();
-				Printf.printf "\ntv over\n";
-			))(Varinfo.Set.elements lvars);
 			
 			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
-			let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-			lt := p_named::!lt;total_lt := !lt::!total_lt;lt := [];();
+			let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+			
+			let con_named = Logic_const.pands s.predicate_list in
+			let free_vars = Cil.extract_free_logicvars_from_predicate con_named in
+			
+			(*Cil.d_stmt Format.std_formatter s;
+			Format.print_flush ();
+			let texp = constFold true (stripCasts exp) in
+			let t_named = !Db.Properties.Interp.force_exp_to_predicate texp in*)
+			
+			let con_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),con_named)) in
+			let t_named = Logic_const.unamed (Pimplies (con_named,t_named)) in
+			(*let con_named = Logic_const.pands !lt in
+			let tp_named = Logic_const.unamed(Pimplies(con_named,p_named)) in
+			lt := tp_named::!lt;*)
+			
+			lt := t_named::!lt;
+			total_lt := !lt::!total_lt;
+			lt := [];
+			();
 		)(*Set End*)
 		| _->(
 		);(*match instr End*)
@@ -214,7 +226,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		begin total_lt := !lt::!total_lt;lt := []; end*)
 	)(*Instr End*)
 	| If(exp_temp,b1,b2,l)->(
-		total_lt := !lt::!total_lt;
+		(*total_lt := !lt::!total_lt;*)
 		lt := [];
 		(*if (List.length s.predicate_list)=0 then
 		
@@ -256,7 +268,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		)
 		)b1.bstmts;
 		
-		(*succs of If?*)
+		(*succs of If? why b1?*)
 		if (List.length b1.bstmts)=0 then
 		(
 			List.iter(fun succs->(
@@ -559,22 +571,14 @@ let print_kf_global (global:global) =
 		 	);*)
 		 	let total_lt = generate_loop_annotations stmt block in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
-		 	List.iter(fun tl->(
-		 	
-			(*let tl = List.rev tl in*)
-			let t_named = Logic_const.pands tl in
+		 	total_lt := List.rev !total_lt;
+		 	List.iter(fun tl->(	
+				(*let tl = List.rev tl in*)
+				let t_named = Logic_const.pands tl in
 			
-			let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
-			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
-			Annotations.add stmt [Ast.self] root_code_annot_ba;
-			
-			(*List.iter(fun pn->(
-			  	Cil.d_predicate_named Format.std_formatter pn;
-			  	Format.print_flush ();
-			  	Printf.printf "\n"; 	
-			)
-			)tl;
-			Printf.printf "\n";*)
+				let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+				let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
+				Annotations.add stmt [Ast.self] root_code_annot_ba;
 			)
 			)!total_lt;
 			  	
