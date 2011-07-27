@@ -174,9 +174,38 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			
 			let con_named = Logic_const.pands (List.rev s.predicate_list) in
 			let free_vars = Cil.extract_free_logicvars_from_predicate con_named in
+			let v_vars = ref [] in
+			List.iter(fun lv->(
+				Printf.printf "lv\n";
+				Cil.d_logic_var Format.std_formatter lv;
+				Printf.printf "lv\n";
+				match lv.lv_type with
+				| Ctype(_)->(
+					match lv.lv_origin with
+					| Some(v)->(
+						Printf.printf "cvar to lvar\n";
+						v_vars := (Cil.cvar_to_lvar v)::!v_vars;
+						Cil.d_logic_var Format.std_formatter (Cil.cvar_to_lvar v);
+						Printf.printf "\n";
+					)
+					| None->(
+					);
+				)
+				| _->(
+					v_vars := lv::!v_vars;
+				);
+			)
+			)(Logic_var.Set.elements free_vars);
 			
+			(*let free_vars = ref [] in
 			
-			let con_named = Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),con_named)) in
+			let c_vars = Cil.extract_varinfos_from_exp texp in
+			List.iter(fun v->(
+				free_vars := (Cil.cvar_to_lvar v)::!free_vars;
+			)
+			)(Varinfo.Set.elements c_vars);*)
+			
+			let con_named = Logic_const.unamed (Pforall (!v_vars,con_named)) in
 			let t_named = Logic_const.unamed (Pimplies (con_named,t_named)) in
 			
 			lt := t_named::!lt;
