@@ -165,50 +165,44 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			let tr = !Db.Properties.Interp.force_exp_to_term exp in
 			let tnode = TLval(tlval) in
 			
+			let is_in_lv_list (lv:logic_var) (l:logic_var list) = 
+				let flag = ref false in
+				List.iter(fun v->(
+					if lv.lv_id=v.lv_id then flag := true;
+				)
+				)l;
+				!flag;
+			in
 			let lvars = Cil.extract_varinfos_from_lval lval in
+			let evars = Cil.extract_varinfos_from_exp texp in
+			let llvars = ref [] in
+			let elvars = ref [] in
+			List.iter(fun cv->(
+				if (is_in_lv_list (Cil.cvar_to_lvar cv) s.free_lv_list)=false then llvars := (Cil.cvar_to_lvar cv)::!llvars;
+			)
+			)(Varinfo.Set.elements lvars);
+			List.iter(fun cv->(
+				if (is_in_lv_list (Cil.cvar_to_lvar cv) s.free_lv_list)=false then elvars := (Cil.cvar_to_lvar cv)::!elvars;
+			)
+			)(Varinfo.Set.elements evars);
+			
 			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
 			
 			
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
-			let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-			
+			let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
 			let con_named = Logic_const.pands (List.rev s.predicate_list) in
-			let free_vars = Cil.extract_free_logicvars_from_predicate con_named in
-			let v_vars = ref [] in
-			List.iter(fun lv->(
-				Printf.printf "lv\n";
-				Cil.d_logic_var Format.std_formatter lv;
-				Printf.printf "lv\n";
-				match lv.lv_type with
-				| Ctype(_)->(
-					match lv.lv_origin with
-					| Some(v)->(
-						Printf.printf "cvar to lvar\n";
-						v_vars := (Cil.cvar_to_lvar v)::!v_vars;
-						Cil.d_logic_var Format.std_formatter (Cil.cvar_to_lvar v);
-						Printf.printf "\n";
-					)
-					| None->(
-					);
-				)
-				| _->(
-					v_vars := lv::!v_vars;
-				);
-			)
-			)(Logic_var.Set.elements free_vars);
+			if (List.length !llvars)!=0 then
+			begin
+				t_named := Logic_const.unamed (Pexists (!llvars,(Logic_const.unamed (Pimplies (con_named,!t_named)))));
+				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),!t_named));
+			end
+			else
+			begin
+				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),(Logic_const.unamed (Pimplies (con_named,!t_named)))));
+			end;
 			
-			(*let free_vars = ref [] in
-			
-			let c_vars = Cil.extract_varinfos_from_exp texp in
-			List.iter(fun v->(
-				free_vars := (Cil.cvar_to_lvar v)::!free_vars;
-			)
-			)(Varinfo.Set.elements c_vars);*)
-			
-			let con_named = Logic_const.unamed (Pforall (!v_vars,con_named)) in
-			let t_named = Logic_const.unamed (Pimplies (con_named,t_named)) in
-			
-			lt := t_named::!lt;
+			lt := !t_named::!lt;
 			total_lt := !lt::!total_lt;
 			lt := [];
 			();
@@ -239,28 +233,43 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			);
 		)
 		)b2.bstmts;
-		Printf.printf "b1_break=%b\n" !b1_break;
-		Printf.printf "b2_break=%b\n" !b2_break;
-				
+		
 		
 		let texp_temp = constFold true (stripCasts exp_temp) in
-		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in(*condition predicate named*)
+		let texp_vars = Cil.extract_varinfos_from_exp texp_temp in
+		let tlv_vars = ref [] in
+		List.iter(fun cv->(
+			tlv_vars := (Cil.cvar_to_lvar cv)::!tlv_vars;
+		)
+		)(Varinfo.Set.elements texp_vars);
 		
-		List.iter(fun succs->(			
-			Printf.printf "add to if b1 stmt\n";
-			Cil.d_stmt Format.std_formatter succs;
-			Format.print_flush ();
-			Printf.printf "\n";
+		let is_in_lv_list (lv:logic_var) (l:logic_var list) = 
+			let flag = ref false in
+			List.iter(fun v->(
+				if lv.lv_id=v.lv_id then flag := true;
+			)
+			)l;
+			flag;
+		in
+		
+		let f_lv = ref [] in
+		List.iter(fun lv->(
+			if !(is_in_lv_list lv s.free_lv_list)=false then f_lv := lv::!f_lv;
+		)
+		)!tlv_vars;
+		
+		(*Logic_const.unamed (Pforall (!v_vars,con_named))*)
+		let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in(*condition predicate named*)
+		(*let cp_named_temp = Logic_const.unamed (Pforall (!f_lv,cp_named_temp)) in*)
+		List.iter(fun succs->(
 			succs.predicate_list <- cp_named_temp::s.predicate_list;
+			succs.free_lv_list <- !f_lv@s.free_lv_list;
 		)
 		)b1.bstmts;
 		
-		List.iter(fun succs->(		
-			Printf.printf "add to if b2 stmt\n";
-			Cil.d_stmt Format.std_formatter succs;
-			Format.print_flush ();
-			Printf.printf "\n";
+		List.iter(fun succs->(
 			succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
+			succs.free_lv_list <- !f_lv@s.free_lv_list;
 		)
 		)b2.bstmts;
 		
@@ -279,11 +288,8 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		List.iter(fun if_succs->(
 			if (!(is_in_block if_succs b1)=false)&&(!(is_in_block if_succs b2)=false) then
 			begin
-				Printf.printf "b1_break add to If succs stmt\n";
-				Cil.d_stmt Format.std_formatter if_succs;
-				Format.print_flush ();
-				Printf.printf "\n";
 				if_succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::if_succs.predicate_list@s.predicate_list;
+				if_succs.free_lv_list <- !f_lv@s.free_lv_list;
 			end;
 			
 		)
@@ -294,28 +300,13 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		List.iter(fun if_succs->(
 			if (!(is_in_block if_succs b1)=false)&&(!(is_in_block if_succs b2)=false) then
 			begin
-				Printf.printf "b2_break add to If succs stmt\n";
-				Cil.d_stmt Format.std_formatter if_succs;
-				Format.print_flush ();
-				Printf.printf "\n";
 				if_succs.predicate_list <- cp_named_temp::if_succs.predicate_list@s.predicate_list;
+				if_succs.free_lv_list <- !f_lv@s.free_lv_list;
 			end;
 		)
 		)s.succs;
 		);
 		
-		(*let free_vars = Cil.extract_free_logicvars_from_predicate cp_named_temp in
-		
-		let tp_named = Logic_const.pands (generate_block_predicate b1) in
-		let tp_named = Logic_const.unamed(Pimplies(cp_named_temp,tp_named)) in
-		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),tp_named))];
-		total_lt := !lt::!total_lt;
-		
-		let ep_named = Logic_const.pands (generate_block_predicate b2) in
-		let ep_named = Logic_const.unamed(Pimplies(Logic_const.unamed(Pnot(cp_named_temp)),ep_named)) in
-		lt := [Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),ep_named))];
-		total_lt := !lt::!total_lt;
-		lt := [];*)
 		generate_block_predicate b1;
 		generate_block_predicate b2;
 		();
@@ -324,9 +315,10 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 		();
 	)(*Break End*)
 	| Block(b2)->(
-		if (List.length s.predicate_list)>0 then		
+		(*if (List.length s.predicate_list)>0 then*)	
 		List.iter(fun bs->(
 			bs.predicate_list <- s.predicate_list;
+			bs.free_lv_list <- s.free_lv_list;
 		)
 		)b2.bstmts;
 		
@@ -334,9 +326,10 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	)(*Block End*)
 	| UnspecifiedSequence(seq)->(
 		let seq_block = Cil.block_from_unspecified_sequence seq in
-		if (List.length s.predicate_list)>0 then
+		(*if (List.length s.predicate_list)>0 then*)
 		List.iter(fun bs->(
 			bs.predicate_list <- s.predicate_list;
+			bs.free_lv_list <- s.free_lv_list;
 		)
 		)seq_block.bstmts;
 		
