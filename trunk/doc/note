@@ -145,7 +145,7 @@ It is also possible to visit annotations by using a Frama-C visitor.
 
 
 -----------------------------一点修改
-给stmt增加一个域predicate_list，来记录嵌套的if条件。这是不优雅的做法。
+给stmt增加一个域predicate_list，来记录嵌套的if条件。free_lv_list保存语句s的约束条件的约束逻辑变量。这是不优雅的做法。
 cil/src/cil_types.mli", line 937
 stmt = {
     mutable labels: label list;
@@ -166,7 +166,10 @@ stmt = {
     (** The inverse of the succs function. *)
 
     mutable ghost : bool;
-    mutable predicate_list: (predicate named) list
+    
+    mutable predicate_list : (predicate named) list;
+    
+    mutable free_lv_list : logic_var list;
   }
 
 cil/src/cil_datatype.ml", line 216
@@ -176,7 +179,8 @@ cil/src/cil_datatype.ml", line 216
 	    succs = [];
 	    preds = [];
 	    ghost  = false;
-	    predicate_list = [] } ]
+	    predicate_list = [];
+	    free_lv_list = [] } ]
 	    
 
 cil/src/cil.ml", line 1220
@@ -189,12 +193,12 @@ cil/src/cil.ml", line 1220
 	(e.g. slicing). *)
      sid = if valid_sid then Sid.next () else -1;
      succs = []; preds = [];
-     ghost = ghost; predicate_list = [] }
+     ghost = ghost; predicate_list = []; free_lv_list = [] }
      
  let mkStmtCfg ~before ~(new_stmtkind:stmtkind) ~(ref_stmt:stmt) : stmt =
    let new_ = { skind = new_stmtkind;
 		labels = [];
-		sid = -1; succs = []; preds = []; ghost = false; predicate_list = [] }
+		sid = -1; succs = []; preds = []; ghost = false; predicate_list = []; free_lv_list = [] }
 		
 		
 "src/kernel/unroll_loops.ml", line 83
@@ -202,7 +206,7 @@ let rec copy_stmt
     fundec break_continue_must_change label_table calls_tbl stmt
  =
   let result =
-    { labels=[]; sid=0; succs=[]; preds=[]; skind=stmt.skind; ghost=stmt.ghost; predicate_list = []}
+    { labels=[]; sid=0; succs=[]; preds=[]; free_lv_list = []; skind=stmt.skind; ghost=stmt.ghost; predicate_list = []}
     
     
 -----------------------------修改结束
