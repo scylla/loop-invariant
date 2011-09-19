@@ -163,6 +163,9 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	)
       	)cil.globals;
       	
+      	Globals.Functions.iter (fun kf ->
+      	);
+      	
 		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
 		
       	let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in

@@ -345,6 +345,9 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	generate_block_predicate loop_block;
 	total_lt
 
+let prove_kf (kf:Db_types.kernel_function) = 
+	Printf.printf "prove_kf\n";
+	Prove.prove_predicate kf (Kernel_function.all_function_behaviors kf) None
 
 let print_kf_global (global:global) =
 	match global with
@@ -491,16 +494,17 @@ let print_kf_global (global:global) =
 		  	Printf.printf "\n";
 		  	match instr with
 		  	| Set(lval,exp,location)->(
-			  	let lexpr = constFold true (stripCasts exp) in
-				match lexpr.enode with
-				| UnOp(unop,exp,typ)->(
-					Printf.printf "g UnOp\n";
-				)
-				| BinOp(binop,exp1,exp2,typ)->(
-					Printf.printf "g BinOp\n";
-				)
-				| _->(
-				);(*match lexpr.enode End*)
+			  	(*let lexp = constFold true (stripCasts exp) in
+				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+				let tr = !Db.Properties.Interp.force_exp_to_term lexp in
+				let tnode = TLval(tlval) in	
+				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in			
+				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
+				let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+				
+				let annotation = Logic_const.new_code_annotation (AStmtSpec((tr,id_pre,(Logic_const.new_identified_term tr) spec))) in
+           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
 			)
 			| _->(
 			);(*match instr End*)

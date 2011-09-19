@@ -6,6 +6,29 @@ http://www.algo-prog.info/ocaide/
 sudo make
 sudo make install
 
+安装apron-0.9.10时，需要GMP和mpfr-3.0.1。如果均采用默认设置，需将apron-0.9.10中的Makefile.config.model改名为Makefile.config，将其中50行
+MPFR_PREFIX = /usr
+改为
+MPFR_PREFIX = /usr/local(默认mpfr安装在了/usr/local下)
+114行
+OCAMLC = $(CAML_PREFIX)/bin/ocamlc.opt
+OCAMLOPT = $(CAML_PREFIX)/bin/ocamlopt.opt
+改为
+OCAMLC = $(CAML_PREFIX)/bin/ocamlc(如果OCaml安装的有opt不用改)
+OCAMLOPT = $(CAML_PREFIX)/bin/ocamlopt
+给Makefile文件执行权限。
+
+
+新立得可以安装APRON0.9.10-5
+安装camlidl-1.05时，将config下的Makefile.unix复制为Makefile，修改33-37行为(视OCaml安装目录)：
+# Location of the Objective Caml library in your installation
+OCAMLLIB=/usr/lib/ocaml
+
+# Where to install the binaries
+BINDIR=/usr/bin
+给camlidl-1.05下Makefile执行权限
+
+PS:未写出的可以类推
 
 WP开始的部分修改为：
 ifndef FRAMAC_SHARE
