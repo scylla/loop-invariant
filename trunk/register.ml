@@ -164,6 +164,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	)cil.globals;
       	
       	Globals.Functions.iter (fun kf ->
+      		prove_kf kf;
       	);
       	
 		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;

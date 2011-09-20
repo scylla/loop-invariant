@@ -347,7 +347,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 
 let prove_kf (kf:Db_types.kernel_function) = 
 	Printf.printf "prove_kf\n";
-	Prove.prove_predicate kf (Kernel_function.all_function_behaviors kf) None
+	Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) None
 
 let print_kf_global (global:global) =
 	match global with
