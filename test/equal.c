@@ -15,11 +15,11 @@
 
    behavior all_equal:
      assumes \forall int i; 0 <= i < n ==> a[i] == b[i];
-     ensures \result == 0;
+     ensures \result == 1;
 
    behavior some_not_equal:
      assumes \exists int i; 0 <= i < n && a[i] != b[i];
-     ensures \result > 0;
+     ensures \result == 0;
 
    complete behaviors all_equal, some_not_equal;
    disjoint behaviors all_equal, some_not_equal;
