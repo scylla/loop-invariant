@@ -3,9 +3,12 @@ open Cil_types
 open Cil_datatype
 open File
 open Annotations
+open Kernel_function
+open Logic_typing
 open Visitor
 open Project
 open Callgraph
+open Db_types
 open Db
 open Ast_printer
 open Outputs
@@ -347,7 +350,27 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 
 let prove_kf (kf:Db_types.kernel_function) = 
 	Printf.printf "prove_kf\n";
-	Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) None
+	List.iter(fun bhv->
+	Printf.printf "%s\n" bhv;
+	)(Kernel_function.all_function_behaviors kf);
+	
+	(*let fundec = Kernel_function.get_definition kf in
+	List.iter(fun stmt->
+	)fundec.sallstmts;*)
+	
+	let annot_list = Kernel_function.code_annotations kf in
+	List.iter(fun (stmt,root_code_annot_ba) ->
+	match root_code_annot_ba with
+	| Before(annot)|After(annot) ->
+		match annot with
+		| User(code_annot)|AI(_,code_annot) ->
+			let ip_list = Property.ip_of_code_annot kf stmt code_annot in
+			List.iter(fun ip->
+				Cil.pretty_loc Format.std_formatter (Property.get_kinstr ip);
+				Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) (Some(ip));
+			)ip_list;
+	)annot_list;
+	()
 
 let print_kf_global (global:global) =
 	match global with
