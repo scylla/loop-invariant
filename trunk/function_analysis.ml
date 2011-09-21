@@ -366,8 +366,23 @@ let prove_kf (kf:Db_types.kernel_function) =
 		| User(code_annot)|AI(_,code_annot) ->
 			let ip_list = Property.ip_of_code_annot kf stmt code_annot in
 			List.iter(fun ip->
-				Cil.pretty_loc Format.std_formatter (Property.get_kinstr ip);
 				Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) (Some(ip));
+				Format.print_flush ();
+				let result = Properties_status.get_all  ip in
+				List.iter(fun status->
+					match status with
+					| Unknown->
+						Printf.printf "unknown\n";
+					| Checked(checked_status)->
+						if checked_status.valid=True then
+							(Printf.printf "true\n";)
+						else if checked_status.valid=False then
+							(Printf.printf "False\n";)
+						else if checked_status.valid=Maybe then
+							(Printf.printf "Maybe\n";)
+					;
+					Format.print_flush ();				
+				)result;
 			)ip_list;
 	)annot_list;
 	()
