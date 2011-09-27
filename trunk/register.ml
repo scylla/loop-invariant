@@ -158,13 +158,14 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	Self.result "leave function %s.\n" (Kernel_function.get_name kf);
       	);*)
       	
-      	List.iter(fun g ->(
+      	(*List.iter(fun g ->(
       	Function_analysis.print_kf_global g;
       	)
-      	)cil.globals;
+      	)cil.globals;*)
       	
       	Globals.Functions.iter (fun kf ->
-      		prove_kf kf;
+      		analysis_kf kf;
+      		(*prove_kf kf;*)
       	);
       	
 		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;

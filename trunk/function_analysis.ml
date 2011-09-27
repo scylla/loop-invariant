@@ -348,6 +348,42 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	generate_block_predicate loop_block;
 	total_lt
 
+let prove_code_annot (kf:Db_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
+	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
+	List.iter(fun ip->
+		Prove.prove_predicate kf None (Some(ip));(*(Some(Kernel_function.all_function_behaviors kf))*)
+		let result = Properties_status.get_all ip in
+		List.iter(fun status->
+			match status with
+			| Unknown->
+				Printf.printf "unknown\n";
+			| Checked(checked_status)->
+				if checked_status.valid=True then
+					(Printf.printf "true\n";)
+				else if checked_status.valid=False then
+					(Printf.printf "False\n";)
+				else if checked_status.valid=Maybe then
+					(Printf.printf "Maybe\n";)
+				;
+			Format.print_flush ();				
+		)result;
+	)ip_list
+	
+module AnnotState =
+  State_builder.Dashtbl
+    (Dashtbl.Default_key_marshaler(Cil_datatype.Stmt))
+    (Dashtbl.Default_data_marshaler
+       (Kernel_datatype.Rooted_code_annotation_before_after))
+    (struct
+       let name = "Annotations"
+       let size = 17
+       let dependencies = [ Ast.self ]
+       let kind = `Internal
+       let internal_kind = `Correctness
+     end)
+let remove_code_annot (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
+	AnnotState.remove true stmt code_annot
+	
 let prove_kf (kf:Db_types.kernel_function) = 
 	Printf.printf "prove_kf\n";
 	List.iter(fun bhv->
@@ -368,7 +404,7 @@ let prove_kf (kf:Db_types.kernel_function) =
 			List.iter(fun ip->
 				Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) (Some(ip));
 				Format.print_flush ();
-				let result = Properties_status.get_all  ip in
+				let result = Properties_status.get_all ip in
 				List.iter(fun status->
 					match status with
 					| Unknown->
@@ -386,6 +422,180 @@ let prove_kf (kf:Db_types.kernel_function) =
 			)ip_list;
 	)annot_list;
 	()
+
+let analysis_kf (kf:Db_types.kernel_function) = 
+	let fundec = Kernel_function.get_definition kf in
+	List.iter( fun stmt ->		  		
+		(
+		match stmt.skind with
+		| If(exp,block1,block2,location)->(
+			
+		  	let texp = constFold true (stripCasts exp) in
+		  	(
+		  	match texp.enode with
+		  	| Const(constant)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| Lval(lval)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| SizeOf(typ)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| SizeOfE(exp)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| SizeOfStr(s:string)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| AlignOf(typ)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| AlignOfE(exp)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| UnOp(upop,exp,typ)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| BinOp((Div|Mod|Mult|PlusA|MinusA),exp1,exp2,typ)->(
+		  		Cil.d_type Format.std_formatter typ;
+		  		Format.print_flush ();
+		  		Printf.printf "Div\n";		
+		  	)
+		  	| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->(
+		  		Cil.d_type Format.std_formatter typ;
+		  		Format.print_flush ();
+		  		Printf.printf "not equal\n";
+		  		let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in
+		  		let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in
+		  		
+		  		(*if while_stmt.skind=Loop(_,_,_,_,_) then*)
+		  		let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
+		  		
+		  		let add_code_annot (free_vars:Cil_datatype.Logic_var.Set.t) =
+		  			let annotation =
+				      Logic_const.new_code_annotation
+				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
+		       		in
+		       		let assert_root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+		       		Annotations.add stmt [Ast.self] assert_root_code_annot_ba;
+		       		prove_code_annot kf stmt annotation;
+		       		Annotations.reset_stmt false stmt;
+		  		in
+		  		
+		  		if (Logic_var.Set.is_empty free_vars)=false
+		  		then add_code_annot free_vars;
+		  		(*else begin
+				(*let annotation =
+				      Logic_const.new_code_annotation
+				      (AInvariant ([],true,Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),pre_named))
+				      ))
+           		in
+           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
+           		add_code_annot free_vars; end*)
+		  		
+           		
+		  		
+		  		Printf.printf "not equal\n";
+		  		(*let term = !Db.Properties.Interp.force_exp_to_term texp in
+		  		let new_code_annot = Logic_const.new_code_annotation (term,*)	  		
+		  	)
+		  	| CastE(typ,exp)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| AddrOf(lval)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| StartOf(lval)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| Info(exp,exp_info)->(
+		  		Printf.printf "\n";
+		  	)
+		  	| _->(
+		  		Printf.printf "\n";
+		  	)
+		  	);
+		  	Printf.printf "if--:\n";
+		  	(*Cil.d_exp Format.std_formatter texp;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  	
+		  	let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
+		  	Cil.d_code_annotation Format.std_formatter assert_code_annot;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  	
+		  	let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
+		  	Cil.d_predicate_named Format.std_formatter pre;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";*)
+		  	(*Annotations.add_assert stmt [Ast.self] ~before:true pre;*)
+		  	
+		  	(*let term = !Db.Properties.Interp.force_exp_to_term texp in
+		  	Cil.d_term Format.std_formatter term;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";*)
+		  	
+		  	Printf.printf "if++:\n";
+		 )(*end If*)
+		 | Instr(instr) ->(
+		 	Printf.printf "instr--:\n";	  			
+		  	Cil.d_instr Format.std_formatter instr;
+		  	Format.print_flush ();
+		  	Printf.printf "\n";
+		  	match instr with
+		  	| Set(lval,exp,location)->(
+			  	(*let lexp = constFold true (stripCasts exp) in
+				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+				let tr = !Db.Properties.Interp.force_exp_to_term lexp in
+				let tnode = TLval(tlval) in	
+				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in			
+				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
+				let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+				
+				let annotation = Logic_const.new_code_annotation (AStmtSpec((tr,id_pre,(Logic_const.new_identified_term tr) spec))) in
+           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
+           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
+			)
+			| _->(
+			);(*match instr End*)
+		  	Format.print_flush ();
+		  	Printf.printf "instr++:\n";
+		 )
+		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
+		 	Printf.printf "Enter Loop Now.\n";
+		 	
+		 	let total_lt = generate_loop_annotations stmt block in
+		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
+		 	total_lt := List.rev !total_lt;
+		 	List.iter(fun tl->(	
+				(*let tl = List.rev tl in*)
+				let t_named = Logic_const.pands tl in
+			
+				let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+				let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
+				Annotations.add stmt [Ast.self] root_code_annot_ba;
+				prove_code_annot kf stmt annot;
+		       	Annotations.reset_stmt false stmt;
+			)
+			)!total_lt;
+			  	
+		 	Printf.printf "Leave Loop Now.\n";
+		 )
+		 | Block(block) ->(
+		  	Printf.printf "block--:\n";
+		 )
+		 | Return(expo,location) ->(
+		  	Printf.printf "return--:\n";
+		 )
+		 | _ ->(
+		  	Printf.printf "\n";
+		 )
+		 );
+		Printf.printf "\n";
+		)fundec.sallstmts(*List.iter end*)
 
 let print_kf_global (global:global) =
 	match global with
