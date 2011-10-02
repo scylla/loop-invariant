@@ -348,6 +348,22 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 	generate_block_predicate loop_block;
 	total_lt
 
+
+let remove_code_annot (stmt:Cil_types.stmt) (rannot_bf:Cil_types.code_annotation) =
+	Annotations.reset_stmt false stmt;
+	
+	let sl = Some([Ast.self]) in
+	let rannot_bf_list = Annotations.get_all_annotations ?who:sl stmt in
+	List.iter(fun rannot->
+		match rannot with
+		| Before(User(annot)|AI(_,annot))|After(User(annot)|AI(_,annot))->
+		if annot.annot_id=rannot_bf.annot_id then begin
+			Printf.printf "invalid rannot_bf\n";end
+		else begin
+			Annotations.add stmt [Ast.self] rannot;end
+	)rannot_bf_list
+	
+	
 let prove_code_annot (kf:Db_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
 	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
 	List.iter(fun ip->
@@ -355,34 +371,21 @@ let prove_code_annot (kf:Db_types.kernel_function) (stmt:Cil_types.stmt) (code_a
 		let result = Properties_status.get_all ip in
 		List.iter(fun status->
 			match status with
-			| Unknown->
+			| Unknown->(
 				Printf.printf "unknown\n";
+			)
 			| Checked(checked_status)->
 				if checked_status.valid=True then
-					(Printf.printf "true\n";)
+					(Printf.printf "true\n";)					
 				else if checked_status.valid=False then
-					(Printf.printf "False\n";)
+					(remove_code_annot stmt code_annot;Printf.printf "False\n";)					
 				else if checked_status.valid=Maybe then
-					(Printf.printf "Maybe\n";)
+					(Printf.printf "Maybe\n";)					
 				;
-			Format.print_flush ();				
+			Format.print_flush ();
 		)result;
 	)ip_list
 	
-module AnnotState =
-  State_builder.Dashtbl
-    (Dashtbl.Default_key_marshaler(Cil_datatype.Stmt))
-    (Dashtbl.Default_data_marshaler
-       (Kernel_datatype.Rooted_code_annotation_before_after))
-    (struct
-       let name = "Annotations"
-       let size = 17
-       let dependencies = [ Ast.self ]
-       let kind = `Internal
-       let internal_kind = `Correctness
-     end)
-let remove_code_annot (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
-	AnnotState.remove true stmt code_annot
 	
 let prove_kf (kf:Db_types.kernel_function) = 
 	Printf.printf "prove_kf\n";
@@ -480,7 +483,6 @@ let analysis_kf (kf:Db_types.kernel_function) =
 		       		let assert_root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
 		       		Annotations.add stmt [Ast.self] assert_root_code_annot_ba;
 		       		prove_code_annot kf stmt annotation;
-		       		Annotations.reset_stmt false stmt;
 		  		in
 		  		
 		  		if (Logic_var.Set.is_empty free_vars)=false
@@ -578,7 +580,8 @@ let analysis_kf (kf:Db_types.kernel_function) =
 				let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
 				Annotations.add stmt [Ast.self] root_code_annot_ba;
 				prove_code_annot kf stmt annot;
-		       	Annotations.reset_stmt false stmt;
+				(*remove_code_annot stmt annot; 
+		       	Annotations.reset_stmt false stmt;*)
 			)
 			)!total_lt;
 			  	
