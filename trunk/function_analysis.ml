@@ -80,6 +80,7 @@ let p_visitor visitor =
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor
 
+		  	 
 let rec generate_predicate_list_from_block pre_list block =
 	if (List.length block.bstmts)=0 then pre_list
 	else
