@@ -93,17 +93,9 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  	Printf.printf "the postcondition is as follow:\n";
 		  	let post = Kernel_function.postcondition kf Cil_types.Normal in
 		  	Cil.d_predicate_named Format.std_formatter post;
-		  	Printf.printf "\n";
+		  	Printf.printf "\n";*)
 		  	
-		  	Printf.printf "the global annotations are as follow:\n";
-		  	let gannot_list = Globals.Annotations.get_all () in
-		  	List.iter(fun (g,b) ->
-		  	Printf.printf "%b\n" b;
-		  	Cil.d_annotation Format.std_formatter g;
-		  	)gannot_list;
-		  	Printf.printf "\n";
-		  	
-		  	Printf.printf "the code annotations are as follow:\n";
+		  	(*Printf.printf "the code annotations are as follow:\n";
 		  	let annot_list = Kernel_function.code_annotations kf in(*(stmt*rooted_code_annotation before_after) list*)
 		  	List.iter(fun (stmt,root_code_annot_ba) ->
 		  		(*Cil.d_stmt Format.std_formatter stmt;*)(*only stmts which own annotations*)
@@ -162,7 +154,90 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	Function_analysis.print_kf_global g;
       	)
       	)cil.globals;*)
+		  	
+		let linfo_list = ref [] in
+		let gannot_list = Globals.Annotations.get_all () in
+		List.iter(fun (g,b) ->
+			match g with
+			| Dfun_or_pred(logic_info,loc)->
+				(match logic_info.l_body with
+				| LBpred(pnamed)->
+					linfo_list := logic_info::!linfo_list;
+				| _->
+					();
+				);
+				Format.print_flush ();
+			| _->
+				Format.print_flush ();
+		)gannot_list;
       	
+      	List.iter(fun li->
+      		Printf.printf "logic_var_info=%s\n" li.l_var_info.lv_name;
+      		Printf.printf "li.params.len=%d\n" (List.length li.l_tparams);
+      		List.iter(fun para->
+      			Printf.printf "para=%s\n" para;
+      		)li.l_tparams;
+      		List.iter(fun lvar->
+      			Printf.printf "profile_var=%s\n" lvar.lv_name;
+      			Printf.printf "var_type=";
+      			Cil.d_logic_type Format.std_formatter lvar.lv_type;
+      			Format.print_flush ();
+      			Printf.printf "\n";
+      		)li.l_profile;
+      		match li.l_body with
+      		| LBpred(pn)->
+      		
+      		(match pn.content with
+      		| Psubtype(t1,t2)->
+      			Printf.printf "Psubtype\n";
+      		| Pfresh(t)->
+      			Printf.printf "Pfresh\n";
+      		| Pvalid_range(t1,t2,t3)->
+      			Printf.printf "Pvalid_range\n";
+      		| Pvalid_index(t1,t2)->
+      			Printf.printf "Pvalid_index\n";
+      		| Pvalid(t)->
+      			Printf.printf "Pvalid\n";
+      		| Pat(pn1,label)->
+      			Printf.printf "Pat\n";
+      		| Pold(pn1)->
+      			Printf.printf "Pold\n";
+      		| Pexists(q,pn1)->
+      			Printf.printf "Pexists\n";
+      		| Pforall(q,pn1)->
+      			Printf.printf "Pforall\n";
+      		| Plet(linfo,pn1)->
+      			Printf.printf "Plet\n";
+      		| Pfalse->
+      			Printf.printf "Pfalse\n";
+      		| Ptrue->
+      			Printf.printf "Ptrue\n";
+      		| Papp(linfo,l1,l2)->
+      			Printf.printf "Papp\n";
+      		| Pseparated(tl)->
+      			Printf.printf "Pseparated\n";
+      		| Prel(re,t1,t2)->
+      			Printf.printf "Prel\n";
+      		| Pand(pn1,pn2)->
+      			Printf.printf "Pand\n";
+      		| Por(pn1,pn2)->
+      			Printf.printf "Por\n";
+      		| Pxor(pn1,pn2)->
+      			Printf.printf "Pxor\n";
+      		| Pimplies(pn1,pn2)->
+      			Printf.printf "Pimplies\n";
+      		| Piff(pn1,pn2)->
+      			Printf.printf "Piff\n";
+      		| Pnot(pn1)->
+      			Printf.printf "Pnot\n";
+      		| Pif(t,pn1,pn2)->
+      			Printf.printf "Pif\n";
+      		| _->
+      			Printf.printf "other\n";
+      		);
+      		| _->
+      			();
+      	)!linfo_list;
       	Globals.Functions.iter (fun kf ->
       		analysis_kf kf;
       		(*prove_kf kf;*)
