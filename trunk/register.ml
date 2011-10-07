@@ -15,6 +15,7 @@ open Kernel_function
 open Annotations
 open State_builder
 open Extlib
+open LiVisitor
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -155,7 +156,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	)
       	)cil.globals;*)
 		  	
-		let linfo_list = ref [] in
+		let linfo_list = ref [] in(*logic_info list*)
 		let gannot_list = Globals.Annotations.get_all () in
 		List.iter(fun (g,b) ->
 			match g with
@@ -239,7 +240,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       			();
       	)!linfo_list;
       	Globals.Functions.iter (fun kf ->
-      		analysis_kf kf;
+      		analysis_kf kf !linfo_list;
       		(*prove_kf kf;*)
       	);
       	
@@ -259,7 +260,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	
       	
 		(*create_syntactic_check_project ();*)
-		let visitor = new non_zero_divisor (Project.current ()) in
+		let visitor = new liVisitor (Project.current ()) in
 		
 		Printf.printf "Ast.is_computed=%b\n" (Ast.is_computed ());
 		Printf.printf "anno.length=%d\n" (List.length (Globals.Annotations.get_all ()));

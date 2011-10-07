@@ -13,6 +13,7 @@ open Db
 open Ast_printer
 open Outputs
 open Logic_const
+open LiVisitor
 
 type sequence = stmt * lval list * lval list * lval list * stmt ref list
 
@@ -79,7 +80,6 @@ let p_stmt_value kinstr visitor =
 let p_visitor visitor = 
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor
-
 		  	 
 let rec generate_predicate_list_from_block pre_list block =
 	if (List.length block.bstmts)=0 then pre_list
@@ -136,7 +136,7 @@ let rec generate_predicate_list_from_block pre_list block =
 	pre_list
 	end
 	
-let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
+let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) =
 	(*match loop_stmt.skind with
 	| Loop(code_annot_list,block,location,stmto1,stmto2)->*)
 	(*Printf.printf "generate_predicate_list_from_block---\n";	
@@ -191,7 +191,15 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block)=
 			)(Varinfo.Set.elements evars);
 			
 			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
+			let visitor = new liVisitor (Project.current ()) in
 			
+			Cil.d_exp Format.std_formatter exp;
+			Printf.printf "\n";
+			Format.print_flush ();
+			List.iter(fun linfo->
+				visitor#vlogic_info_use linfo;
+				Printf.printf "in visitor\n";
+			)linfo_list;
 			
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
 			let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
@@ -427,7 +435,7 @@ let prove_kf (kf:Db_types.kernel_function) =
 	)annot_list;
 	()
 
-let analysis_kf (kf:Db_types.kernel_function) = 
+let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) = 
 	let fundec = Kernel_function.get_definition kf in
 	List.iter( fun stmt ->		  		
 		(
@@ -570,7 +578,7 @@ let analysis_kf (kf:Db_types.kernel_function) =
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
 		 	
-		 	let total_lt = generate_loop_annotations stmt block in
+		 	let total_lt = generate_loop_annotations stmt block linfo_list in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	total_lt := List.rev !total_lt;
 		 	List.iter(fun tl->(	
@@ -601,7 +609,7 @@ let analysis_kf (kf:Db_types.kernel_function) =
 		Printf.printf "\n";
 		)fundec.sallstmts(*List.iter end*)
 
-let print_kf_global (global:global) =
+let print_kf_global (global:global) (linfo_list:logic_info list) =
 	match global with
 	| GType(typeinfo,location) -> (
 		  Printf.printf "GType\n";
@@ -766,7 +774,7 @@ let print_kf_global (global:global) =
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
 		 	
-		 	let total_lt = generate_loop_annotations stmt block in
+		 	let total_lt = generate_loop_annotations stmt block linfo_list in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	total_lt := List.rev !total_lt;
 		 	List.iter(fun tl->(	
@@ -1169,48 +1177,6 @@ let get_loop_infor fundec =
 				Printf.printf "%s\n" "++++stmt preds";
 				) fundec.sallstmts
 
-
-class non_zero_divisor prj = object (self)
-	inherit Visitor.generic_frama_c_visitor prj (Cil.copy_visit ())
-	method vexpr (e:exp) = 
-		Printf.printf "non_zero_divisor#vexpr\n";
-		Cil.d_exp Format.std_formatter e;
-		Printf.printf "\n";
-		match e.enode with
-		| BinOp((Div|Mod|Mult|PlusA|MinusA) ,_, e2 ,_) ->
-			let t = Cil.typeOf e2 in
-			let logic_e2 =
-				Logic_const.term
-					(TCastE(t,Logic_utils.expr_to_term ~cast:true e2 )) (Ctype t)
-			in
-			let assertion = Logic_const.prel (Rneq , logic_e2 , Cil.lzero()) in
-		
-			(match self#current_stmt with
-			| Some stmt ->
-				(*let stmt = Extlib.the self#current_stmt in*)
-				Printf.printf "current_stmt:vexpr.stmt\n";
-				Cil.d_predicate_named Format.std_formatter assertion;
-				Queue.add
-				(fun () ->		
-					Annotations.add_assert stmt [Ast.self] ~before:true assertion
-				);
-					self#get_filling_actions;
-				DoChildren
-			| None ->
-				Printf.printf "current_stmt:vexpr.none\n";
-				SkipChildren
-			)
-		| UnOp((Neg) ,e1 ,_) ->
-			Printf.printf "vexpr.unop\n";
-			DoChildren
-		| Const(con) ->
-			Printf.printf "vexpr.const\n";
-			DoChildren
-		| Lval (lval) ->
-			Printf.printf "vexpr.lval\n";
-			DoChildren
-		| _ -> DoChildren
-end
 
 (*let create_syntactic_check_project () =
 	File.create_project_from_visitor " syntactic check " (new non_zero_divisor )
