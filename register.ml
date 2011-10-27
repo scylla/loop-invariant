@@ -239,8 +239,9 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       		| _->
       			();
       	)!linfo_list;
+		let visitor = new liVisitor (Project.current ()) in
       	Globals.Functions.iter (fun kf ->
-      		analysis_kf kf !linfo_list;
+      		analysis_kf kf !linfo_list visitor;
       		(*prove_kf kf;*)
       	);
       	
@@ -260,7 +261,6 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	
       	
 		(*create_syntactic_check_project ();*)
-		let visitor = new liVisitor (Project.current ()) in
 		
 		Printf.printf "Ast.is_computed=%b\n" (Ast.is_computed ());
 		Printf.printf "anno.length=%d\n" (List.length (Globals.Annotations.get_all ()));
