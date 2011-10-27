@@ -136,7 +136,7 @@ let rec generate_predicate_list_from_block pre_list block =
 	pre_list
 	end
 	
-let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) =
+let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) (visitor:liVisitor)=
 	(*match loop_stmt.skind with
 	| Loop(code_annot_list,block,location,stmto1,stmto2)->*)
 	(*Printf.printf "generate_predicate_list_from_block---\n";	
@@ -191,14 +191,16 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 			)(Varinfo.Set.elements evars);
 			
 			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
-			let visitor = new liVisitor (Project.current ()) in
 			
 			Cil.d_exp Format.std_formatter exp;
 			Printf.printf "\n";
 			Format.print_flush ();
 			List.iter(fun linfo->
 				visitor#vlogic_info_use linfo;
-				Printf.printf "in visitor\n";
+				Printf.printf "in visitor Instr stmt is:\n";
+				Cil.d_stmt Format.std_formatter s;
+				Format.print_flush ();
+				Printf.printf "in visitor Instr\n";
 			)linfo_list;
 			
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
@@ -224,6 +226,15 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 		total_lt := !lt::!total_lt;lt := [];
 	)(*Instr End*)
 	| If(exp_temp,b1,b2,l)->(
+		List.iter(fun linfo->
+			visitor#add_pn linfo s;
+			(*visitor#vlogic_info_use linfo;
+			Printf.printf "in visitor If stmt is:\n";
+			Cil.d_stmt Format.std_formatter s;
+			Format.print_flush ();
+			Printf.printf "in visitor If\n";*)
+		)linfo_list;
+			
 		lt := [];
 		let b1_break = ref false in
 		let b2_break = ref false in
@@ -435,7 +446,7 @@ let prove_kf (kf:Db_types.kernel_function) =
 	)annot_list;
 	()
 
-let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) = 
+let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visitor:liVisitor)= 
 	let fundec = Kernel_function.get_definition kf in
 	List.iter( fun stmt ->		  		
 		(
@@ -578,7 +589,7 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) =
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
 		 	
-		 	let total_lt = generate_loop_annotations stmt block linfo_list in
+		 	let total_lt = generate_loop_annotations stmt block linfo_list visitor in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	total_lt := List.rev !total_lt;
 		 	List.iter(fun tl->(	
@@ -609,7 +620,7 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) =
 		Printf.printf "\n";
 		)fundec.sallstmts(*List.iter end*)
 
-let print_kf_global (global:global) (linfo_list:logic_info list) =
+let print_kf_global (global:global) (linfo_list:logic_info list) (visitor:liVisitor)=
 	match global with
 	| GType(typeinfo,location) -> (
 		  Printf.printf "GType\n";
@@ -774,7 +785,7 @@ let print_kf_global (global:global) (linfo_list:logic_info list) =
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
 		 	
-		 	let total_lt = generate_loop_annotations stmt block linfo_list in
+		 	let total_lt = generate_loop_annotations stmt block linfo_list visitor in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	total_lt := List.rev !total_lt;
 		 	List.iter(fun tl->(	

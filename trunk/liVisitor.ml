@@ -5,13 +5,39 @@ open Cil_types
 open Cil_datatype
 open Project
 open Db_types
+open Annotations
 
 class liVisitor prj = object (self)
+	(*inherit Visitor.frama_c_visitor*)
 	inherit Visitor.generic_frama_c_visitor prj (Cil.copy_visit ())
+	
+	method add_pn (linfo:logic_info) (s:stmt) = 
+		match linfo.l_body with
+		| LBpred(pn)->
+			Annotations.add_assert s [Ast.self] ~before:true pn;
+		| _->
+      		Printf.printf "other\n";
+      	;
+		
+	method vstmt (s:stmt) = 
+		Cil.d_stmt Format.std_formatter s;
+		Format.print_flush ();
+		DoChildren
+		
 	method vlogic_info_use (linfo:logic_info) = 
 		
 		match linfo.l_body with
 		| LBpred(pn)->(
+			(*let stmt = Extlib.the (self#current_stmt) in
+			Cil.d_stmt Format.std_formatter stmt;
+			Format.print_flush ();
+			Annotations.add_assert stmt [Ast.self] ~before:true pn;*)
+			(match self#current_stmt with
+			| Some(s)->
+				Cil.d_stmt Format.std_formatter s;
+				Format.print_flush ();
+				Annotations.add_assert s [Ast.self] ~before:true pn;
+			| None->Printf.printf "not a stmt\n";);
 			Cil.d_predicate_named Format.std_formatter pn;
 			Printf.printf "LBpred\n";
 			Format.print_flush ();
