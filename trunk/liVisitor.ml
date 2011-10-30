@@ -7,6 +7,33 @@ open Project
 open Db_types
 open Annotations
 
+let rec get_all_combine (linfo:logic_info) (s:stmt) (vars:varinfo list)
+ (result:varinfo list) (len:int) (tlen:int)=
+	if len>=tlen then
+	(
+		let tl = ref [] in
+		List.iter(fun v->
+			tl := (Li_utils.mk_term_from_vi v)::!tl;
+		)result;
+		let newpn = Logic_const.unamed (Papp(linfo,
+			[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
+		Annotations.add_assert s [Ast.self] ~before:true newpn;
+	)else
+	(
+		for i=len to (List.length vars)-1 do
+			let li = List.nth vars i in
+			let new_result = li::result in
+			vars = !(Li_utils.swap vars i len);
+			get_all_combine linfo s vars new_result (len+1) tlen;
+			(*let remain = Li_utils.removeAt vars i in
+			let rl = get_all_combine linfo s remain (len+1) tlen in
+			for j=0 to (List.length rl)-1 do
+				let newl = li::(List.nth rl j) in
+				result := newl::!result;
+			done;*)
+		done;
+	)
+
 class liVisitor prj = object (self)
 	(*inherit Visitor.frama_c_visitor*)
 	inherit Visitor.generic_frama_c_visitor prj (Cil.copy_visit ())
@@ -24,26 +51,29 @@ class liVisitor prj = object (self)
 			Logic_const.new_code_annotation
 			(AInvariant ([],true,Logic_const.unamed (Prel (Req,lexpr, lzero()))))
 		in*)
-		
+	
 	method add_pn (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
-		
+		Printf.printf "begin add_pn\n";
 		match linfo.l_body with
 		| LBpred(pn)->(
-				let flen = List.length linfo.l_profile in
-				let alen = List.length vars in
-				if alen>=flen then
-				(
-					for i=0 to alen-flen do
-						let tl = ref [] in
-						for j=0 to flen-1 do
-							tl := (Li_utils.mk_term_from_vi (List.nth vars (j+i)))::!tl;
-						done;
-						let newpn = Logic_const.unamed (Papp(linfo,
-							[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
-						Annotations.add_assert s [Ast.self] ~before:true newpn;
-					done;
-				)
-			)
+			let flen = (List.length linfo.l_profile) in
+			let alen = List.length vars in
+				
+			if alen>=flen then
+			(
+				get_all_combine linfo s vars [] 0 flen;Printf.printf "end add_pn\n";();
+				(*let result = get_all_combine linfo s vars 0 flen in
+				List.iter(fun a->					
+					let tl = ref [] in
+					List.iter(fun v->
+						tl := (Li_utils.mk_term_from_vi v)::!tl;
+					)a;
+					let newpn = Logic_const.unamed (Papp(linfo,
+						[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
+					Annotations.add_assert s [Ast.self] ~before:true newpn;
+				)result;*)
+			);
+		);
 		| _->
       		Printf.printf "other\n";
       	;
