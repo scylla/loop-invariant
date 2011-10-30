@@ -239,6 +239,11 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       		| _->
       			();
       	)!linfo_list;
+      	
+		(**before compute, must clear first. set clear_id to be false*)
+      	Cfg.clearFileCFG ~clear_id:false cil;
+		Cfg.computeFileCFG cil;
+		
 		let visitor = new liVisitor (Project.current ()) in
       	Globals.Functions.iter (fun kf ->
       		analysis_kf kf !linfo_list visitor;
@@ -303,9 +308,6 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		(*Printf.printf "length=fundec.sallstmts=%d\n" (List.length fundec.sallstmts);
 		
 		Cfg.clearCFGinfo  fundec;*)
-		(**before compute, must clear first. set clear_id to be false*)
-		Cfg.clearFileCFG ~clear_id:false cil;
-		Cfg.computeFileCFG cil;
 		
 		(*Cfg.prepareCFG fundec;
 		Cfg.computeCFGInfo fundec true;*)
@@ -444,6 +446,15 @@ let theMain () =
     
 let compute_loop_invariant () = 
 	Ast.compute ();
+      	Globals.Functions.iter (fun kf ->
+      		(match kf.fundec with
+      		| Definition(dec,l)->
+      			Cfg.clearCFGinfo ~clear_id:true dec;
+      			Cfg.prepareCFG dec;
+				Cfg.computeCFGInfo dec true;
+			| _->();
+			);
+      	);
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
