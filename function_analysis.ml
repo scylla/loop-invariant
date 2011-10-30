@@ -137,28 +137,13 @@ let rec generate_predicate_list_from_block pre_list block =
 	end
 	
 let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) (visitor:liVisitor)=
-	(*match loop_stmt.skind with
-	| Loop(code_annot_list,block,location,stmto1,stmto2)->*)
-	(*Printf.printf "generate_predicate_list_from_block---\n";	
-	let p_list = generate_predicate_list_from_block [] loop_block in
-	Printf.printf "p_list.length=%d\n" (List.length p_list);
-	List.iter(fun p->
-	Cil.d_predicate_named Format.std_formatter p;
-	Format.print_flush ();
-	)p_list;
-	Printf.printf "generate_predicate_list_from_block+++\n";*)	
 	
 	let lt = ref [] in
 	let total_lt = ref [] in
 	let count = ref 0 in
-		
+	
 	let rec generate_block_predicate (b:block) =
 	List.iter(fun s->
-	(*Printf.printf "count=%d\n" !count;
-	Cil.d_stmt Format.std_formatter s;
-	Format.print_flush ();
-	Printf.printf "\n\n";
-	count := !count+1;*)
 	
 	match s.skind with
 	| Instr(instr)->(
@@ -226,13 +211,9 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 		total_lt := !lt::!total_lt;lt := [];
 	)(*Instr End*)
 	| If(exp_temp,b1,b2,l)->(
+		let vars = Cil.extract_varinfos_from_exp exp_temp in
 		List.iter(fun linfo->
-			visitor#add_pn linfo s;
-			(*visitor#vlogic_info_use linfo;
-			Printf.printf "in visitor If stmt is:\n";
-			Cil.d_stmt Format.std_formatter s;
-			Format.print_flush ();
-			Printf.printf "in visitor If\n";*)
+			visitor#add_pn linfo s (Varinfo.Set.elements vars);
 		)linfo_list;
 			
 		lt := [];
@@ -517,8 +498,6 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
            		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
            		add_code_annot free_vars; end*)
 		  		
-           		
-		  		
 		  		Printf.printf "not equal\n";
 		  		(*let term = !Db.Properties.Interp.force_exp_to_term texp in
 		  		let new_code_annot = Logic_const.new_code_annotation (term,*)	  		
@@ -588,7 +567,50 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
-		 	
+		 	(match stmto1 with
+		 	| Some(s)->
+		 		let con = List.nth s.succs 0 in
+		 		let ocon = Cil.get_original_stmt (Cil.inplace_visit ()) con in
+		 		Cil.d_stmt Format.std_formatter ocon;
+			  	Format.print_flush ();
+			  	Printf.printf "\n";
+			  	(match con.skind with
+			  	| If(exp,b1,b2,l)->
+			  		let vars = Cil.extract_varinfos_from_exp exp in
+			  		List.iter(
+			  			fun var->
+			  				Cil.d_var Format.std_formatter var;
+			  				Format.print_flush ();
+			  				Printf.printf "\n";
+			  		)(Varinfo.Set.elements vars);
+			  		
+			  		Cil.d_exp Format.std_formatter exp;
+			  		Format.print_flush ();
+			  		Printf.printf "\n";
+			  		Cil.d_exp Format.std_formatter (constFold true (stripCasts exp));
+			  		Format.print_flush ();
+			  		Printf.printf "\n";
+			  		(match exp.enode with
+			  		| UnOp(op,e,ty)->
+			  			Cil.d_unop Format.std_formatter op;
+			  			Format.print_flush ();
+			  			Printf.printf "\n";
+			  		| BinOp(op,e1,e2,ty)->
+			  			Cil.d_binop Format.std_formatter op;
+			  			Format.print_flush ();
+			  			Printf.printf "\n";
+			  		| _->();
+			  		);
+			  	| _->();
+			  	);
+		 	| None->();
+		 	);
+		 	(match stmto2 with
+		 	| Some(s)->
+		 		Cil.d_stmt Format.std_formatter s;
+			  	Format.print_flush ();
+			  	Printf.printf "\n";
+		 	| None->(););
 		 	let total_lt = generate_loop_annotations stmt block linfo_list visitor in
 		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	total_lt := List.rev !total_lt;

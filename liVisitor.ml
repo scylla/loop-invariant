@@ -11,10 +11,39 @@ class liVisitor prj = object (self)
 	(*inherit Visitor.frama_c_visitor*)
 	inherit Visitor.generic_frama_c_visitor prj (Cil.copy_visit ())
 	
-	method add_pn (linfo:logic_info) (s:stmt) = 
+	method make_lvar_from_cvar (var:varinfo) = 
+		let ltype = Ctype(var.vtype) in
+		let logic_var = Cil.make_temp_logic_var ltype in
+		logic_var.lv_name <- var.vorig_name;
+		Cil.d_logic_var Format.std_formatter logic_var;
+		Format.print_flush ();
+		logic_var;
+		
+	(*method make_dense_pn =
+		let annotation =
+			Logic_const.new_code_annotation
+			(AInvariant ([],true,Logic_const.unamed (Prel (Req,lexpr, lzero()))))
+		in*)
+		
+	method add_pn (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
+		
 		match linfo.l_body with
-		| LBpred(pn)->
-			Annotations.add_assert s [Ast.self] ~before:true pn;
+		| LBpred(pn)->(
+				let flen = List.length linfo.l_profile in
+				let alen = List.length vars in
+				if alen>=flen then
+				(
+					for i=0 to alen-flen do
+						let tl = ref [] in
+						for j=0 to flen-1 do
+							tl := (Li_utils.mk_term_from_vi (List.nth vars (j+i)))::!tl;
+						done;
+						let newpn = Logic_const.unamed (Papp(linfo,
+							[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
+						Annotations.add_assert s [Ast.self] ~before:true newpn;
+					done;
+				)
+			)
 		| _->
       		Printf.printf "other\n";
       	;
