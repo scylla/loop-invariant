@@ -14,13 +14,14 @@ open Ast_printer
 open Outputs
 open Logic_const
 open LiVisitor
+open LiAnnot
 
 type sequence = stmt * lval list * lval list * lval list * stmt ref list
 
 let loop_number = ref 0
 (*
 let locUnknown = ({Lexing.position.pos_fname="";},{Lexing.position.pos_fname="";})
-	*)		
+	*)
 (**统计函数中有多少个循环*)
 let count_loop_number (funDec:Cil_types.fundec) = 
     List.iter (fun stmt ->
@@ -210,12 +211,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 		);(*match instr End*)
 		total_lt := !lt::!total_lt;lt := [];
 	)(*Instr End*)
-	| If(exp_temp,b1,b2,l)->(
-		let vars = Cil.extract_varinfos_from_exp exp_temp in
-		List.iter(fun linfo->
-			visitor#add_pn linfo s (Varinfo.Set.elements vars);
-		)linfo_list;
-			
+	| If(exp_temp,b1,b2,l)->(			
 		lt := [];
 		let b1_break = ref false in
 		let b2_break = ref false in
@@ -348,84 +344,6 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 	
 	generate_block_predicate loop_block;
 	total_lt
-
-
-let remove_code_annot (stmt:Cil_types.stmt) (rannot_bf:Cil_types.code_annotation) =
-	Annotations.reset_stmt false stmt;
-	
-	let sl = Some([Ast.self]) in
-	let rannot_bf_list = Annotations.get_all_annotations ?who:sl stmt in
-	List.iter(fun rannot->
-		match rannot with
-		| Before(User(annot)|AI(_,annot))|After(User(annot)|AI(_,annot))->
-		if annot.annot_id=rannot_bf.annot_id then begin
-			Printf.printf "invalid rannot_bf\n";end
-		else begin
-			Annotations.add stmt [Ast.self] rannot;end
-	)rannot_bf_list
-	
-	
-let prove_code_annot (kf:Db_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
-	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
-	List.iter(fun ip->
-		Prove.prove_predicate kf None (Some(ip));(*(Some(Kernel_function.all_function_behaviors kf))*)
-		let result = Properties_status.get_all ip in
-		List.iter(fun status->
-			match status with
-			| Unknown->(
-				Printf.printf "unknown\n";
-			)
-			| Checked(checked_status)->
-				if checked_status.valid=True then
-					(Printf.printf "true\n";)					
-				else if checked_status.valid=False then
-					(remove_code_annot stmt code_annot;Printf.printf "False\n";)					
-				else if checked_status.valid=Maybe then
-					(Printf.printf "Maybe\n";)					
-				;
-			Format.print_flush ();
-		)result;
-	)ip_list
-	
-	
-let prove_kf (kf:Db_types.kernel_function) = 
-	Printf.printf "prove_kf\n";
-	List.iter(fun bhv->
-	Printf.printf "%s\n" bhv;
-	)(Kernel_function.all_function_behaviors kf);
-	
-	(*let fundec = Kernel_function.get_definition kf in
-	List.iter(fun stmt->
-	)fundec.sallstmts;*)
-	
-	let annot_list = Kernel_function.code_annotations kf in
-	List.iter(fun (stmt,root_code_annot_ba) ->
-	match root_code_annot_ba with
-	| Before(annot)|After(annot) ->
-		match annot with
-		| User(code_annot)|AI(_,code_annot) ->
-			let ip_list = Property.ip_of_code_annot kf stmt code_annot in
-			List.iter(fun ip->
-				Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) (Some(ip));
-				Format.print_flush ();
-				let result = Properties_status.get_all ip in
-				List.iter(fun status->
-					match status with
-					| Unknown->
-						Printf.printf "unknown\n";
-					| Checked(checked_status)->
-						if checked_status.valid=True then
-							(Printf.printf "true\n";)
-						else if checked_status.valid=False then
-							(Printf.printf "False\n";)
-						else if checked_status.valid=Maybe then
-							(Printf.printf "Maybe\n";)
-					;
-					Format.print_flush ();				
-				)result;
-			)ip_list;
-	)annot_list;
-	()
 
 let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visitor:liVisitor)= 
 	let fundec = Kernel_function.get_definition kf in
@@ -567,7 +485,8 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
-		 	(match stmto1 with
+		 	(
+		 	match stmto1 with(*continue*)
 		 	| Some(s)->
 		 		let con = List.nth s.succs 0 in
 		 		let ocon = Cil.get_original_stmt (Cil.inplace_visit ()) con in
@@ -576,7 +495,11 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 			  	Printf.printf "\n";
 			  	(match con.skind with
 			  	| If(exp,b1,b2,l)->
-			  		let vars = Cil.extract_varinfos_from_exp exp in
+			  		
+					let vars = Cil.extract_varinfos_from_exp exp in
+					List.iter(fun linfo->
+						visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
+					)linfo_list;
 			  		List.iter(
 			  			fun var->
 			  				Cil.d_var Format.std_formatter var;
@@ -605,14 +528,15 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 			  	);
 		 	| None->();
 		 	);
-		 	(match stmto2 with
+		 	(
+		 	match stmto2 with(*break*)
 		 	| Some(s)->
 		 		Cil.d_stmt Format.std_formatter s;
 			  	Format.print_flush ();
 			  	Printf.printf "\n";
-		 	| None->(););
+		 	| None->();
+		 	);
 		 	let total_lt = generate_loop_annotations stmt block linfo_list visitor in
-		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
 		 	total_lt := List.rev !total_lt;
 		 	List.iter(fun tl->(	
 				(*let tl = List.rev tl in*)

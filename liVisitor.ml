@@ -6,31 +6,52 @@ open Cil_datatype
 open Project
 open Db_types
 open Annotations
+open LiAnnot
 
-let rec get_all_combine (linfo:logic_info) (s:stmt) (vars:varinfo list)
- (result:varinfo list) (len:int) (tlen:int)=
+let is_type_consistent (linfo:logic_info) (vars:varinfo list) =
+	let flag = ref 1 in
+	let len = List.length linfo.l_profile in
+	for i=0 to len-1 do
+		let a = List.nth vars i in
+		let f = List.nth linfo.l_profile i in
+		(
+		match f.lv_type with
+		| Ctype(fc)->
+			if a.vtype=fc then
+			()
+			else
+			(flag := 0;)
+		|_->();
+		);
+	done;
+	!flag;;
+	
+let rec get_all_combine (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list) (result:varinfo list) (len:int) (tlen:int)=
 	if len>=tlen then
 	(
-		let tl = ref [] in
-		List.iter(fun v->
-			tl := (Li_utils.mk_term_from_vi v)::!tl;
-		)result;
-		let newpn = Logic_const.unamed (Papp(linfo,
-			[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
-		Annotations.add_assert s [Ast.self] ~before:true newpn;
+		if (is_type_consistent linfo vars)=1 then 
+		(
+			let tl = ref [] in
+			List.iter(fun v->
+				tl := (Li_utils.mk_term_from_vi v)::!tl;
+			)result;
+			List.rev !tl;
+		
+			let newpn = Logic_const.unamed (Papp(linfo,
+				[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
+			
+			let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
+			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
+			Annotations.add s [Ast.self] root_code_annot_ba;
+			prove_code_annot kf s annot;
+		)
 	)else
 	(
 		for i=len to (List.length vars)-1 do
 			let li = List.nth vars i in
 			let new_result = li::result in
-			vars = !(Li_utils.swap vars i len);
-			get_all_combine linfo s vars new_result (len+1) tlen;
-			(*let remain = Li_utils.removeAt vars i in
-			let rl = get_all_combine linfo s remain (len+1) tlen in
-			for j=0 to (List.length rl)-1 do
-				let newl = li::(List.nth rl j) in
-				result := newl::!result;
-			done;*)
+			let nvars = (Li_utils.swap vars i len) in
+			get_all_combine kf linfo s nvars new_result (len+1) tlen;
 		done;
 	)
 
@@ -45,33 +66,16 @@ class liVisitor prj = object (self)
 		Cil.d_logic_var Format.std_formatter logic_var;
 		Format.print_flush ();
 		logic_var;
-		
-	(*method make_dense_pn =
-		let annotation =
-			Logic_const.new_code_annotation
-			(AInvariant ([],true,Logic_const.unamed (Prel (Req,lexpr, lzero()))))
-		in*)
-	
-	method add_pn (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
-		Printf.printf "begin add_pn\n";
+			
+	method add_pn (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
 		match linfo.l_body with
 		| LBpred(pn)->(
 			let flen = (List.length linfo.l_profile) in
 			let alen = List.length vars in
-				
 			if alen>=flen then
 			(
-				get_all_combine linfo s vars [] 0 flen;Printf.printf "end add_pn\n";();
-				(*let result = get_all_combine linfo s vars 0 flen in
-				List.iter(fun a->					
-					let tl = ref [] in
-					List.iter(fun v->
-						tl := (Li_utils.mk_term_from_vi v)::!tl;
-					)a;
-					let newpn = Logic_const.unamed (Papp(linfo,
-						[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
-					Annotations.add_assert s [Ast.self] ~before:true newpn;
-				)result;*)
+				get_all_combine kf linfo s vars [] 0 flen;
+				();
 			);
 		);
 		| _->
