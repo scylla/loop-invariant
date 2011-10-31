@@ -32,11 +32,11 @@ int equal(const int* a, int n, const int* b)
 	if(count>0)
 		count = 1;
   	for (int i = 0; i < n; i++)
+  	{
     	if (a[i] != b[i])
     	{
        		count = count + 1;
-       		break;
-       		}
-
-  return count;
+       	}
+	}
+	return count;
 }
