@@ -38,7 +38,7 @@ let rec get_all_combine (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt
 			List.rev !tl;
 		
 			let newpn = Logic_const.unamed (Papp(linfo,
-				[(LogicLabel(None,"L"),LogicLabel(None,"L"))],!tl)) in
+				[],!tl)) in
 			
 			let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
 			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
@@ -100,9 +100,8 @@ class liVisitor prj = object (self)
 				Cil.d_stmt Format.std_formatter s;
 				Format.print_flush ();
 				Annotations.add_assert s [Ast.self] ~before:true pn;
-			| None->Printf.printf "not a stmt\n";);
+			| None->(););
 			Cil.d_predicate_named Format.std_formatter pn;
-			Printf.printf "LBpred\n";
 			Format.print_flush ();
 			(match pn.content with
       		| Psubtype(t1,t2)->
