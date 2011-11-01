@@ -16,7 +16,7 @@ let prove_predicate (kf:Db_types.kernel_function) (bhv:string list option) prop=
 	(
 	match prop with
 	| Some(ip)->
-		let result = Properties_status.get_all ~who:[] ip in
+		let result = Properties_status.get_all ~who:[Ast.self] ip in
 		result;
 	| None->[];
 	)
