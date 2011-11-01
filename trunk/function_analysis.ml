@@ -182,11 +182,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 			Printf.printf "\n";
 			Format.print_flush ();
 			List.iter(fun linfo->
-				visitor#vlogic_info_use linfo;
-				Printf.printf "in visitor Instr stmt is:\n";
-				Cil.d_stmt Format.std_formatter s;
-				Format.print_flush ();
-				Printf.printf "in visitor Instr\n";
+				visitor#vlogic_info_use linfo;();
 			)linfo_list;
 			
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
@@ -500,7 +496,7 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 					List.iter(fun linfo->
 						visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
 					)linfo_list;
-			  		List.iter(
+			  		(*List.iter(
 			  			fun var->
 			  				Cil.d_var Format.std_formatter var;
 			  				Format.print_flush ();
@@ -512,7 +508,7 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 			  		Printf.printf "\n";
 			  		Cil.d_exp Format.std_formatter (constFold true (stripCasts exp));
 			  		Format.print_flush ();
-			  		Printf.printf "\n";
+			  		Printf.printf "\n";*)
 			  		(match exp.enode with
 			  		| UnOp(op,e,ty)->
 			  			Cil.d_unop Format.std_formatter op;

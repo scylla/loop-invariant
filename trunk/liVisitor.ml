@@ -36,6 +36,7 @@ let rec get_all_combine (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt
 				tl := (Li_utils.mk_term_from_vi v)::!tl;
 			)result;
 			List.rev !tl;
+			Printf.printf "tl.len=%d\n" (List.length !tl);
 		
 			let newpn = Logic_const.unamed (Papp(linfo,
 				[],!tl)) in
@@ -43,7 +44,9 @@ let rec get_all_combine (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt
 			let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
 			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
 			Annotations.add s [Ast.self] root_code_annot_ba;
+			Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 			prove_code_annot kf s annot;
+			Printf.printf "after prove annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 		)
 	)else
 	(
@@ -97,12 +100,8 @@ class liVisitor prj = object (self)
 			Annotations.add_assert stmt [Ast.self] ~before:true pn;*)
 			(match self#current_stmt with
 			| Some(s)->
-				Cil.d_stmt Format.std_formatter s;
-				Format.print_flush ();
 				Annotations.add_assert s [Ast.self] ~before:true pn;
 			| None->(););
-			Cil.d_predicate_named Format.std_formatter pn;
-			Format.print_flush ();
 			(match pn.content with
       		| Psubtype(t1,t2)->
       			Printf.printf "Psubtype\n";
