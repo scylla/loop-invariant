@@ -17,31 +17,42 @@ let remove_code_annot (stmt:Cil_types.stmt) (rannot_bf:Cil_types.code_annotation
 		if annot.annot_id=rannot_bf.annot_id then begin
 			Printf.printf "invalid rannot_bf\n";end
 		else begin
-			Annotations.add stmt [Ast.self] rannot;end
+			(Printf.printf "id1=%d,id2=%d\n" annot.annot_id rannot_bf.annot_id;
+			Annotations.add stmt [Ast.self] rannot;)end
 	)rannot_bf_list;;
 	
 let prove_code_annot (kf:Db_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
+	let flag = ref 1 in
+	
 	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
+	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
 	List.iter(fun ip->
-		prove_predicate kf None (Some(ip));(*(Some(Kernel_function.all_function_behaviors kf))*)
-		let result = Properties_status.get_all ip in
+		let result = prove_predicate kf None (Some(ip)) in
+		Printf.printf "result.len=%d\n" (List.length result);
+		
 		List.iter(fun status->
 			match status with
 			| Unknown->(
-				Printf.printf "unknown\n";
+				flag := 0;
+				Printf.printf "result unknown\n";
 			)
 			| Checked(checked_status)->
 				if checked_status.valid=True then
-					(Printf.printf "true\n";)					
+					(Printf.printf "result True\n";)					
 				else if checked_status.valid=False then
-					(remove_code_annot stmt code_annot;
-					Printf.printf "False\n";)					
+					(flag := 0;
+					Printf.printf "result False\n";)					
 				else if checked_status.valid=Maybe then
-					(Printf.printf "Maybe\n";)					
+					(flag := 0;
+					Printf.printf "result Maybe\n";)					
 				;
 			Format.print_flush ();
 		)result;
-	)ip_list;;
+	)ip_list;
+	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
+	if !flag=0 then
+	(Printf.printf "remove invalid annot\n";remove_code_annot stmt code_annot;)
+	;;
 	
 	
 let prove_kf (kf:Db_types.kernel_function) = 
