@@ -27,16 +27,28 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
 	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
 	List.iter(fun ip->
-		let status = prove_predicate kf None ip in
+		let status = prove_predicate kf ["code_annot"] ip in
 		
 		(match status with
 		| Never_tried->
 			flag :=0;Printf.printf "result Never_tried\n";
 		| Best(e_status,erl)->
-			flag := 1;
 			Printf.printf "result Best\n";
+			(match e_status with
+			| True->
+				Printf.printf "result True\n";
+			| False_if_reachable->
+				flag := 0;
+				Printf.printf "result False_if_reachable\n";
+			| False_and_reachable->
+				flag := 0;
+				Printf.printf "result False_and_reachable\n";
+			| Dont_know->
+				flag := 0;
+				Printf.printf "result Dont_know\n";
+			);
 		| Inconsistent(inc)->
-			flag := 1;
+			flag := 0;
 			Printf.printf "result InConsistent\n";
 		);
 		
@@ -85,7 +97,7 @@ let prove_kf (kf:Cil_types.kernel_function) =
 		| User(code_annot)|AI(_,code_annot) ->
 			let ip_list = Property.ip_of_code_annot kf stmt code_annot in
 			List.iter(fun ip->
-				Prove.prove_predicate kf (Some(Kernel_function.all_function_behaviors kf)) ip;
+				Prove.prove_predicate kf (Kernel_function.all_function_behaviors kf) ip;
 				Format.print_flush ();
 				let status = Property_status.get ip in
 				(match status with
