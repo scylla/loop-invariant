@@ -2,24 +2,24 @@ open Cil_types
 open Cil_datatype
 
 (** Return an integer constant term from the given value. *)
-let mk_int_term value =
-  Logic_const.term
-    (TConst( CInt64(Int64.of_int value,IInt,Some(string_of_int value))))
-    (Ctype Cil.intType);;
+let mk_int_term value = Cil.lconstant (My_bigint.of_int value)
 
-(** Return an integer constant term with the 0 value. *)
-let zero_term() =
-  mk_int_term 0;;
+(** Return an integer constant term with the 0 value.
+    @deprecated use directly Cil.lzero
+*)
+let zero_term() = Cil.lzero ()
+
+let one_term () = Cil.lconstant My_bigint.one
 
 (** Returns a term representing the given logic variable (usually a fresh quantified variable). *)
 let mk_term_from_logic_var lvar =
-  Logic_const.term (TLval(TVar(lvar),TNoOffset)) (Ctype Cil.intType);;
+  Logic_const.term (TLval(TVar(lvar),TNoOffset)) (Ctype Cil.intType)
 
 (** Returns a term representing the variable associated to the given varinfo *)
 let mk_term_from_vi vi =
   Logic_const.term
     (TLval((Logic_utils.lval_to_term_lval ~cast:true (Cil.var vi))))
-    (Ctype Cil.intType);;
+    (Ctype Cil.intType)
     
 let removeAt (l:'a list) i = 
 	let l1 = ref [] in
