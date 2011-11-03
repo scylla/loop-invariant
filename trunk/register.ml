@@ -6,7 +6,6 @@ open Cil_datatype
 open Visitor
 open Function_analysis
 open Db
-open Db_types
 open Ast_printer
 open Globals
 open Db.LoopInvariant
@@ -59,13 +58,6 @@ class loopInvariant = object (self)
     end;
     DoChildren
     
-    method vterm_lval tlv =
-    (try
-       let lv = !Db.Properties.Interp.term_lval_to_lval ~result:None tlv in
-       ignore (self#vlval lv)
-     with Invalid_argument msg ->
-       error "%s@." msg);
-    DoChildren
 
   method vstmt_aux s =
     !Db.progress ();
@@ -201,8 +193,6 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       			Printf.printf "Pvalid\n";
       		| Pat(pn1,label)->
       			Printf.printf "Pat\n";
-      		| Pold(pn1)->
-      			Printf.printf "Pold\n";
       		| Pexists(q,pn1)->
       			Printf.printf "Pexists\n";
       		| Pforall(q,pn1)->

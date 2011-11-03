@@ -8,7 +8,6 @@ open Logic_typing
 open Visitor
 open Project
 open Callgraph
-open Db_types
 open Db
 open Ast_printer
 open Outputs
@@ -341,7 +340,7 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 	generate_block_predicate loop_block;
 	total_lt
 
-let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visitor:liVisitor)= 
+let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (visitor:liVisitor)= 
 	let fundec = Kernel_function.get_definition kf in
 	List.iter( fun stmt ->		  		
 		(
@@ -395,8 +394,8 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 				      Logic_const.new_code_annotation
 				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
 		       		in
-		       		let assert_root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-		       		Annotations.add stmt [Ast.self] assert_root_code_annot_ba;
+		       		let assert_root_code_annot_ba = Cil_types.User(annotation) in
+		       		Annotations.add kf stmt [Ast.self] assert_root_code_annot_ba;
 		       		prove_code_annot kf stmt annotation;
 		  		in
 		  		
@@ -539,8 +538,8 @@ let analysis_kf (kf:Db_types.kernel_function) (linfo_list:logic_info list) (visi
 				let t_named = Logic_const.pands tl in
 			
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
-				let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
-				Annotations.add stmt [Ast.self] root_code_annot_ba;
+				let root_code_annot_ba = Cil_types.User(annot) in
+				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 				prove_code_annot kf stmt annot;
 				(*remove_code_annot stmt annot; 
 		       	Annotations.reset_stmt false stmt;*)
@@ -635,12 +634,12 @@ let print_kf_global (global:global) (linfo_list:logic_info list) (visitor:liVisi
 		  		let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
 		  		
 		  		let add_code_annot (free_vars:Cil_datatype.Logic_var.Set.t) =
-		  			let annotation =
+		  			(*let annotation =
 				      Logic_const.new_code_annotation
 				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
 		       		in
-		       		let assert_root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-		       		Annotations.add stmt [Ast.self] assert_root_code_annot_ba;
+		       		let assert_root_code_annot_ba = Cil_types.User(annotation) in
+		       		Annotations.add kf stmt [Ast.self] assert_root_code_annot_ba;*)();
 		  		in
 		  		
 		  		if (Logic_var.Set.is_empty free_vars)=false
@@ -735,8 +734,8 @@ let print_kf_global (global:global) (linfo_list:logic_info list) (visitor:liVisi
 				let t_named = Logic_const.pands tl in
 			
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
-				let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
-				Annotations.add stmt [Ast.self] root_code_annot_ba;
+				let root_code_annot_ba = Cil_types.User(annot) in
+				(*Annotations.add stmt [Ast.self] root_code_annot_ba;*)();
 			)
 			)!total_lt;
 			  	

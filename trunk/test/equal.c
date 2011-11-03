@@ -2,10 +2,10 @@
 	@	x == x+1;
 @
 	@predicate is_positive(int x) = 
-	@	0<x;
+	@	0<=x;
 	@	
 	@predicate is_negative(int x) =
-	@	0>x;
+	@	0>=x;
 @
 	@predicate is_valid_int_range(int* p, int n) =
 	@	(0 <= n) && \valid_range(p,0,n-1);

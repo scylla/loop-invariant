@@ -2,7 +2,6 @@ open Cil_types
 open Cmdline
 open Function_analysis
 open Db
-open Db_types
 open Ast_printer
 open Globals
 

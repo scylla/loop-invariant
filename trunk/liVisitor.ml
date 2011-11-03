@@ -4,7 +4,6 @@ open Project
 open Cil_types
 open Cil_datatype
 open Project
-open Db_types
 open Annotations
 open LiAnnot
 
@@ -26,7 +25,7 @@ let is_type_consistent (linfo:logic_info) (vars:varinfo list) =
 	done;
 	!flag;;
 	
-let rec get_all_combine (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list) (result:varinfo list) (len:int) (tlen:int)=
+let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list) (result:varinfo list) (len:int) (tlen:int)=
 	if len>=tlen then
 	(
 		if (is_type_consistent linfo vars)=1 then 
@@ -42,8 +41,8 @@ let rec get_all_combine (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt
 				[],!tl)) in
 			
 			let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
-			let root_code_annot_ba = Db_types.Before(Db_types.User(annot)) in
-			Annotations.add s [Ast.self] root_code_annot_ba;
+			let root_code_annot_ba = Cil_types.User(annot) in
+			Annotations.add kf s [Ast.self] root_code_annot_ba;
 			Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 			prove_code_annot kf s annot;
 			Printf.printf "after prove annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
@@ -70,7 +69,7 @@ class liVisitor prj = object (self)
 		Format.print_flush ();
 		logic_var;
 			
-	method add_pn (kf:Db_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
+	method add_pn (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
 		match linfo.l_body with
 		| LBpred(pn)->(
 			let flen = (List.length linfo.l_profile) in
@@ -100,7 +99,8 @@ class liVisitor prj = object (self)
 			Annotations.add_assert stmt [Ast.self] ~before:true pn;*)
 			(match self#current_stmt with
 			| Some(s)->
-				Annotations.add_assert s [Ast.self] ~before:true pn;
+				(*let func = self#current_func in
+				Annotations.add_assert s [Ast.self] ~before:true pn;*)();
 			| None->(););
 			(match pn.content with
       		| Psubtype(t1,t2)->
@@ -115,8 +115,6 @@ class liVisitor prj = object (self)
       			Printf.printf "Pvalid\n";
       		| Pat(pn1,label)->
       			Printf.printf "Pat\n";
-      		| Pold(pn1)->
-      			Printf.printf "Pold\n";
       		| Pexists(q,pn1)->
       			Printf.printf "Pexists\n";
       		| Pforall(q,pn1)->
@@ -177,7 +175,7 @@ class liVisitor prj = object (self)
 				Cil.d_predicate_named Format.std_formatter assertion;
 				Queue.add
 				(fun () ->		
-					Annotations.add_assert stmt [Ast.self] ~before:true assertion
+					(*Annotations.add_assert stmt [Ast.self] ~before:true assertion*)();
 				);
 					self#get_filling_actions;
 				DoChildren
