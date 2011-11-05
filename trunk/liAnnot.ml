@@ -17,17 +17,15 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 		if annot.annot_id=rannot_bf.annot_id then begin
 			Printf.printf "invalid rannot_bf\n";end
 		else begin
-			(Printf.printf "id1=%d,id2=%d\n" annot.annot_id rannot_bf.annot_id;
-			Annotations.add kf stmt [Ast.self] rannot;)end
+			(Annotations.add kf stmt [Ast.self] rannot;)end
 	)rannot_bf_list;;
 	
 let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
 	let flag = ref 1 in
-	Printf.printf "before prove the annot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";
 	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
 	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
 	List.iter(fun ip->
-		let status = prove_predicate kf ["code_annot"] ip in
+		let status = prove_predicate kf [] ip in
 		
 		(match status with
 		| Never_tried->
@@ -51,28 +49,6 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 			flag := 0;
 			Printf.printf "result InConsistent\n";
 		);
-		
-		(*if (List.length result)>0 then
-		(
-		List.iter(fun status->
-			match status with
-			| Unknown->(
-				flag := 0;
-				Printf.printf "result unknown\n";
-			)
-			| Checked(checked_status)->
-				if checked_status.valid=True then
-					(flag:=1;Printf.printf "result True\n";)					
-				else if checked_status.valid=False then
-					(flag := 0;
-					Printf.printf "result False\n";)					
-				else if checked_status.valid=Maybe then
-					(flag := 0;
-					Printf.printf "result Maybe\n";)					
-				;
-			Format.print_flush ();
-		)result;
-		)else(flag := 0;);*)
 	)ip_list;
 	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
 	if !flag=0 then
@@ -108,20 +84,6 @@ let prove_kf (kf:Cil_types.kernel_function) =
 				| Inconsistent(inc)->
 					Printf.printf "result InConsistent\n";
 				);
-				(*List.iter(fun status->
-					match status with
-					| Unknown->
-						Printf.printf "unknown\n";
-					| Checked(checked_status)->
-						if checked_status.valid=True then
-							(Printf.printf "true\n";)
-						else if checked_status.valid=False then
-							(Printf.printf "False\n";)
-						else if checked_status.valid=Maybe then
-							(Printf.printf "Maybe\n";)
-					;
-					Format.print_flush ();				
-				)result;*)
 			)ip_list;
 	)annot_list;
 	();;
