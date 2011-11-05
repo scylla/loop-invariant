@@ -15,6 +15,7 @@ open Annotations
 open State_builder
 open Extlib
 open LiVisitor
+open Datatype
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -435,6 +436,7 @@ let theMain () =
 	Self.result "LoopInvariant Analysis Over.\n"
     
 let compute_loop_invariant () = 
+	let t1 = Sys.time () in
 	Ast.compute ();
       	Globals.Functions.iter (fun kf ->
       		(match kf.fundec with
@@ -446,7 +448,9 @@ let compute_loop_invariant () =
 			);
       	);
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
-	theMain ()
+	theMain ();
+	let t2 = Sys.time () in
+	Printf.printf "total time:%fs\n" (t2-.t1)
 	
 	
 let run () =  if Enabled.get () then compute_loop_invariant ()
