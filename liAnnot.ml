@@ -6,6 +6,83 @@ open Kernel_function
 open Prove
 open Property_status
 
+let compareLogicInfo (linfo1:Cil_types.logic_info) (linfo2:Cil_types.logic_info) : bool =
+	let lv1 = linfo1.l_var_info in
+	let lp1 = linfo1.l_profile in
+	let lv2 = linfo2.l_var_info in
+	let lp2 = linfo2.l_profile in
+	if lv1.lv_name!=lv2.lv_name then
+	(	
+		false;
+	)
+	else
+	(
+		let len1 = List.length lp1 in
+		let len2 = List.length lp2 in
+		if len1!=len2 then
+		(
+			false;
+		)
+		else
+		(
+			let flag = ref 1 in
+			for i=0 to (len1-1) do
+			(
+				let v1 = (List.nth lp1 i) in
+				let v2 = (List.nth lp2 i) in
+				if v1.lv_name!=v2.lv_name then
+				(
+					flag := 0;
+				);
+			)
+			done;
+			if !flag=1 then	(true;) else (false;);
+		);
+	);;
+			
+let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Cil_types.code_annotation) : bool =
+	match code_annot1.annot_content , code_annot2.annot_content with
+	| AInvariant(sl1,b1,p1),AInvariant(sl2,b2,p2)->
+		(match p1.content,p2.content with
+		| Papp(linfo1,_,tl1),Papp(linfo2,_,tl2)->
+			if (compareLogicInfo linfo1 linfo2)=true then
+			(
+				let len1 = List.length tl1 in
+				let len2 = List.length tl2 in
+				if len1!=len2 then
+				(
+					false;
+				)
+				else
+				(
+					let flag = ref 1 in
+					for i=0 to (len1-1) do
+					(
+						let t1 = (List.nth tl1 i) in
+						let t2 = (List.nth tl2 i) in
+						if t1!=t2 then (flag := 0;);
+					)
+					done;
+					if !flag=1 then	(true;) else (false;);
+				);
+			)
+			else (false;);
+		| _->false;
+		);
+	| _->false;;
+	
+let isExistCodeAnnot (code_annot:Cil_types.code_annotation) (s:stmt) : bool =
+	Printf.printf "isExistCodeAnnot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";
+	let flag = ref 0 in
+	let sl = Some([Ast.self]) in
+	let rannot_bf_list = Annotations.get_all_annotations ?who:sl s in
+	List.iter(fun rannot->
+		match rannot with
+		| User(a)|AI(_,a)->
+			if (compareCodeAnnot code_annot a)=true then (flag := 1;)
+	)rannot_bf_list;
+	if !flag=1 then	(true;) else (false;);;
+				
 let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rannot_bf:Cil_types.code_annotation) =
 	
 	let sl = Some([Ast.self]) in

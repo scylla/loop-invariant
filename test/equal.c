@@ -1,15 +1,19 @@
-/*@predicate is_dense_increase(int x) = 
+/*@
+	@predicate is_dense_increase(int x) = 
 	@	x == x+1;
-@
+	@
 	@predicate is_positive(int x) = 
 	@	0<=x;
 	@	
 	@predicate is_negative(int x) =
 	@	0>=x;
-@
+	@
+	@predicate is_valid_index(int *arr,int i,int n) =
+	@	(0 <= i) && (i < n);
+	@
 	@predicate is_valid_int_range(int* p, int n) =
 	@	(0 <= n) && \valid_range(p,0,n-1);
-@
+	@
 	@lemma foo: \forall int* p,n; is_valid_int_range(p,n) <==> \valid_range(p,0,n-1);
 */
 
@@ -31,18 +35,15 @@
    @complete behaviors all_equal, some_not_equal;
   @ disjoint behaviors all_equal, some_not_equal;
 */
-int equal(const int* a, int n, const int* b)
+int equal(int* a, int n, int* b)
 {
 	int count=0;
-	if(count>0)
-		count = 1;
-	/*@ loop invariant i==i+1; */
   	for (int i = 0; i < n; i++)
-  	{count = count + 1;
-    	/*if (a[i] != b[i])
+  	{
+    	if (a[i] != b[i])
     	{
        		count = count + 1;
-       	}*/
+       	}
 	}
 	return count;
 }

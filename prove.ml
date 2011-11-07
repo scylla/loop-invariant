@@ -10,6 +10,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip=
 	
 	Dynamic.Parameter.String.set "-wp-proof" "z3";
 	Dynamic.Parameter.String.set "-wp-model" "Hoare";
+	Dynamic.Parameter.Int.set "-wp-timeout" 2;
 	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
 	let module OKF = Datatype.Option(Kernel_function) in
 	let module OP = Datatype.Option(Property) in

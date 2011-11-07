@@ -36,16 +36,42 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 			)result;
 			List.rev !tl;
 			Printf.printf "tl.len=%d\n" (List.length !tl);
-		
-			let newpn = Logic_const.unamed (Papp(linfo,
-				[],!tl)) in
+			Printf.printf "lables.len=%d\n" (List.length linfo.l_labels);
+			if (List.length linfo.l_labels)>0 then
+			(
+				let newpn = Logic_const.unamed (Papp(linfo,
+				[LogicLabel(None,"L"),LogicLabel(None,"L")],!tl)) in
 			
-			let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
-			let root_code_annot_ba = Cil_types.User(annot) in
-			Annotations.add kf s [Ast.self] root_code_annot_ba;
-			Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-			prove_code_annot kf s annot;
-			Printf.printf "after prove annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
+				let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
+				let root_code_annot_ba = Cil_types.User(annot) in
+				if (isExistCodeAnnot annot s)=false then
+				(
+				Annotations.add kf s [Ast.self] root_code_annot_ba;
+				Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
+				
+				prove_code_annot kf s annot;
+				Printf.printf "after annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
+				);
+			)else
+			(
+				let newpn = Logic_const.unamed (Papp(linfo,	[],!tl)) in			
+				let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
+				let root_code_annot_ba = Cil_types.User(annot) in
+				if (isExistCodeAnnot annot s)=false then 
+				(
+				Annotations.add kf s [Ast.self] root_code_annot_ba;
+				Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
+				
+				prove_code_annot kf s annot;
+				Printf.printf "after annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf"\n";
+				);
+			)
+		)else
+		(
+			Printf.printf "type inconsistent\n";
+			List.iter(fun v->
+				Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
+			)vars;
 		)
 	)else
 	(
