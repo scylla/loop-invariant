@@ -136,7 +136,7 @@ let rec generate_predicate_list_from_block pre_list block =
 	pre_list
 	end
 	
-let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) (visitor:liVisitor)=
+let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) (visitor:liVisitor)=
 	
 	let lt = ref [] in
 	let total_lt = ref [] in
@@ -181,9 +181,9 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 			Printf.printf "\n";
 			Format.print_flush ();
 			List.iter(fun linfo->
-				visitor#vlogic_info_use linfo;();
+				visitor#add_pn kf linfo loop_stmt (List.append (Varinfo.Set.elements evars) (Varinfo.Set.elements evars));
 			)linfo_list;
-			
+		
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
 			let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
 			let con_named = Logic_const.pands (List.rev s.predicate_list) in
@@ -232,6 +232,9 @@ let rec generate_loop_annotations (loop_stmt:stmt) (loop_block:block) (linfo_lis
 		
 		let texp_temp = constFold true (stripCasts exp_temp) in
 		let texp_vars = Cil.extract_varinfos_from_exp texp_temp in
+		List.iter(fun linfo->
+			visitor#add_pn kf linfo loop_stmt (Varinfo.Set.elements texp_vars);
+		)linfo_list;
 		let tlv_vars = ref [] in
 		List.iter(fun cv->(
 			tlv_vars := (Cil.cvar_to_lvar cv)::!tlv_vars;
@@ -531,7 +534,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 			  	Printf.printf "\n";
 		 	| None->();
 		 	);
-		 	let total_lt = generate_loop_annotations stmt block linfo_list visitor in
+		 	let total_lt = generate_loop_annotations kf stmt block linfo_list visitor in
 		 	total_lt := List.rev !total_lt;
 		 	List.iter(fun tl->(	
 				(*let tl = List.rev tl in*)
@@ -561,213 +564,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 		Printf.printf "\n";
 		)fundec.sallstmts(*List.iter end*)
 
-let print_kf_global (global:global) (linfo_list:logic_info list) (visitor:liVisitor)=
-	match global with
-	| GType(typeinfo,location) -> (
-		  Printf.printf "GType\n";
-	)
-	| GCompTag(compinfo,location) -> (
-		  Printf.printf "GCompTag\n";
-	)
-	| GCompTagDecl(compinfo,location) -> (
-		  Printf.printf "GCompTagDecl\n";
-	)
-	| GEnumTag(enuminfo,location) -> (
-		  Printf.printf "GEnumTag\n";
-	)
-	| GEnumTagDecl(enuminfo,location) -> (
-		  Printf.printf "GEnumTagDecl\n";
-	)
-	| GVarDecl(funspec,varinfo,location) -> (
-		  Cil.d_funspec Format.std_formatter funspec;
-	)
-	| GVar(varinfo,initinfo,location) -> (
-		 Printf.printf "GVar\n";
-	)
-	| GFun(fundec,location) -> (		
-      	(*Cfg.prepareCFG fundec;*)
-		List.iter( fun stmt ->		  		
-		(
-		match stmt.skind with
-		| If(exp,block1,block2,location)->(
-			
-		  	let texp = constFold true (stripCasts exp) in
-		  	(
-		  	match texp.enode with
-		  	| Const(constant)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| Lval(lval)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| SizeOf(typ)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| SizeOfE(exp)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| SizeOfStr(s:string)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| AlignOf(typ)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| AlignOfE(exp)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| UnOp(upop,exp,typ)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| BinOp((Div|Mod|Mult|PlusA|MinusA),exp1,exp2,typ)->(
-		  		Cil.d_type Format.std_formatter typ;
-		  		Format.print_flush ();
-		  		Printf.printf "Div\n";		
-		  	)
-		  	| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->(
-		  		Cil.d_type Format.std_formatter typ;
-		  		Format.print_flush ();
-		  		Printf.printf "not equal\n";
-		  		let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in
-		  		let pre_named = !Db.Properties.Interp.force_exp_to_predicate texp in
-		  		
-		  		(*if while_stmt.skind=Loop(_,_,_,_,_) then*)
-		  		let free_vars = Cil.extract_free_logicvars_from_predicate pre_named in
-		  		
-		  		let add_code_annot (free_vars:Cil_datatype.Logic_var.Set.t) =
-		  			(*let annotation =
-				      Logic_const.new_code_annotation
-				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
-		       		in
-		       		let assert_root_code_annot_ba = Cil_types.User(annotation) in
-		       		Annotations.add kf stmt [Ast.self] assert_root_code_annot_ba;*)();
-		  		in
-		  		
-		  		if (Logic_var.Set.is_empty free_vars)=false
-		  		then add_code_annot free_vars;
-		  		(*else begin
-				(*let annotation =
-				      Logic_const.new_code_annotation
-				      (AInvariant ([],true,Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),pre_named))
-				      ))
-           		in
-           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
-           		add_code_annot free_vars; end*)
-		  		
-           		
-		  		
-		  		Printf.printf "not equal\n";
-		  		(*let term = !Db.Properties.Interp.force_exp_to_term texp in
-		  		let new_code_annot = Logic_const.new_code_annotation (term,*)	  		
-		  	)
-		  	| CastE(typ,exp)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| AddrOf(lval)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| StartOf(lval)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| Info(exp,exp_info)->(
-		  		Printf.printf "\n";
-		  	)
-		  	| _->(
-		  		Printf.printf "\n";
-		  	)
-		  	);
-		  	Printf.printf "if--:\n";
-		  	(*Cil.d_exp Format.std_formatter texp;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";
-		  	
-		  	let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
-		  	Cil.d_code_annotation Format.std_formatter assert_code_annot;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";
-		  	
-		  	let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
-		  	Cil.d_predicate_named Format.std_formatter pre;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";*)
-		  	(*Annotations.add_assert stmt [Ast.self] ~before:true pre;*)
-		  	
-		  	(*let term = !Db.Properties.Interp.force_exp_to_term texp in
-		  	Cil.d_term Format.std_formatter term;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";*)
-		  	
-		  	Printf.printf "if++:\n";
-		 )(*end If*)
-		 | Instr(instr) ->(
-		 	Printf.printf "instr--:\n";	  			
-		  	Cil.d_instr Format.std_formatter instr;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";
-		  	match instr with
-		  	| Set(lval,exp,location)->(
-			  	(*let lexp = constFold true (stripCasts exp) in
-				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
-				let tr = !Db.Properties.Interp.force_exp_to_term lexp in
-				let tnode = TLval(tlval) in	
-				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in			
-				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
-				let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-				
-				let annotation = Logic_const.new_code_annotation (AStmtSpec((tr,id_pre,(Logic_const.new_identified_term tr) spec))) in
-           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
-			)
-			| _->(
-			);(*match instr End*)
-		  	Format.print_flush ();
-		  	Printf.printf "instr++:\n";
-		 )
-		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
-		 	Printf.printf "Enter Loop Now.\n";
-		 	
-		 	let total_lt = generate_loop_annotations stmt block linfo_list visitor in
-		 	Printf.printf "total_lt.length=%d\n" (List.length !total_lt);
-		 	total_lt := List.rev !total_lt;
-		 	List.iter(fun tl->(	
-				(*let tl = List.rev tl in*)
-				let t_named = Logic_const.pands tl in
-			
-				let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
-				let root_code_annot_ba = Cil_types.User(annot) in
-				(*Annotations.add stmt [Ast.self] root_code_annot_ba;*)();
-			)
-			)!total_lt;
-			  	
-		 	Printf.printf "Leave Loop Now.\n";
-		 )
-		 | Block(block) ->(
-		  	Printf.printf "block--:\n";
-		 )
-		 | Return(expo,location) ->(
-		  	Printf.printf "return--:\n";
-		 )
-		 | _ ->(
-		  	Printf.printf "\n";
-		 )
-		 );
-		Printf.printf "\n";
-		)fundec.sallstmts;(*List.iter end*)	
-		)(*CFun end*)
-		| GAsm(s,location) -> (
-		  	Printf.printf "s\n";
-		)
-		| GPragma(attribute,location) -> (
-		  	Printf.printf "GPragma\n";
-		)
-		| GText(s) -> (
-			Printf.printf "GText\n";
-		)
-		| GAnnot(global_annotation,location) -> (
-		)
-		| _ -> (
-			Printf.printf "\n";
-		)
 		  	
 (**语句类型*)
 let print_function_stmt_kind stmt visitor= 
