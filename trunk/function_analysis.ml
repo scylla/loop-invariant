@@ -343,6 +343,22 @@ let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt
 	generate_block_predicate loop_block;
 	total_lt
 
+(*let get_vars_from_stmt (s:stmt) = 
+	match s.skind with
+	| If(exp,b1,b2,_)->*)
+	
+let extract_varinfos_from_stmt (s:stmt) =
+  let visitor = object
+    inherit nopCilVisitor
+    val mutable varinfos = Varinfo.Set.empty;
+    method varinfos = varinfos
+    method vvrbl (symb:varinfo) =
+      varinfos <- Varinfo.Set.add symb varinfos;
+      SkipChildren
+  end
+  in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
+    visitor#varinfos
+    
 let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (visitor:liVisitor)= 
 	let fundec = Kernel_function.get_definition kf in
 	List.iter( fun stmt ->		  		
@@ -483,6 +499,13 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
+		 	let vars = extract_varinfos_from_stmt stmt in
+		 	List.iter(fun v->
+		 		Printf.printf "v:%s\n" v.vname;
+		 	)(Varinfo.Set.elements vars);
+		 	List.iter(fun linfo->
+				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
+			)linfo_list;
 		 	(
 		 	match stmto1 with(*continue*)
 		 	| Some(s)->
@@ -498,19 +521,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 					List.iter(fun linfo->
 						visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
 					)linfo_list;
-			  		(*List.iter(
-			  			fun var->
-			  				Cil.d_var Format.std_formatter var;
-			  				Format.print_flush ();
-			  				Printf.printf "\n";
-			  		)(Varinfo.Set.elements vars);
-			  		
-			  		Cil.d_exp Format.std_formatter exp;
-			  		Format.print_flush ();
-			  		Printf.printf "\n";
-			  		Cil.d_exp Format.std_formatter (constFold true (stripCasts exp));
-			  		Format.print_flush ();
-			  		Printf.printf "\n";*)
 			  		(match exp.enode with
 			  		| UnOp(op,e,ty)->
 			  			Cil.d_unop Format.std_formatter op;

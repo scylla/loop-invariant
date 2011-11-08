@@ -148,7 +148,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
       	Function_analysis.print_kf_global g;
       	)
       	)cil.globals;*)
-		  	
+		
 		let linfo_list = ref [] in(*logic_info list*)
 		let gannot_list = Globals.Annotations.get_all () in
 		List.iter(fun (g,b) ->
@@ -438,15 +438,16 @@ let theMain () =
 let compute_loop_invariant () = 
 	let t1 = Sys.time () in
 	Ast.compute ();
-      	Globals.Functions.iter (fun kf ->
-      		(match kf.fundec with
-      		| Definition(dec,l)->
-      			Cfg.clearCFGinfo ~clear_id:true dec;
-      			Cfg.prepareCFG dec;
-				Cfg.computeCFGInfo dec true;
-			| _->();
-			);
-      	);
+	Unroll_loops.compute 1 (Ast.get ());
+    Globals.Functions.iter (fun kf ->
+    	(match kf.fundec with
+      	| Definition(dec,l)->
+      		Cfg.clearCFGinfo ~clear_id:true dec;
+      		Cfg.prepareCFG dec;
+			Cfg.computeCFGInfo dec true;
+		| _->();
+		);
+    );
 	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ();
 	let t2 = Sys.time () in

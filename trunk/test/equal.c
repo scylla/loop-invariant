@@ -11,6 +11,10 @@
 	@predicate is_valid_index(int *arr,int i,int n) =
 	@	(0 <= i) && (i < n);
 	@
+	@type iarr = int [];
+	@predicate is_valid_index (iarr arr,int i,int n) =
+	@	(0<=i) && (i < n);
+	@
 	@predicate is_valid_int_range(int* p, int n) =
 	@	(0 <= n) && \valid_range(p,0,n-1);
 	@
