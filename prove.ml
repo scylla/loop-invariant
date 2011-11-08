@@ -8,9 +8,9 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip=
 	(*let wp_run = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in
 	wp_run ();*)
 	
-	Dynamic.Parameter.String.set "-wp-proof" "z3";
-	Dynamic.Parameter.String.set "-wp-model" "Hoare";
-	Dynamic.Parameter.Int.set "-wp-timeout" 2;
+	Dynamic.Parameter.String.set "-wp-proof" "cvc3";
+	Dynamic.Parameter.String.set "-wp-model" "Runtime";
+	Dynamic.Parameter.Int.set "-wp-timeout" 100;
 	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
 	let module OKF = Datatype.Option(Kernel_function) in
 	let module OP = Datatype.Option(Property) in

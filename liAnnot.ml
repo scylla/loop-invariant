@@ -60,7 +60,24 @@ let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Ci
 					(
 						let t1 = (List.nth tl1 i) in
 						let t2 = (List.nth tl2 i) in
-						if t1!=t2 then (flag := 0;);
+						match t1.term_node,t2.term_node with
+						| TConst(c1),TConst(c2)->
+							Printf.printf "term_node:TConst\n";
+						| TLval(l1),TLval(l2)->
+							let (host1,offset1) = l1 in
+							let (host2,offset2) = l2 in
+							(
+							match host1,host2 with
+							| TVar(lv1),TVar(lv2)->
+								if lv1.lv_id!=lv2.lv_id then (Printf.printf "lv1.lv_id!=lv2.lv_id\n";flag := 0;);
+							| _,_->();
+							);
+							Printf.printf "term_node:TLval\n";
+						| TUnOp(u1,_),TUnOp(u2,_)->
+							Printf.printf "term_node:TUnOp\n";
+						| TBinOp(b1,_,_),TBinOp(b2,_,_)->
+							Printf.printf "term_node:TBinOp\n";
+						| _,_->();
 					)
 					done;
 					if !flag=1 then	(true;) else (false;);
