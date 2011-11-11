@@ -6,13 +6,12 @@
 	@	0<=x;
 	@	
 	@predicate is_negative(int x) =
-	@	0>=x;
+	@	x<=0;
 	@
 	@predicate is_valid_index(int *arr,int i,int n) =
 	@	(0 <= i) && (i < n);
 	@
-	@type iarr = int [];
-	@predicate is_valid_index (iarr arr,int i,int n) =
+	@predicate is_valid_index (int arr[],int i,int n) =
 	@	(0<=i) && (i < n);
 	@
 	@predicate is_valid_int_range(int* p, int n) =
@@ -42,7 +41,7 @@
 int equal(int* a, int n, int* b)
 {
 	int count=0;
-  	for (int i = 0; i < n; i++)
+  	for (int i = 0; i < n; i+=1)
   	{
     	if (a[i] != b[i])
     	{
