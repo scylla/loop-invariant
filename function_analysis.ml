@@ -177,12 +177,12 @@ let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt
 			
 			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
 			
-			Cil.d_exp Format.std_formatter exp;
+			(*Cil.d_exp Format.std_formatter exp;
 			Printf.printf "\n";
 			Format.print_flush ();
 			List.iter(fun linfo->
 				visitor#add_pn kf linfo loop_stmt (List.append (Varinfo.Set.elements evars) (Varinfo.Set.elements evars));
-			)linfo_list;
+			)linfo_list;*)
 		
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
 			let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
@@ -232,9 +232,9 @@ let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt
 		
 		let texp_temp = constFold true (stripCasts exp_temp) in
 		let texp_vars = Cil.extract_varinfos_from_exp texp_temp in
-		List.iter(fun linfo->
+		(*List.iter(fun linfo->
 			visitor#add_pn kf linfo loop_stmt (Varinfo.Set.elements texp_vars);
-		)linfo_list;
+		)linfo_list;*)
 		let tlv_vars = ref [] in
 		List.iter(fun cv->(
 			tlv_vars := (Cil.cvar_to_lvar cv)::!tlv_vars;
@@ -500,9 +500,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
 		 	let vars = extract_varinfos_from_stmt stmt in
-		 	List.iter(fun v->
-		 		Printf.printf "v:%s\n" v.vname;
-		 	)(Varinfo.Set.elements vars);
 		 	List.iter(fun linfo->
 				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
 			)linfo_list;
@@ -518,9 +515,9 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 			  	| If(exp,b1,b2,l)->
 			  		
 					let vars = Cil.extract_varinfos_from_exp exp in
-					List.iter(fun linfo->
+					(*List.iter(fun linfo->
 						visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
-					)linfo_list;
+					)linfo_list;*)
 			  		(match exp.enode with
 			  		| UnOp(op,e,ty)->
 			  			Cil.d_unop Format.std_formatter op;

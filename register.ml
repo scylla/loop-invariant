@@ -428,9 +428,9 @@ let theMain () =
 	Ast.get ();
 	
 	Self.result "Begin to execute Value Analysis.\n"; 
-	Printf.printf "Db.Value.is_computed=%b\n" (Db.Value.is_computed ());
+	(*Printf.printf "Db.Value.is_computed=%b\n" (Db.Value.is_computed ());
 	if not (Db.Value.is_computed ()) then !Db.Value.compute ();
-	Self.result "Value Analysis Over.\n";
+	Self.result "Value Analysis Over.\n";*)
 	Self.result "Begin to execute LoopInvariant Analysis.\n"; 
 	loopInvariantAnalysis (Ast.get ());
 	Self.result "LoopInvariant Analysis Over.\n"
@@ -438,7 +438,7 @@ let theMain () =
 let compute_loop_invariant () = 
 	let t1 = Sys.time () in
 	Ast.compute ();
-	Unroll_loops.compute 1 (Ast.get ());
+	(*Unroll_loops.compute 1 (Ast.get ());*)
     Globals.Functions.iter (fun kf ->
     	(match kf.fundec with
       	| Definition(dec,l)->
