@@ -5,6 +5,7 @@ open Annotations
 open Kernel_function
 open Prove
 open Property_status
+open Description
 
 let compareLogicInfo (linfo1:Cil_types.logic_info) (linfo2:Cil_types.logic_info) : bool =
 	let lv1 = linfo1.l_var_info in
@@ -119,6 +120,7 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
 	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
 	List.iter(fun ip->
+		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
 		let status = prove_predicate kf [] ip in
 		
 		(match status with
@@ -128,6 +130,30 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 			Printf.printf "result Best\n";
 			(match e_status with
 			| True->
+				(match code_annot.annot_content with
+				| AInvariant(_,_,pn)->
+					(match pn.content with
+					| Papp(linfo,labels,tl)->
+						(*remove_code_annot stmt kf code_annot;
+						let labels1 = ref [] in
+						let labels2 = ref [] in
+						List.iter(fun l->
+							labels1 := (List.append !labels1 [LogicLabel(None,"Here"),LogicLabel(None,"Here")]);
+							labels2 := (List.append !labels2 [LogicLabel(None,"Here")]);
+						)linfo.l_labels;
+						let oldlabels = linfo.l_labels in
+						linfo.l_labels <- !labels2;
+						let newpn = Logic_const.unamed (Papp(linfo,!labels1,tl)) in
+						linfo.l_labels <- oldlabels;
+			
+						let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
+						let root_code_annot_ba = Cil_types.User(annot) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;*)
+						();
+					| _->();
+					);
+				| _->();
+				);
 				Printf.printf "result True\n";
 			| False_if_reachable->
 				flag := 0;

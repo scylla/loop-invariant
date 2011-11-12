@@ -39,8 +39,16 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 			Printf.printf "lables.len=%d\n" (List.length linfo.l_labels);
 			if (List.length linfo.l_labels)>0 then
 			(
+				let labels1 = ref [] in
+				let labels2 = ref [] in
+				List.iter(fun l->
+					labels1 := (List.append !labels1 [LogicLabel(None,"L"),LogicLabel(None,"L")]);
+					labels2 := (List.append !labels2 [LogicLabel(None,"L")]);
+				)linfo.l_labels;
+				let oldlabels = linfo.l_labels in
+				linfo.l_labels <- !labels2;
 				let newpn = Logic_const.unamed (Papp(linfo,
-				[LogicLabel(None,"L"),LogicLabel(None,"L")],!tl)) in
+				!labels1,!tl)) in
 			
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
 				let root_code_annot_ba = Cil_types.User(annot) in
@@ -48,10 +56,12 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 				(
 				Annotations.add kf s [Ast.self] root_code_annot_ba;
 				Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-				
+				Printf.printf "logic_var,len>0:\n";Cil.d_logic_var Format.std_formatter linfo.l_var_info;Format.print_flush ();Printf.printf "\n";
+				Cil.d_predicate_named Format.std_formatter newpn;Format.print_flush ();Printf.printf "\n";
 				prove_code_annot kf s annot;
 				Printf.printf "after annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 				);
+				linfo.l_labels <- oldlabels;
 			)else
 			(
 				let newpn = Logic_const.unamed (Papp(linfo,	[],!tl)) in			
