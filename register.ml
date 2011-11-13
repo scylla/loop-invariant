@@ -165,7 +165,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 				Format.print_flush ();
 		)gannot_list;
       	
-      	List.iter(fun li->
+      	(*List.iter(fun li->
       		Printf.printf "logic_var_info=%s\n" li.l_var_info.lv_name;
       		Printf.printf "li.params.len=%d\n" (List.length li.l_tparams);
       		List.iter(fun para->
@@ -228,7 +228,7 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		  		);
       		| _->
       			();
-      	)!linfo_list;
+      	)!linfo_list;*)
       	
 		(**before compute, must clear first. set clear_id to be false*)
       	Cfg.clearFileCFG ~clear_id:false cil;
@@ -236,7 +236,50 @@ let rec loopInvariantAnalysis (cil: Cil_types.file) =
 		
 		let visitor = new liVisitor (Project.current ()) in
       	Globals.Functions.iter (fun kf ->
-      		analysis_kf kf !linfo_list visitor;
+      		Self.result "Enter function %s.\n" (Kernel_function.get_name kf);
+      		Printf.printf "the funspec is as follow:\n";
+		  	let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
+		  	Cil.d_funspec Format.std_formatter funspec;
+		  	Printf.printf "\n";
+		  	Printf.printf "spec_complete_behaviors\n";
+		  	List.iter(fun l->
+		  		List.iter(fun b->
+		  			Printf.printf "%s," b;
+		  		)l;
+		  		Printf.printf "\n";
+		  	)funspec.spec_complete_behaviors;
+		  	Printf.printf "spec_disjoint_behaviors\n";
+		  	List.iter(fun l->
+		  		List.iter(fun b->
+		  			Printf.printf "%s," b;
+		  		)l;
+		  		Printf.printf "\n";
+		  	)funspec.spec_disjoint_behaviors;
+		  	let assumes = ref [] in
+		  	List.iter(fun b->
+		  		Printf.printf "b_name begin:%s\n" b.b_name;
+		  		Printf.printf "assumes\n";
+		  		let al = ref [] in
+		  		List.iter(fun ip->
+		  			al := (Logic_const.unamed ip.ip_content)::!al;
+		  			Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  		)b.b_assumes;
+		  		assumes := (Logic_const.pands !al)::!assumes;
+		  		Printf.printf "requires\n";
+		  		List.iter(fun ip->
+		  			Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  		)b.b_requires;
+		  		Printf.printf "post_cond\n";
+		  		List.iter(fun (tkind,ip)->
+		  			Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  		)b.b_post_cond;
+		  		Printf.printf "b_name end\n";
+		  	)funspec.spec_behavior;
+		  	Printf.printf "assumes named\n";
+		  	List.iter(fun pn->
+		  		Cil.d_predicate_named Format.std_formatter pn;Format.print_flush ();Printf.printf "\n";
+		  	)!assumes;
+      		analysis_kf kf !linfo_list !assumes visitor;
       		(*prove_kf kf;*)
       	);
       	
