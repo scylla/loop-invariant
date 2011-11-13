@@ -136,7 +136,7 @@ let rec generate_predicate_list_from_block pre_list block =
 	pre_list
 	end
 	
-let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list) (visitor:liVisitor)=
+let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list)  (assumes:predicate named list)  (visitor:liVisitor)=
 	
 	let lt = ref [] in
 	let total_lt = ref [] in
@@ -163,7 +163,7 @@ let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt
 				!flag;
 			in
 			let lvars = Cil.extract_varinfos_from_lval lval in
-			let evars = Cil.extract_varinfos_from_exp texp in
+			let evars = Cil.extract_varinfos_from_exp exp in
 			let llvars = ref [] in
 			let elvars = ref [] in
 			List.iter(fun cv->(
@@ -186,11 +186,13 @@ let rec generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt
 		
 			let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
 			let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
+			
 			let con_named = Logic_const.pands (List.rev s.predicate_list) in
 			if (List.length !llvars)!=0 then
 			begin
-				t_named := Logic_const.unamed (Pexists (!llvars,(Logic_const.unamed (Pimplies (con_named,!t_named)))));
-				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),!t_named));
+				(*t_named := Logic_const.unamed (Pexists (!llvars,(Logic_const.unamed (Pimplies (con_named,!t_named)))));
+				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),!t_named));*)
+				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),(Logic_const.unamed (Pimplies (con_named,!t_named)))));
 			end
 			else
 			begin
@@ -359,9 +361,9 @@ let extract_varinfos_from_stmt (s:stmt) =
   in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
     visitor#varinfos
     
-let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (visitor:liVisitor)= 
+let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (assumes:predicate named list) (visitor:liVisitor)= 
 	let fundec = Kernel_function.get_definition kf in
-	List.iter( fun stmt ->		  		
+	List.iter( fun stmt ->
 		(
 		match stmt.skind with
 		| If(exp,block1,block2,location)->(
@@ -499,10 +501,10 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
-		 	let vars = extract_varinfos_from_stmt stmt in
+		 	(*let vars = extract_varinfos_from_stmt stmt in
 		 	List.iter(fun linfo->
 				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
-			)linfo_list;
+			)linfo_list;*)
 		 	(
 		 	match stmto1 with(*continue*)
 		 	| Some(s)->
@@ -541,21 +543,26 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (vis
 			  	Printf.printf "\n";
 		 	| None->();
 		 	);
-		 	let total_lt = generate_loop_annotations kf stmt block linfo_list visitor in
+		 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes visitor in
 		 	total_lt := List.rev !total_lt;
-		 	List.iter(fun tl->(	
-				(*let tl = List.rev tl in*)
-				let t_named = Logic_const.pands tl in
-			
-				let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+		 	Printf.printf "total_lt.len=%d\n" (List.length !total_lt);
+		 	List.iter(fun tl->(
+				if (List.length tl)>0 then
+				(
+					let t_named = Logic_const.pands tl in
+				
+					let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+					let root_code_annot_ba = Cil_types.User(annot) in
+					(*Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+					prove_code_annot kf stmt annot;*)();
+				);			)
+			)!total_lt;
+			List.iter(fun pn->
+				let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
 				let root_code_annot_ba = Cil_types.User(annot) in
 				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 				prove_code_annot kf stmt annot;
-				(*remove_code_annot stmt annot; 
-		       	Annotations.reset_stmt false stmt;*)
-			)
-			)!total_lt;
-			  	
+			)assumes;  	
 		 	Printf.printf "Leave Loop Now.\n";
 		 )
 		 | Block(block) ->(
