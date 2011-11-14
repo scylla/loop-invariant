@@ -6,9 +6,9 @@ open Cil_datatype
 
 let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip=
 	(*let wp_run = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in
-	wp_run ();*)
+	wp_run ();
 	
-	Dynamic.Parameter.String.set "-wp-proof" "cvc3";(*alt-ergocvc3*)
+	Dynamic.Parameter.String.set "-wp-proof" "cvc3";*)(*alt-ergocvc3*)
 	Dynamic.Parameter.String.set "-wp-model" "Runtime";(*Store*)
 	Dynamic.Parameter.Int.set "-wp-timeout" 150;
 	Dynamic.Parameter.Int.set "-wp-par" 8;

@@ -165,6 +165,10 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 				flag := 0;
 				Printf.printf "result Dont_know\n";
 			);
+			Printf.printf "erl.len=%d\n" (List.length erl);
+			List.iter(fun e->
+				Printf.printf "p.len=%d," (List.length e.properties);
+			)erl;
 		| Inconsistent(inc)->
 			flag := 0;
 			Printf.printf "result InConsistent\n";
@@ -172,7 +176,7 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	)ip_list;
 	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
 	if !flag=0 then
-	(Printf.printf "remove invalid annot\n";remove_code_annot stmt kf code_annot;)else
+	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)else
 	(Printf.printf "keep the annot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";)
 	;;
 	

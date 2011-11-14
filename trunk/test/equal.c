@@ -53,7 +53,7 @@
 int equal(int* a, int n, int* b)
 {
 	int count=0;
-  	for (int i = 0; i < n; i+=1)
+  	for (int i = 0; !(i < n); i+=1)
   	{
     	if (a[i] != b[i])
     	{
