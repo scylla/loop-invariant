@@ -39,14 +39,32 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 			Printf.printf "lables.len=%d\n" (List.length linfo.l_labels);
 			if (List.length linfo.l_labels)>0 then
 			(
+				let len = List.length linfo.l_labels in
+				let oldlabels = ref [] in
 				let labels1 = ref [] in
 				let labels2 = ref [] in
-				List.iter(fun l->
-					labels1 := (List.append !labels1 [LogicLabel(None,"L"),LogicLabel(None,"L")]);
-					labels2 := (List.append !labels2 [LogicLabel(None,"L")]);
+				for i=0 to (len-1) do
+				(
+					oldlabels := List.append !oldlabels [List.nth linfo.l_labels i];
+					labels1 := List.append !labels1 [LogicLabel(None,"Here"),LogicLabel(None,"Here")];
+					labels2 := List.append !labels2 [LogicLabel(None,"Here")];
+				);
+				done;
+				List.iter(fun label->
+				match label with
+				| LogicLabel(_,s)->
+					Printf.printf "before sbu;label:%s" s;
+				| _->();
 				)linfo.l_labels;
-				let oldlabels = linfo.l_labels in
+				Printf.printf "\n";
 				linfo.l_labels <- !labels2;
+				List.iter(fun label->
+				match label with
+				| LogicLabel(_,s)->
+					Printf.printf "after sub;label:%s" s;
+				| _->();
+				)linfo.l_labels;
+				Printf.printf "\n";
 				let newpn = Logic_const.unamed (Papp(linfo,
 				!labels1,!tl)) in
 			
@@ -61,7 +79,14 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 				prove_code_annot kf s annot;
 				Printf.printf "after annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 				);
-				linfo.l_labels <- oldlabels;
+				(*linfo.l_labels <- !oldlabels;*)
+				List.iter(fun label->
+				match label with
+				| LogicLabel(_,s)->
+					Printf.printf "sub back;label:%s" s;
+				| _->();
+				)linfo.l_labels;
+				Printf.printf "\n";
 			)else
 			(
 				let newpn = Logic_const.unamed (Papp(linfo,	[],!tl)) in			
@@ -79,9 +104,9 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 		)else
 		(
 			Printf.printf "type inconsistent\n";
-			List.iter(fun v->
+			(*List.iter(fun v->
 				Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
-			)vars;
+			)vars;*)
 		)
 	)else
 	(

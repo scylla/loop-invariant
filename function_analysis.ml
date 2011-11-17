@@ -519,10 +519,10 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 )
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->(
 		 	Printf.printf "Enter Loop Now.\n";
-		 	(*let vars = extract_varinfos_from_stmt stmt in
+		 	let vars = extract_varinfos_from_stmt stmt in
 		 	List.iter(fun linfo->
 				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
-			)linfo_list;*)
+			)linfo_list;
 		 	(
 		 	match stmto1 with(*continue*)
 		 	| Some(s)->
@@ -559,6 +559,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 			  	Printf.printf "\n";
 		 	| None->();
 		 	);
+		 	Printf.printf "Analysis loop body now.\n";
 		 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes visitor in
 		 	total_lt := List.rev !total_lt;
 		 	Printf.printf "total_lt.len=%d\n" (List.length !total_lt);
@@ -569,16 +570,18 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 				
 					let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
 					let root_code_annot_ba = Cil_types.User(annot) in
-					(*Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					prove_code_annot kf stmt annot;*)();
+					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+					Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
+					prove_code_annot kf stmt annot;();
 				);
 			)!total_lt;
-			(*List.iter(fun pn->
+		 	Printf.printf "Analysis loop body over.\n";
+			List.iter(fun pn->
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
 				let root_code_annot_ba = Cil_types.User(annot) in
 				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 				prove_code_annot kf stmt annot;
-			)assumes;*)
+			)assumes;
 		 	Printf.printf "Leave Loop Now.\n";
 		 )
 		 | Block(block) ->(

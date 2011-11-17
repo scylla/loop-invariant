@@ -5,6 +5,7 @@ open Annotations
 open Kernel_function
 open Prove
 open Property_status
+open Property_status.Consolidation
 open Description
 
 let compareLogicInfo (linfo1:Cil_types.logic_info) (linfo2:Cil_types.logic_info) : bool =
@@ -121,9 +122,16 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
 	List.iter(fun ip->
 		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
-		let status = prove_predicate kf [] ip in
-		
+		flag := prove_predicate kf [] ip;
+		(*let status = prove_predicate kf [] ip in
 		(match status with
+		| Considered_valid|Valid(_)|Valid_under_hyp(_)|Valid_but_dead(_)->
+			Printf.printf "Valid?\n";
+		|_->
+			flag := 0;
+			Printf.printf "Invalid\n";
+		);*)
+		(*(match status with
 		| Never_tried->
 			flag :=0;Printf.printf "result Never_tried\n";
 		| Best(e_status,erl)->
@@ -167,12 +175,15 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 			);
 			Printf.printf "erl.len=%d\n" (List.length erl);
 			List.iter(fun e->
-				Printf.printf "p.len=%d," (List.length e.properties);
+				Printf.printf "p.len=%d,\n" (List.length e.properties);
+				List.iter(fun p->
+					Description.pp_property Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
+				)e.properties;
 			)erl;
 		| Inconsistent(inc)->
 			flag := 0;
 			Printf.printf "result InConsistent\n";
-		);
+		);*)
 	)ip_list;
 	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
 	if !flag=0 then
@@ -199,7 +210,7 @@ let prove_kf (kf:Cil_types.kernel_function) =
 			List.iter(fun ip->
 				Prove.prove_predicate kf (Kernel_function.all_function_behaviors kf) ip;
 				Format.print_flush ();
-				let status = Property_status.get ip in
+				(*let status = Property_status.get ip in
 				(match status with
 				| Never_tried->
 					Printf.printf "result Never_tried\n";
@@ -207,7 +218,7 @@ let prove_kf (kf:Cil_types.kernel_function) =
 					Printf.printf "result Best\n";
 				| Inconsistent(inc)->
 					Printf.printf "result InConsistent\n";
-				);
+				);*)
 			)ip_list;
 	)annot_list;
 	();;
