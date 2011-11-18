@@ -1,0 +1,3 @@
+sudo rm -fr /home/lzh/doc/why-out/*
+sudo rm -fr /tmp/*
+sudo ./bin/toplevel.opt -print -main equal -loop-invariant src/loop_invariant/test/equal.c -ocode b.c > log
