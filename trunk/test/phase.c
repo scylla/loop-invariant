@@ -9,5 +9,5 @@ void phase()
 		if(x>50)
 			y++;
 	}
-	assert(y==100);
+	assert(y==100);//||x>0
 }

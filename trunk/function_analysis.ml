@@ -447,6 +447,11 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 				let annotation = Logic_const.new_code_annotation (AStmtSpec((tr,id_pre,(Logic_const.new_identified_term tr) spec))) in
            		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
            		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
+           	| Call(lo,e,el,l)->
+           		Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
+           		List.iter(fun e1->
+           			Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
+           		)el;
 			| _->
 				();
 			(*match instr End*)
@@ -454,6 +459,9 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		  	Format.print_flush ();
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->
 		 	Printf.printf "Enter Loop Now.\n";
+		 	List.iter(fun s->
+		 		Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
+		 	)stmt.succs;
 		 	let vars = extract_varinfos_from_stmt stmt in
 		 	List.iter(fun linfo->
 				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
@@ -518,9 +526,22 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 );
 		Printf.printf "\n";
 	)fundec.sallstmts(*List.iter end*)
-	with No_Definition->Printf.printf "the given function is not a definition.\n"
+	with No_Definition->Printf.printf "The given function [%s] is not a definition.\n" (Kernel_function.get_name kf)
 
-		  	
+let analysis_assert (kf:Cil_types.kernel_function) =
+	match kf.fundec with
+	| Declaration(spec,var,varl,l)->
+		Cil.d_funspec Format.std_formatter spec;Format.print_flush ();Printf.printf "\n";
+		Cil.d_var Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
+		(match varl with
+		| Some(l)->
+			List.iter(fun v->
+				Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf ",";
+			)l;
+			Printf.printf "\n";
+		| None->();
+		)
+	| _->()
 (**语句类型*)
 (*let print_function_stmt_kind stmt visitor= 
 	(*let loop_visitor = new Visitor.frama_c_inplace in

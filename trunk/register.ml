@@ -15,6 +15,7 @@ open Annotations
 open State_builder
 open Extlib
 open LiVisitor
+open Translate
 open Datatype
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
@@ -92,47 +93,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  	let annot_list = Kernel_function.code_annotations kf in(*(stmt*rooted_code_annotation before_after) list*)
 		  	List.iter(fun (stmt,root_code_annot_ba) ->
 		  		(*Cil.d_stmt Format.std_formatter stmt;*)(*only stmts which own annotations*)
-		  		(
-		  		match root_code_annot_ba with
-		  		| Before(annot) ->(
-		  			(
-		  			match annot with
-		  			| User(code_annot) ->(
-		  				Printf.printf "User before\n";
-		  				Cil.d_code_annotation Format.std_formatter code_annot;
-		  				Format.print_flush ();
-		  				Printf.printf "\n";
-		  			)
-		  			| AI(alarmt,code_annot) ->(
-		  				Printf.printf "AI before\n";
-		  				Alarms.pretty Format.std_formatter alarmt;
-		  				Printf.printf "\n";
-		  				Cil.d_code_annotation Format.std_formatter code_annot;
-		  				Format.print_flush ();
-		  				Printf.printf "\n";
-		  			)
-		  			);
-		  		)
-		  		| After(annot) ->(
-		  			(
-		  			match annot with
-		  			| User(code_annot) ->(
-		  				Printf.printf "User after\n";
-		  				Cil.d_code_annotation Format.std_formatter code_annot;
-		  				Format.print_flush ();
-		  				Printf.printf "\n";
-		  			)
-		  			| AI(alarmt,code_annot) ->(
-		  				Printf.printf "AI after\n";
-		  				Alarms.pretty Format.std_formatter alarmt;
-		  				Printf.printf "\n";
-		  				Cil.d_code_annotation Format.std_formatter code_annot;
-		  				Format.print_flush ();
-		  				Printf.printf "\n";
-		  			)
-		  			);
-		  		)
-		  		);
 		  	)annot_list;
 		  	
 		  	let global = Kernel_function.get_global kf in
@@ -234,8 +194,18 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		Cfg.computeFileCFG cil;
 		
 		let visitor = new liVisitor (Project.current ()) in
-      	Globals.Functions.iter (fun kf ->
-      		Self.result "Enter function %s.\n" (Kernel_function.get_name kf);
+		Globals.Functions.iter(fun kf ->
+			translate_kf kf;
+		);
+      	Globals.Functions.iter(fun kf ->
+      		let fname = Kernel_function.get_name kf in
+      		if fname="assert" then
+      		(
+      			Self.result "This is an Assert clause.\n";
+      			analysis_assert kf;
+      		)else
+      		(
+      		Self.result "Enter function [%s].\n" fname;
       		Printf.printf "the funspec is as follow:\n";
 		  	let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
 		  	
@@ -265,6 +235,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  	)!assumes;
       		analysis_kf kf !linfo_list !assumes visitor;
       		(*prove_kf kf;*)
+      		);
       	);
       	
 		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
