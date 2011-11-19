@@ -1,6 +1,33 @@
 open Cil_types
 open Cil_datatype
 
+
+let print_exp_type (e:Cil_types.exp) =
+	match e.enode with
+	| Const(_)->Printf.printf "Const\n"
+	| Lval(l)->Printf.printf "Lval:";
+		let (host,off) = l in
+		(match host with
+		| Var(v)->Printf.printf "var:";
+		| Mem(_)->Printf.printf "Mem:";
+		);
+		(match off with
+		| NoOffset->Printf.printf "NoOffset\n";
+		| Field(_,_)->Printf.printf "Field\n";
+		| Index(_,_)->Printf.printf "Index\n";
+		)
+	| SizeOf(_)->Printf.printf "SizeOf\n"
+	| SizeOfE(_)->Printf.printf "SizeOfE\n"
+	| SizeOfStr(_)->Printf.printf "SizeOfStr\n"
+	| AlignOf(_)->Printf.printf "AlignOf\n"
+	| AlignOfE(_)->Printf.printf "AlignOfE\n"
+	| UnOp(_,_,_)->Printf.printf "UnOp\n"
+	| BinOp(_,_,_,_)->Printf.printf "BinOp\n"
+	| CastE(_,_)->Printf.printf "CastE\n"
+	| AddrOf(_)->Printf.printf "AddrOf\n"
+	| StartOf(_)->Printf.printf "StartOf\n"
+	| Info(_,_)->Printf.printf "Info\n"
+	
 (** Return an integer constant term from the given value. *)
 let mk_int_term value = Cil.lconstant (My_bigint.of_int value)
 
