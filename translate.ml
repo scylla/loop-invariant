@@ -34,12 +34,11 @@ let translate_kf (kf:Cil_types.kernel_function) =
 		(match stmt.skind with
 		| Instr(instr) ->
 		  	(match instr with
-		  	| Call(lo,e,el,l)->		  		
-           		Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
+		  	| Call(lo,e,el,l)->
            		List.iter(fun e1->
-           			Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
-           			print_exp_type e1;
-           			force_assert_to_annot e1 kf stmt;
+           			let code_annot = !Db.Properties.Interp.force_exp_to_assertion e1 in
+        			let assert_root_code_annot_ba = Cil_types.User(code_annot) in
+        			Annotations.add kf stmt [Ast.self] assert_root_code_annot_ba;
            		)el;
            	| _->();
            	);

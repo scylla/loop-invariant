@@ -1,4 +1,6 @@
-﻿在Eclipse中安装插件OcaIDE，方便编辑O'Caml 。安装新软件中，添加如下地址：
+2011.﻿11.21：interproc安装尚未成功
+
+在Eclipse中安装插件OcaIDE，方便编辑O'Caml 。安装新软件中，添加如下地址：
 http://www.algo-prog.info/ocaide/
 
 编译安装

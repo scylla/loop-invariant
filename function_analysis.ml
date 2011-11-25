@@ -447,11 +447,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 				let annotation = Logic_const.new_code_annotation (AStmtSpec((tr,id_pre,(Logic_const.new_identified_term tr) spec))) in
            		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
            		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
-           	| Call(lo,e,el,l)->
-           		Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
-           		List.iter(fun e1->
-           			Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
-           		)el;
 			| _->
 				();
 			(*match instr End*)
