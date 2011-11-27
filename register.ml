@@ -17,6 +17,7 @@ open Extlib
 open LiVisitor
 open Translate
 open Datatype
+open Template
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -108,6 +109,8 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
       	)
       	)cil.globals;*)
 		
+	let manpk = Polka.manager_alloc_strict() in
+	Template.ex1 manpk;
 		let linfo_list = ref [] in(*logic_info list*)
 		let gannot_list = Globals.Annotations.get_all () in
 		List.iter(fun (g,b) ->
