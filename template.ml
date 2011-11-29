@@ -1,6 +1,8 @@
 open Apron
 open Mpqf
 open Format
+open FixpointType
+open PSHGraph
 
 let print_array = Abstract0.print_array;;
 
@@ -13,12 +15,48 @@ let var_v = Var.of_string "v";;
 let var_a = Var.of_string "a";;
 let var_b = Var.of_string "b";;
 
+let output_of_graph graph =
+    PSHGraph.copy
+      (fun vertex attrvertex -> attrvertex.reach)
+      (fun hedge attrhedge -> attrhedge.arc)
+      (fun info -> {
+	time = !(info.itime);
+	iterations = !(info.iiterations);
+	descendings = !(info.idescendings);
+	stable = !(info.istable)
+      })
+      graph;;
+      
 let lincons1_array_print fmt x =
   Lincons1.array_print fmt x;;
 
 let generator1_array_print fmt x =
   Generator1.array_print fmt x;;
 
+let generate_template (man:'a Manager.t) (vars:Var.t array) (cofs:Var.t array)=
+	printf "Using Library: %s, version %s@." (Manager.get_library man) (Manager.get_version man);
+	try
+		let env = Environment.make vars cofs in
+  	printf "env=%a@."
+   	 (fun x -> Environment.print x) env;
+    
+    let tab = Lincons1.array_make env (Array.length vars) in
+    let expr = Linexpr1.make env in
+    let cons = Lincons1.make expr Lincons1.EQ in
+  	Lincons1.array_set tab 0 cons;
+  	
+  	
+		printf "tab = %a@." lincons1_array_print tab;
+
+		let abs = Abstract1.of_lincons_array man env tab in
+		printf "abs=%a@." Abstract1.print abs;
+		let array = Abstract1.to_generator_array man abs in
+		printf "gen=%a@." generator1_array_print array;
+		let array = Abstract1.to_generator_array man abs in
+		printf "gen=%a@." generator1_array_print array;
+		
+  with Failure(e)->Printf.printf "make failure\n";;
+	
 let ex1 (man:'a Manager.t) : 'a Abstract1.t =
   printf "Using Library: %s, version %s@." (Manager.get_library man) (Manager.get_version man);
 
