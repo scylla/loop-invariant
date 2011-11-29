@@ -14,6 +14,7 @@ open Outputs
 open Logic_const
 open LiVisitor
 open LiAnnot
+open Template
 
 (*
 let locUnknown = ({Lexing.position.pos_fname="";},{Lexing.position.pos_fname="";})
@@ -160,6 +161,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 			let llvars = ref [] in
 			let elvars = ref [] in
 			let lelvars = ref [] in
+			
 			
 			List.iter(fun cv->
 				let lv = Cil.cvar_to_lvar cv in
@@ -453,14 +455,27 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 			);
 		  	Format.print_flush ();
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->
-		 	Printf.printf "Enter Loop Now.\n";
-		 	List.iter(fun s->
-		 		Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
-		 	)stmt.succs;
-		 	let vars = extract_varinfos_from_stmt stmt in
-		 	List.iter(fun linfo->
-				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
-			)linfo_list;
+		 		Printf.printf "Enter Loop Now.\n";
+		 		List.iter(fun s->
+		 			Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
+		 		)stmt.succs;
+		 		let vars = extract_varinfos_from_stmt stmt in
+		 		let lvars = Varinfo.Set.elements vars in
+		 		
+				let var_x = Apron.Var.of_string "x" in
+				let apron_vars = Array.make (List.length lvars) var_x in
+				let cofs = Array.make (List.length lvars) var_x in
+				for i=0 to (List.length lvars)-1 do
+					Printf.printf "var:%s\n" (List.nth lvars i).vname;
+					apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"para");
+					cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
+				done;
+				let manpk = Polka.manager_alloc_strict() in
+				Template.generate_template manpk apron_vars cofs;
+			
+		 		List.iter(fun linfo->
+					visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
+				)linfo_list;
 		 	(
 		 	match stmto1 with(*continue*)
 		 	| Some(s)->
