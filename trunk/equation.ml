@@ -17,7 +17,7 @@ open Lexing;;
 type vertex = Cil_types.location
 
 (** A function in an equation: identified by an integer *)
-type hedge = int
+type hedge = int(*use Cil_types.stmt.sid??*)
 
 let compare_point (a:Cil_types.location) (b:Cil_types.location) =
 	let (a1,a2) = a in
@@ -132,3 +132,10 @@ let add_equation (graph:graph) (torg:var array) (transfer:transfer) (dest:var):u
     info.counter <- info.counter + 1;
   end;
   ()
+  
+let build_graphs (fmt:Format.formatter) (prog:Cil_types.file):Equation.graph * Equation.graph =
+  (* Converting prog into a forward equation system *)
+  let (fgraph:Equation.graph) = Syn2equation.Forward.make prog in
+  (* Converting prog into a backward equation system *)
+  let (bgraph:Equation.graph) = Syn2equation.Backward.make prog in
+  (fgraph,bgraph)
