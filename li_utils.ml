@@ -66,3 +66,18 @@ let swap (l:varinfo list) i j =
 		(nl := (List.nth l k)::!nl;)
 	done;
 	List.rev !nl;;
+	
+let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location = 
+	match s.skind with
+	| Instr(instr)->
+		(match instr with
+		| Set(_,_,l)|Call(_,_,_,l)|Asm(_,_,_,_,_,l)|Skip(l)|Code_annot(_,l)->l;
+		);
+	| Return(_,l)|Goto(_,l)|Break(l)|Continue(l)|If(_,_,_,l)|Switch(_,_,_,l)|Loop(_,_,l,_,_)|TryFinally(_,_,l)|TryExcept(_,_,_,l)->l;
+	| Block(block)->
+		let first_stmt = List.nth block.bstmts 0 in
+		get_stmt_location first_stmt;
+	| UnspecifiedSequence(seq)->
+		let block = Cil.block_from_unspecified_sequence seq in
+		let first_stmt = List.nth block.bstmts 0 in
+		get_stmt_location first_stmt;
