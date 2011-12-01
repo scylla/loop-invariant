@@ -111,21 +111,21 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		
 	let manpk = Polka.manager_alloc_strict() in
 	Template.ex1 manpk;
-		let linfo_list = ref [] in(*logic_info list*)
-		let gannot_list = Globals.Annotations.get_all () in
-		List.iter(fun (g,b) ->
-			match g with
-			| Dfun_or_pred(logic_info,loc)->
-				(match logic_info.l_body with
-				| LBpred(pnamed)->
+	let linfo_list = ref [] in(*logic_info list*)
+	let gannot_list = Globals.Annotations.get_all () in
+	List.iter(fun (g,b) ->
+		match g with
+		| Dfun_or_pred(logic_info,loc)->
+			(match logic_info.l_body with
+			| LBpred(pnamed)->
 					linfo_list := logic_info::!linfo_list;
-				| _->
-					();
-				);
-				Format.print_flush ();
 			| _->
-				Format.print_flush ();
-		)gannot_list;
+					();
+			);
+			Format.print_flush ();
+		| _->
+			Format.print_flush ();
+	)gannot_list;
       	
       	(*List.iter(fun li->
       		Printf.printf "logic_var_info=%s\n" li.l_var_info.lv_name;
@@ -193,61 +193,62 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
       	)!linfo_list;*)
       	
 		(**before compute, must clear first. set clear_id to be false*)
-      	Cfg.clearFileCFG ~clear_id:false cil;
-		Cfg.computeFileCFG cil;
+  Cfg.clearFileCFG ~clear_id:false cil;
+	Cfg.computeFileCFG cil;
 		
-		let visitor = new liVisitor (Project.current ()) in
-		Globals.Functions.iter(fun kf ->
-			translate_kf kf;
-		);
-      	Globals.Functions.iter(fun kf ->
-      		let fname = Kernel_function.get_name kf in
-      		if fname="assert" then
-      		(
-      			Self.result "This is an Assert clause.\n";
-      			analysis_assert kf;
-      		)else
-      		(
-      		Self.result "Enter function [%s].\n" fname;
-      		Printf.printf "the funspec is as follow:\n";
-		  	let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
+	let visitor = new liVisitor (Project.current ()) in
+	Globals.Functions.iter(fun kf ->
+		translate_kf kf;
+	);
+  
+  Globals.Functions.iter(fun kf ->
+  	let fname = Kernel_function.get_name kf in
+    if fname="assert" then
+    (
+      Self.result "This is an Assert clause.\n";
+      analysis_assert kf;
+    )else
+    (
+      Self.result "Enter function [%s].\n" fname;
+      Printf.printf "the funspec is as follow:\n";
+		  let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
 		  	
-		  	let assumes = ref [] in
-		  	List.iter(fun b->
-		  		Printf.printf "b_name begin:%s\n" b.b_name;
-		  		Printf.printf "assumes\n";
-		  		let al = ref [] in
-		  		List.iter(fun ip->
-		  			al := (Logic_const.unamed ip.ip_content)::!al;
-		  			Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
-		  		)b.b_assumes;
-		  		assumes := (Logic_const.pands !al)::!assumes;
-		  		Printf.printf "requires\n";
-		  		List.iter(fun ip->
-		  			Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
-		  		)b.b_requires;
-		  		Printf.printf "post_cond\n";
-		  		List.iter(fun (tkind,ip)->
-		  			Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
-		  		)b.b_post_cond;
-		  		Printf.printf "b_name end\n";
-		  	)funspec.spec_behavior;
-		  	Printf.printf "assumes named\n";
-		  	List.iter(fun pn->
-		  		Cil.d_predicate_named Format.std_formatter pn;Format.print_flush ();Printf.printf "\n";
-		  	)!assumes;
-      		analysis_kf kf !linfo_list !assumes visitor;
+		  let assumes = ref [] in
+		  List.iter(fun b->
+		  	Printf.printf "b_name begin:%s\n" b.b_name;
+		  	Printf.printf "assumes\n";
+		  	let al = ref [] in
+		  	List.iter(fun ip->
+		  		al := (Logic_const.unamed ip.ip_content)::!al;
+		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  	)b.b_assumes;
+		  	assumes := (Logic_const.pands !al)::!assumes;
+		  	Printf.printf "requires\n";
+		  	List.iter(fun ip->
+		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  	)b.b_requires;
+		  	Printf.printf "post_cond\n";
+		  	List.iter(fun (tkind,ip)->
+		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  	)b.b_post_cond;
+		  	Printf.printf "b_name end\n";
+		  )funspec.spec_behavior;
+		  Printf.printf "assumes named\n";
+		  List.iter(fun pn->
+		  	Cil.d_predicate_named Format.std_formatter pn;Format.print_flush ();Printf.printf "\n";
+		  )!assumes;
+    	analysis_kf kf !linfo_list !assumes visitor;
       		(*prove_kf kf;*)
-      		);
-      	);
+    );
+  );
       	
-		!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
+	!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
 		
-      	let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
-      	Printf.printf "logic_info_list.length=%d\n" (List.length logic_info_list);(*0?*)
-      	List.iter (fun (node:logic_info) ->
-      		Cil.d_logic_var Format.std_formatter node.l_var_info;
-      	) logic_info_list;
+  let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
+  Printf.printf "logic_info_list.length=%d\n" (List.length logic_info_list);(*0?*)
+  List.iter (fun (node:logic_info) ->
+    Cil.d_logic_var Format.std_formatter node.l_var_info;
+  )logic_info_list;
       	
     
       	(*let logic_var = Logic_typing.Make.find_var cil.fileName in
@@ -271,7 +272,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		Printf.printf "fundec.smaxid=%d\n" fundec.smaxid;*)
 		
 		
-		Printf.printf "%s\n" "----cil.globals";
+	Printf.printf "%s\n" "----cil.globals";
 		
 					(**let get_loc_str location=
 						let loc=Cil.d_loc Format.std_formatter location in
@@ -283,8 +284,8 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		
 		
 		(**get CallGraph and print*)
-		let graph = Callgraph.computeGraph cil in
-		Callgraph.printGraph Pervasives.stdout graph;
+	let graph = Callgraph.computeGraph cil in
+	Callgraph.printGraph Pervasives.stdout graph;
 		
 		
 		(**Slicing*)
@@ -311,10 +312,10 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		Visitor.visitFramacFunction visitor fundec;
 		Printf.printf "%s\n" "end visitFramacFile";*)
 		
-		let out_file = open_out "/home/lzh/result.c" in
-		Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" cil;
-		flush out_file;
-		close_out out_file
+	let out_file = open_out "/home/lzh/result.c" in
+	Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" cil;
+	flush out_file;
+	close_out out_file
   
 let theMain () = 
 	

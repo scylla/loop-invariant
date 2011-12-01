@@ -1,11 +1,5 @@
 (** Representing equation system *)
 
-(* This file is part of the Interproc analyzer, released under GPL license.
-   Please read the COPYING file packaged in the distribution.
-
-   Copyright (C) Mathias Argoud, Gaël Lalire, Bertrand Jeannet 2007.
-*)
-
 open Format;;
 open Lexing;;
 
@@ -58,14 +52,13 @@ let create n info = PSHGraph.create compare n info
 
 (** Useful information associated to a procedure *)
 type procinfo = {
+	kf : Cil_types.kernel_function;
   pname : string;        (** Procedure name *)
   pstart: Cil_types.location; (** Procedure start point *)
   pexit: Cil_types.location;  (** Procedure exit point *)
   pinput: Apron.Var.t array;  (** Array of input variables *)
-  poutput: Apron.Var.t array; (** Array of output variables *)
   plocal: Apron.Var.t array;  (** Array of other variables *)
   penv: Apron.Environment.t;  (** Environment of the procedure *)
-  poutput_tmp: Apron.Var.t array; (** Array of renamed output variables *)
 }
 
 (** Useful information for the program *)
@@ -111,7 +104,7 @@ type transfer =
     integers, with which are associated objects of type
     [transfer]. Global information associated with the graph is of
     type [info]. *)
-type graph = (vertex,hedge,unit,transfer,info) PSHGraph.t
+type graph = (Cil_types.location,hedge,unit,transfer,info) PSHGraph.t
 
 (*  ********************************************************************* *)
 (** {2 Functions} *)
@@ -132,10 +125,3 @@ let add_equation (graph:graph) (torg:var array) (transfer:transfer) (dest:var):u
     info.counter <- info.counter + 1;
   end;
   ()
-  
-let build_graphs (fmt:Format.formatter) (prog:Cil_types.file):Equation.graph * Equation.graph =
-  (* Converting prog into a forward equation system *)
-  let (fgraph:Equation.graph) = Syn2equation.Forward.make prog in
-  (* Converting prog into a backward equation system *)
-  let (bgraph:Equation.graph) = Syn2equation.Backward.make prog in
-  (fgraph,bgraph)
