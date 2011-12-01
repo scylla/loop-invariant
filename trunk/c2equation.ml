@@ -2,10 +2,12 @@
 
 open Format
 open FixpointType
+open Equation
 open PSHGraph
 open Apron
 open Cil_types
 open Li_utils
+open Kernel_function
 
 (*  ********************************************************************** *)
 (** {2 Useful Information for generating equations} *)
@@ -31,8 +33,9 @@ let exit_of_block (block:Cil_types.block) :Cil_types.location =
   end
 
 (** Extract an array of variables from variable declaration list *)
-let convert (lvar:varinfo list) : varinfo array =
-  Array.of_list lvar
+let convert (lvar:varinfo list) : Apron.Var.t array =
+  Array.of_list
+  	(List.map (fun var->Apron.Var.of_string var.vname) lvar)
 
 (** Add to an environment a list of variables *)
 let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
@@ -49,6 +52,82 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
     (Array.of_list lint)
     (Array.of_list lreal)
 
+(*  ---------------------------------------------------------------------- *)
+(** {3 Building preprocessed information} *)
+(*  ---------------------------------------------------------------------- *)
+
+(** Build a [Equation.procinfo] object from [Spl_syn.procedure]. *)
+exception No_Definition
+let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
+	let fundec = Kernel_function.get_definition proc in
+	let (pcode:block) = fundec.sbody in
+  let pstart = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+  let pexit = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
+
+  let pinput = convert fundec.sformals in
+  let plocal = convert fundec.slocals in
+
+  let penv = Apron.Environment.make [||] [||] in
+  let penv = add_env penv fundec.sformals in
+  let penv = add_env penv fundec.slocals in
+
+  {
+  	Equation.kf = proc;
+    Equation.pname = fundec.svar.vname;
+    Equation.pstart = pstart;
+    Equation.pexit = pexit;
+    Equation.pinput = pinput;
+    Equation.plocal = plocal;
+    Equation.penv = penv;
+  }
+
+(** Build a [Equation.info] object from [Spl_syn.program]. *)
+let make_info (prog:Cil_types.file) : Equation.info =
+  let procinfo = Hashhe.create 3 in
+  Globals.Functions.iter(fun kf ->
+		let info = make_procinfo kf in
+    Hashhe.add procinfo info.pname info
+	);
+
+  let callret = DHashhe.create 3 in
+  Globals.Functions.iter(fun kf ->
+		let fundec = Kernel_function.get_definition kf in
+		let (pcode:block) = fundec.sbody in
+		let bpoint = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+		List.iter(fun stmt->
+			match stmt.skind with
+			| Instr(ins)->
+				(match ins with
+				| Call(_,_,_,l)->
+					DHashhe.add callret bpoint l;
+				| _->();
+				);
+			| _->();
+		)pcode.bstmts;
+	);
+  
+  let pointenv = Hashhe.create 3 in
+  Globals.Functions.iter(fun kf ->
+  	let fundec = Kernel_function.get_definition kf in
+		let (pcode:block) = fundec.sbody in
+		let pinfo = Hashhe.find procinfo fundec.svar.vname in
+    let env = pinfo.Equation.penv in
+    let bpoint = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+    List.iter(fun stmt->
+    	let loc = Li_utils.get_stmt_location stmt in
+    	if not (Hashhe.mem pointenv bpoint) then
+				Hashhe.add pointenv bpoint env;
+			if not (Hashhe.mem pointenv loc) then
+				Hashhe.add pointenv loc env;
+    )pcode.bstmts;
+	);
+  {
+    Equation.procinfo = procinfo;
+    Equation.callret = callret;
+    Equation.pointenv = pointenv;
+    Equation.counter = 0;
+  }
+  
 (*  ********************************************************************** *)
 (** {2 Translating expressions} *)
 (*  ********************************************************************** *)
@@ -191,10 +270,21 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
 
 module Forward = struct
   let make (prog:Cil_types.file) : Equation.graph =
-    let graph = Equation.create 3 prog in
+  	let info = make_info prog in
+    let graph = Equation.create 3 info in
 
-    let rec iter_block (procinfo:Cil_types.kernel_function) (block:block) : unit =
+    let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
       let env = procinfo.Equation.penv in
+      let bpoint = Li_utils.get_stmt_location (List.nth block.bstmts 0) in
+      ();
+      (*List.fold_left 
+      	(fun stmt->
+      		let loc = Li_utils.get_stmt_location stmt in
+      		let transfer = Equation.Condition(Boolexpr.TRUE) in
+					Equation.add_equation graph [|bpoint|] transfer loc;
+					loc;
+      	)
+      	bpoint block.bstmts;
       ignore begin
 			List.fold_left
 				(begin fun point instr ->
@@ -272,13 +362,14 @@ module Forward = struct
 				end)
 				block.bpoint
 				block.instrs
-			end
+			end*)
    	in
 
-    List.iter(fun procedure ->
-			let procinfo = Hashhe.find info.Equation.procinfo procedure.pname in
-			iter_block procinfo procedure.pcode;
-    )prog.procedures;
+		(*Globals.Functions.iter(fun kf ->
+			let fundec = Kernel_function.get_definition kf in
+			let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
+			iter_block procinfo fundec.sbody;
+		);*)
 
     graph
 
@@ -290,11 +381,14 @@ end
 
 module Backward = struct
   let make (prog:Cil_types.file) : Equation.graph =
-    let graph = Equation.create 3 prog in
+  	let info = make_info prog in
+    let graph = Equation.create 3 info in
 
-    let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
+		let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
       let env = procinfo.Equation.penv in
-      ignore begin
+      let bpoint = Li_utils.get_stmt_location (List.nth block.bstmts 0) in
+      ();
+      (*ignore begin
 			List.fold_left
 			(begin fun point instr ->
 			  begin match instr.instruction with
@@ -371,12 +465,18 @@ module Backward = struct
 			block.bpoint
 			block.instrs
       end
+      *)
     in
 
-    List.iter(fun procedure ->
+    (*Globals.Functions.iter(fun kf ->
+			let fundec = Kernel_function.get_definition kf in
+			let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
+			iter_block procinfo fundec.sbody;
+		);
+		List.iter(fun procedure ->
 			let procinfo = Hashhe.find info.Equation.procinfo procedure.pname in
 			iter_block procinfo procedure.pcode;
-    )prog.procedures;
+    )prog.procedures;*)
 
     graph
 
