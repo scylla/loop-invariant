@@ -342,3 +342,47 @@ let () =
       Subdivide_float_in_expr.self;
     ]
 *)
+(*  ---------------------------------------------------------------------- *)
+(** {Choice of abstract domain} *)
+(*  ---------------------------------------------------------------------- *)
+type domain =
+  | Box
+  | Octagon
+  | PolkaLoose
+  | PolkaStrict
+  | PolkaEq
+  | Taylor1plus
+  | PplPolyLoose
+  | PplPolyStrict
+  | PplGrid
+  | PolkaGrid
+  | BoxPolicy
+let (assocnamedomain : (string * domain) list) =
+  [
+    ("box",Box);
+    ("octagon",Octagon);
+    ("polka",PolkaLoose);
+    ("polkastrict",PolkaStrict);
+    ("polkaeq",PolkaEq);
+    ("taylor1plus",Taylor1plus);
+    ("ppl",PplPolyLoose);
+    ("pplstrict",PplPolyStrict);
+    ("pplgrid",PplGrid);
+    ("polkagrid",PolkaGrid);
+    ("boxpolicy",BoxPolicy);
+  ]
+let (lnamedomain : string list) =
+  List.map
+    (fun (name,_) -> name)
+    assocnamedomain
+let domain = ref PolkaLoose (** abstract domain to use *)
+
+(*  ---------------------------------------------------------------------- *)
+(** {Choice of analysis type} *)
+(*  ---------------------------------------------------------------------- *)
+type analysis =
+  | Forward
+  | Backward
+let analysis = ref [Forward]
+
+let print_box = ref false

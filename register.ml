@@ -113,11 +113,11 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Template.ex1 manpk;
 	let linfo_list = ref [] in(*logic_info list*)
 	let gannot_list = Globals.Annotations.get_all () in
-	List.iter(fun (g,b) ->
+	List.iter(fun (g,_) ->
 		match g with
-		| Dfun_or_pred(logic_info,loc)->
+		| Dfun_or_pred(logic_info,_)->
 			(match logic_info.l_body with
-			| LBpred(pnamed)->
+			| LBpred(_)->
 					linfo_list := logic_info::!linfo_list;
 			| _->
 					();
@@ -195,7 +195,9 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		(**before compute, must clear first. set clear_id to be false*)
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
-		
+	
+	let (fgraph,bgraph) = Frontend.build_graphs Format.std_formatter cil in
+	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk; 
 	let visitor = new liVisitor (Project.current ()) in
 	Globals.Functions.iter(fun kf ->
 		translate_kf kf;
@@ -228,7 +230,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
 		  	)b.b_requires;
 		  	Printf.printf "post_cond\n";
-		  	List.iter(fun (tkind,ip)->
+		  	List.iter(fun (_,ip)->
 		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
 		  	)b.b_post_cond;
 		  	Printf.printf "b_name end\n";
@@ -334,7 +336,7 @@ let compute_loop_invariant () =
 	Unroll_loops.compute 1 (Ast.get ());
     Globals.Functions.iter (fun kf ->
     	(match kf.fundec with
-      	| Definition(dec,l)->
+      	| Definition(dec,_)->
       		Cfg.clearCFGinfo ~clear_id:true dec;
       		Cfg.prepareCFG dec;
 			Cfg.computeCFGInfo dec true;
