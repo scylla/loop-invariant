@@ -131,7 +131,6 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 	
 	let lt = ref [] in
 	let total_lt = ref [] in
-	let count = ref 0 in
 	let rec generate_block_predicate (b:block) =
 	List.iter(fun s->
 	
@@ -140,7 +139,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		(
 		match instr with
 		| Set(lval,exp,location)->(*An assignment.i=i+1;lval:i;exp:i+1*)
-			let texp = constFold true (stripCasts exp) in
+			(*let texp = constFold true (stripCasts exp) in*)
 			let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
 			let tr = !Db.Properties.Interp.force_exp_to_term exp in
 			let tnode = TLval(tlval) in
@@ -320,7 +319,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		generate_block_predicate b2;
 		();
 	(*If End*)
-	| Break(location)|Continue(location)->
+	| Break(_)|Continue(_)->
 		();
 	(*Break End*)
 	| Block(b2)->
@@ -379,7 +378,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		  	let texp = constFold true (stripCasts exp) in
 		  	(
 		  	match texp.enode with
-		  	| BinOp((Div|Mod|Mult|PlusA|MinusA),exp1,exp2,typ)->
+		  	| BinOp((Div|Mod|Mult|PlusA|MinusA),_,_,_)->
 		  		();
 		  	| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->
 		  		let lexpr = Logic_utils.expr_to_term ~cast:true exp2 in
@@ -436,7 +435,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 | Instr(instr) ->
 		  	(
 		  	match instr with
-		  	| Set(lval,exp,location)->
+		  	| Set(lval,exp,_)->
 		  		();
 			  	(*let lexp = constFold true (stripCasts exp) in
 				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
@@ -527,9 +526,9 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 				prove_code_annot kf stmt annot;
 			)assumes;
 		 	Printf.printf "Leave Loop Now.\n";
-		 | Block(block) ->
+		 | Block(_) ->
 		  	();
-		 | Return(expo,location) ->
+		 | Return(_,_) ->
 		  	();
 		 | _ ->
 		  	Printf.printf "\n";
@@ -540,7 +539,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 
 let analysis_assert (kf:Cil_types.kernel_function) =
 	match kf.fundec with
-	| Declaration(spec,var,varl,l)->
+	| Declaration(spec,var,varl,_)->
 		Cil.d_funspec Format.std_formatter spec;Format.print_flush ();Printf.printf "\n";
 		Cil.d_var Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
 		(match varl with

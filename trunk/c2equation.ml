@@ -57,8 +57,8 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
 (*  ---------------------------------------------------------------------- *)
 
 (** Build a [Equation.procinfo] object from [Spl_syn.procedure]. *)
-exception No_Definition
 let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
+	try
 	let fundec = Kernel_function.get_definition proc in
 	let (pcode:block) = fundec.sbody in
   let pstart = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
@@ -80,17 +80,21 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
     Equation.plocal = plocal;
     Equation.penv = penv;
   }
+  with No_Definition -> Printf.printf "exception No_Definition\n";Equation.dummy_procinfo
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
 let make_info (prog:Cil_types.file) : Equation.info =
   let procinfo = Hashhe.create 3 in
   Globals.Functions.iter(fun kf ->
 		let info = make_procinfo kf in
+  	Printf.printf "make procinfo:\n";
+  	Equation.print_procinfo Format.std_formatter info;
     Hashhe.add procinfo info.pname info
 	);
 
   let callret = DHashhe.create 3 in
   Globals.Functions.iter(fun kf ->
+  	try
 		let fundec = Kernel_function.get_definition kf in
 		let (pcode:block) = fundec.sbody in
 		let bpoint = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
@@ -104,10 +108,12 @@ let make_info (prog:Cil_types.file) : Equation.info =
 				);
 			| _->();
 		)pcode.bstmts;
+		with No_Definition -> Printf.printf "exception No_Definition\n";
 	);
   
   let pointenv = Hashhe.create 3 in
   Globals.Functions.iter(fun kf ->
+  	try
   	let fundec = Kernel_function.get_definition kf in
 		let (pcode:block) = fundec.sbody in
 		let pinfo = Hashhe.find procinfo fundec.svar.vname in
@@ -120,6 +126,7 @@ let make_info (prog:Cil_types.file) : Equation.info =
 			if not (Hashhe.mem pointenv loc) then
 				Hashhe.add pointenv loc env;
     )pcode.bstmts;
+		with No_Definition -> Printf.printf "exception No_Definition\n";
 	);
   {
     Equation.procinfo = procinfo;
@@ -269,8 +276,11 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
 (*  ********************************************************************** *)
 
 module Forward = struct
+	exception No_Definition
   let make (prog:Cil_types.file) : Equation.graph =
   	let info = make_info prog in
+  	Printf.printf "make info:\n";
+  	Equation.print_info Format.std_formatter info;
     let graph = Equation.create 3 info in
 
     let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
@@ -380,6 +390,7 @@ end
 (*  ********************************************************************** *)
 
 module Backward = struct
+	exception No_Definition
   let make (prog:Cil_types.file) : Equation.graph =
   	let info = make_info prog in
     let graph = Equation.create 3 info in

@@ -1,7 +1,8 @@
 (** Representing equation system *)
 
-open Format;;
-open Lexing;;
+open Format
+open Lexing
+open Cil
 
 (*  ********************************************************************* *)
 (** {2 Hypergraphs *)
@@ -28,7 +29,7 @@ let hash_point (x:Cil_types.location) =
   abs x1.pos_lnum
 
 
-let vertex_dummy = (dummy_pos,dummy_pos)
+let vertex_dummy = (Lexing.dummy_pos,Lexing.dummy_pos)
 let hedge_dummy = -1
 
 let compare = {
@@ -61,6 +62,16 @@ type procinfo = {
   penv: Apron.Environment.t;  (** Environment of the procedure *)
 }
 
+let dummy_procinfo =
+	{
+		kf = Kernel_function.dummy ();
+		pname = "";
+		pstart = vertex_dummy;
+		pexit = vertex_dummy;
+		pinput = [||];
+		plocal = [||];
+		penv = Apron.Environment.make [||] [||];
+	}
 (** Useful information for the program *)
 type info = {
   procinfo : (string, procinfo) Hashhe.t;
@@ -74,6 +85,14 @@ type info = {
   mutable counter : int;
     (** Last free hyperedge identifier (used by [add_equation]). *)
 }
+
+let dummy_info =
+	{
+		procinfo = Hashhe.create 0;
+		callret = DHashhe.create 0;
+		pointenv = Hashhe.create 0;
+		counter = -1;
+	}
 
 (*  ********************************************************************* *)
 (** {2 Equation system} *)
@@ -106,6 +125,11 @@ type transfer =
     type [info]. *)
 type graph = (Cil_types.location,hedge,unit,transfer,info) PSHGraph.t
 
+
+type ('vertex,'hedge,'abstract,'arc) output =
+  ('vertex,'hedge,'abstract, 'arc, Fixpoint.stat) PSHGraph.t
+(** result of the analysis *)
+  
 (*  ********************************************************************* *)
 (** {2 Functions} *)
 (*  ********************************************************************* *)
@@ -125,3 +149,71 @@ let add_equation (graph:graph) (torg:var array) (transfer:transfer) (dest:var):u
     info.counter <- info.counter + 1;
   end;
   ()
+ 
+(*  ===================================================================== *)
+(** {3 Printing functions} *)
+(*  ===================================================================== *)
+let print_list
+  ?(first=("[@[":(unit,Format.formatter,unit) format))
+  ?(sep = (";@ ":(unit,Format.formatter,unit) format))
+  ?(last = ("@]]":(unit,Format.formatter,unit) format))
+  (print_elt: Format.formatter -> 'a -> unit)
+  (fmt:Format.formatter)
+  (list: 'a list)
+  : unit
+  =
+  if list=[] then begin
+    fprintf fmt first;
+    fprintf fmt last;
+  end
+  else begin
+    fprintf fmt first;
+    let rec do_sep = function
+      [e] -> print_elt fmt e
+      | e::l -> (print_elt fmt e ; fprintf fmt sep; do_sep l)
+      | [] -> failwith ""
+    in
+    do_sep list;
+    fprintf fmt last;
+  end
+  
+let print_tvar fmt (tvar:Apron.Var.t array) =
+  print_list
+    ~first:"[|@[<hov>" ~sep:";@ " ~last:"@]|]"
+    Apron.Var.print
+    fmt (Array.to_list tvar)
+
+let print_procinfo fmt procinfo =
+  fprintf fmt "{ @[<v>pstart = %a;@ pexit = %a;@ pinput = %a;@ plocal = %a;@ penv = %a;@] }"
+  	Cil.d_loc procinfo.pstart
+  	Cil.d_loc procinfo.pexit
+    print_tvar procinfo.pinput
+    print_tvar procinfo.plocal
+    (fun fmt e -> Apron.Environment.print fmt e) procinfo.penv
+
+let print_info fmt info =
+  fprintf fmt "{ @[<v>procinfo = %a;@ callret = %a;@ pointenv = %a;@ counter = %i;@] }"
+    (Hashhe.print pp_print_string print_procinfo) info.procinfo
+    (DHashhe.print Cil.d_loc Cil.d_loc) info.callret
+    (Hashhe.print Cil.d_loc Apron.Environment.print) info.pointenv
+    info.counter
+
+let print_transfer fmt transfer = match transfer with
+  | Lassign _ -> failwith ""
+  | Tassign(v,e) ->
+      fprintf fmt "%a = %a"
+      Apron.Var.print v
+      Apron.Texpr1.print e
+  | Condition(bexpr) ->
+      fprintf fmt "IF %a"
+      (Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) bexpr
+  | Call(callerinfo,calleeinfo,pin,pout) ->
+      fprintf fmt "CALL %a = %s(%a)"
+      print_tvar pout
+      calleeinfo.pname
+      print_tvar pin
+  | Return(callerinfo,calleeinfo,pin,pout) ->
+      fprintf fmt "RETURN %a = %s(%a)"
+      print_tvar pout
+      calleeinfo.pname
+      print_tvar pin
