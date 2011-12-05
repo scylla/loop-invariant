@@ -372,7 +372,7 @@ module Forward = struct
     let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
     let sstart =
       try
-      let maininfo = Hashhe.find info.Equation.procinfo "" in
+      let maininfo = Hashhe.find info.Equation.procinfo "phase" in
       Printf.printf "maininfo\n";
       Equation.print_procinfo fmt maininfo;
       Printf.printf "\n";
@@ -435,18 +435,26 @@ module Forward = struct
     		if sstart!=dummy_sstart then
 					begin
 					Printf.printf "sstart!=dummy_sstart\n";
-					Fixpoint.analysis_std
+					let result = Fixpoint.analysis_std
 						fpmanager graph sstart
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
-							graph sstart);
+							graph sstart) in
+					Printf.printf "analysis_std result\n";
+					Fixpoint.print_output fpmanager fmt result;
+					Printf.printf "\n";
+					result
 					end
 				else
 							begin
 							Printf.printf "sstart==dummy_sstart\n";
 							let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
-							PSHGraph.create Equation.compare 0 sta
+							let result = PSHGraph.create Equation.compare 0 sta in
+							Printf.printf "analysis_std result\n";
+							Fixpoint.print_output fpmanager fmt result;
+							Printf.printf "\n";
+							result
 							end
 			in
 			fp
@@ -705,6 +713,14 @@ module Backward = struct
 		)
 end
 
+let print_output prog fmt fp =
+	Globals.Functions.iter(fun kf ->
+			try
+				let fundec = Kernel_function.get_definition kf in
+				Cil.d_block fmt fundec.sbody;
+			with No_Definition -> Printf.printf "exception No_Definition\n";
+		)
+    
 let var_x = Var.of_string "x";;
 let var_y = Var.of_string "y";;
 let var_z = Var.of_string "z";;

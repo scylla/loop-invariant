@@ -61,7 +61,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 	try
 	let fundec = Kernel_function.get_definition proc in
 	let (pcode:block) = fundec.sbody in
-	let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 1) in
+	let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
   let pstart = {pos1=p1;pos2=p2} in
   let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
   let pexit = {pos1=p1;pos2=p2} in
@@ -89,11 +89,11 @@ let make_info (prog:Cil_types.file) : Equation.info =
   let procinfo = Hashhe.create 3 in
   Globals.Functions.iter(fun kf ->
 		let info = make_procinfo kf in
+  	if info!=Equation.dummy_procinfo then
+    (Printf.printf "info!=Equation.dummy_procinfo,add procinfo\n";
   	Printf.printf "make procinfo:\n";
   	Equation.print_procinfo Format.std_formatter info;
-  	Printf.printf "\n";
-  	if info!=Equation.dummy_procinfo then
-    (Hashhe.add procinfo info.pname info)
+  	Printf.printf "\n";Hashhe.add procinfo info.pname info)
 	);
 
   let callret = DHashhe.create 3 in
@@ -359,13 +359,19 @@ module Forward = struct
 							Equation.print_transfer fmt transfer;
 							Printf.printf "\n";
 							Equation.add_equation graph [|{pos1=p1;pos2=p2}|] transfer {pos1=p1;pos2=p2};
-						|_->();
+						|_->
+							let (p1,p2) = Li_utils.get_stmt_location stmt in
+      				let transfer = Equation.Condition(Boolexpr.make_cst false) in
+							Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
 						);
-      		|_->();
+      		|_->
+      			let (p1,p2) = Li_utils.get_stmt_location stmt in
+      			let transfer = Equation.Condition(Boolexpr.make_cst false) in
+						Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
       		);
       	| _->
       		let (p1,p2) = Li_utils.get_stmt_location stmt in
-      		let transfer = Equation.Condition(Boolexpr.TRUE) in
+      		let transfer = Equation.Condition(Boolexpr.make_cst false) in
 					Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
 				);
 				bpoint
