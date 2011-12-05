@@ -110,7 +110,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
       	)cil.globals;*)
 		
 	let manpk = Polka.manager_alloc_strict() in
-	Template.ex1 manpk;
+	(*Template.ex1 manpk;*)
 	let linfo_list = ref [] in(*logic_info list*)
 	let gannot_list = Globals.Annotations.get_all () in
 	List.iter(fun (g,_) ->
@@ -197,7 +197,10 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Cfg.computeFileCFG cil;
 	
 	let (fgraph,bgraph) = Frontend.build_graphs Format.std_formatter cil in
-	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk; 
+	Printf.printf "Frontend.compute_and_display begin\n";
+	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk;
+	Printf.printf "Frontend.compute_and_display over\n";
+	
 	let visitor = new liVisitor (Project.current ()) in
 	Globals.Functions.iter(fun kf ->
 		translate_kf kf;
