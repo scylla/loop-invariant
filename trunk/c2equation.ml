@@ -61,8 +61,10 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 	try
 	let fundec = Kernel_function.get_definition proc in
 	let (pcode:block) = fundec.sbody in
-  let pstart = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
-  let pexit = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
+	let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 1) in
+  let pstart = {pos1=p1;pos2=p2} in
+  let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
+  let pexit = {pos1=p1;pos2=p2} in
 
   let pinput = convert fundec.sformals in
   let plocal = convert fundec.slocals in
@@ -89,7 +91,9 @@ let make_info (prog:Cil_types.file) : Equation.info =
 		let info = make_procinfo kf in
   	Printf.printf "make procinfo:\n";
   	Equation.print_procinfo Format.std_formatter info;
-    Hashhe.add procinfo info.pname info
+  	Printf.printf "\n";
+  	if info!=Equation.dummy_procinfo then
+    (Hashhe.add procinfo info.pname info)
 	);
 
   let callret = DHashhe.create 3 in
@@ -97,13 +101,14 @@ let make_info (prog:Cil_types.file) : Equation.info =
   	try
 		let fundec = Kernel_function.get_definition kf in
 		let (pcode:block) = fundec.sbody in
-		let bpoint = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+		let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+		let bpoint = {pos1=p1;pos2=p2} in
 		List.iter(fun stmt->
 			match stmt.skind with
 			| Instr(ins)->
 				(match ins with
-				| Call(_,_,_,l)->
-					DHashhe.add callret bpoint l;
+				| Call(_,_,_,(p1,p2))->
+					DHashhe.add callret bpoint {pos1=p1;pos2=p2};
 				| _->();
 				);
 			| _->();
@@ -118,13 +123,15 @@ let make_info (prog:Cil_types.file) : Equation.info =
 		let (pcode:block) = fundec.sbody in
 		let pinfo = Hashhe.find procinfo fundec.svar.vname in
     let env = pinfo.Equation.penv in
-    let bpoint = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+    let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+    let bpoint = {pos1=p1;pos2=p2} in
     List.iter(fun stmt->
-    	let loc = Li_utils.get_stmt_location stmt in
+    	let (p1,p2) = Li_utils.get_stmt_location stmt in
+    	let p = {pos1=p1;pos2=p2} in
     	if not (Hashhe.mem pointenv bpoint) then
 				Hashhe.add pointenv bpoint env;
-			if not (Hashhe.mem pointenv loc) then
-				Hashhe.add pointenv loc env;
+			if not (Hashhe.mem pointenv p) then
+				Hashhe.add pointenv p env;
     )pcode.bstmts;
 		with No_Definition -> Printf.printf "exception No_Definition\n";
 	);
@@ -274,28 +281,97 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
 (*  ********************************************************************** *)
 (** {2 Forward equations} *)
 (*  ********************************************************************** *)
-
+let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
+	match exp.enode with
+	| BinOp(op,e1,e2,ty)->
+		(match op with
+		| PlusA->
+			let te1 = force_exp_to_texp e1 in
+			let te2 = force_exp_to_texp e2 in
+			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| MinusA->
+			let te1 = force_exp_to_texp e1 in
+			let te2 = force_exp_to_texp e2 in
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Div->
+			let te1 = force_exp_to_texp e1 in
+			let te2 = force_exp_to_texp e2 in
+			Apron.Texpr1.Binop(Apron.Texpr1.Div,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Mult->
+			let te1 = force_exp_to_texp e1 in
+			let te2 = force_exp_to_texp e2 in
+			Apron.Texpr1.Binop(Apron.Texpr1.Mul,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Mod->
+			let te1 = force_exp_to_texp e1 in
+			let te2 = force_exp_to_texp e2 in
+			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		|_->Apron.Texpr1.Var(Apron.Var.of_string "unknown");
+		)
+	| UnOp(op,e,ty)->
+		(match op with
+		| Neg->
+			let te = force_exp_to_texp e in
+			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| _->Apron.Texpr1.Var(Apron.Var.of_string "unknown");
+		)
+	| Const(cons)->
+		(match cons with
+		| CInt64(i,kind,Some s)->
+			Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));
+		| _->
+			Apron.Texpr1.Var(Apron.Var.of_string "unknown");
+		)
+	|_->Apron.Texpr1.Var(Apron.Var.of_string "unknown")
+	
 module Forward = struct
-	exception No_Definition
-  let make (prog:Cil_types.file) : Equation.graph =
+  let make (prog:Cil_types.file) (fmt:Format.formatter): Equation.graph =
   	let info = make_info prog in
   	Printf.printf "make info:\n";
-  	Equation.print_info Format.std_formatter info;
+  	Equation.print_info fmt info;
+  	Printf.printf "\n";
     let graph = Equation.create 3 info in
 
     let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
       let env = procinfo.Equation.penv in
-      let bpoint = Li_utils.get_stmt_location (List.nth block.bstmts 0) in
-      ();
-      (*List.fold_left 
-      	(fun stmt->
-      		let loc = Li_utils.get_stmt_location stmt in
-      		let transfer = Equation.Condition(Boolexpr.TRUE) in
-					Equation.add_equation graph [|bpoint|] transfer loc;
-					loc;
-      	)
-      	bpoint block.bstmts;
+      let (p1,p2) = Li_utils.get_stmt_location (List.nth block.bstmts 0) in
+      let bpoint = {pos1=p1;pos2=p2} in
       ignore begin
+      List.fold_left(fun bpoint stmt->
+      	(match stmt.skind with
+      	| Instr(instr)->
+      		(match instr with
+      		| Set(lval,e,loc)->
+      			Printf.printf "meet Set\n";
+      			Cil.d_stmt Format.std_formatter stmt;
+      			Printf.printf "\n";
+      			let (p1,p2) = loc in
+      			let (host,offset) = lval in
+      			(match host with
+      			| Var(v)->
+      				let var = Apron.Var.of_string v.vname in
+		   				let (texpr:Apron.Texpr1.t) =
+		   					let texp = (force_exp_to_texp e) in
+		   					Apron.Texpr1.print_expr fmt texp;
+		   					Printf.printf "\n";
+								Apron.Texpr1.of_expr env texp
+							in
+							let transfer = Equation.Tassign(var,texpr) in
+							Equation.print_transfer fmt transfer;
+							Printf.printf "\n";
+							Equation.add_equation graph [|{pos1=p1;pos2=p2}|] transfer {pos1=p1;pos2=p2};
+						|_->();
+						);
+      		|_->();
+      		);
+      	| _->
+      		let (p1,p2) = Li_utils.get_stmt_location stmt in
+      		let transfer = Equation.Condition(Boolexpr.TRUE) in
+					Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
+				);
+				bpoint
+     	)bpoint block.bstmts;
+      end
+      (*ignore begin
 			List.fold_left
 				(begin fun point instr ->
 					begin match instr.instruction with
@@ -375,11 +451,15 @@ module Forward = struct
 			end*)
    	in
 
-		(*Globals.Functions.iter(fun kf ->
-			let fundec = Kernel_function.get_definition kf in
-			let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
-			iter_block procinfo fundec.sbody;
-		);*)
+		Globals.Functions.iter(fun kf ->
+			try
+				let fundec = Kernel_function.get_definition kf in
+				let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
+				Printf.printf "in make graph procinfo\n";
+				Equation.print_procinfo fmt procinfo;
+				iter_block procinfo fundec.sbody;
+			with No_Definition -> Printf.printf "exception No_Definition\n";
+		);
 
     graph
 
