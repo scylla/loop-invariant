@@ -12,6 +12,7 @@ let build_graphs (fmt:Format.formatter) (prog:Cil_types.file):graph * graph =
   let (bgraph:graph) = C2equation.Backward.make prog in
   (fgraph,bgraph)
   
+
 let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equation.graph) (bgraph:Equation.graph) (manager:'a Apron.Manager.t) : unit =
   let (previous:(Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option ref) =
     ref None
@@ -25,7 +26,7 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 				let fp =
 					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:0
 				in
-				fprintf fmt "Annotated program after forward analysis@ ";
+				fprintf fmt "%sAnnotated program after forward analysis%s@ " (!Loop_parameters.displaytags).precolorB (!Loop_parameters.displaytags).postcolor;
 					fp
 			| Loop_parameters.Backward ->
 				Printf.printf "Backward\n";
@@ -36,8 +37,8 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 					fp
 			end
     in
-      (* Display 
-      Solving.print_output prog fmt fp;
-      previous := Some fp;*)();
+      (* Display *)
+      Template.print_output prog fmt fp;
+      previous := Some fp;
     )!analysis;
   ()
