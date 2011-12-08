@@ -322,6 +322,11 @@ let () =
       Subdivide_float_in_expr.self;
     ]
 *)
+type procsignature ={
+	mutable sspec:Cil_types.funspec;
+	mutable sformals:Cil_types.varinfo list option;
+}
+	
 type displaytags = {
   precolorB : string;
   precolorR : string;

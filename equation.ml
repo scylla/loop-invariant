@@ -108,7 +108,7 @@ type transfer =
       (** Assignement by a tree expression *)
   | Condition of Apron.Tcons1.earray Boolexpr.t
       (** Filtering of a predicate by a Boolean expression *)
-  | Call of procinfo * procinfo * (Apron.Var.t array) * (Apron.Var.t array)
+  | Calle of procinfo * procinfo * (Apron.Var.t array) * (Apron.Var.t array)
       (** Procedure call, of the form
 	  [Call(callerinfo,calleeinfo,actual input parameters,actual
 	  output parameters)] *)
@@ -212,7 +212,7 @@ let print_transfer fmt transfer = match transfer with
   | Condition(bexpr) ->
       fprintf fmt "IF %a"
       (Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) bexpr
-  | Call(callerinfo,calleeinfo,pin,pout) ->
+  | Calle(callerinfo,calleeinfo,pin,pout) ->
       fprintf fmt "CALL %a = %s(%a)"
       print_tvar pout
       calleeinfo.pname

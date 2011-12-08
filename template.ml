@@ -1,18 +1,12 @@
-open Apron
-open Mpqf
-open Format
-open FixpointType
-open PSHGraph
-open Cil_types
-open Kernel_function
-open Loop_parameters
 
-let print_array = Abstract0.print_array;;
+open Cil_types
+
+let print_array = Apron.Abstract0.print_array;;
 
 let print_apron_scalar fmt scalar =
   let res = Apron.Scalar.is_infty scalar in
   if res<>0 then
-    pp_print_string fmt
+    Format.pp_print_string fmt
       (if res<0 then "-oo" else "+oo")
   else begin
     match scalar with
@@ -31,18 +25,18 @@ let print_apron_box fmt box =
   let tinterval = box.Apron.Abstract1.interval_array in
   let env = box.Apron.Abstract1.box1_env in
   let first = ref true in
-  fprintf fmt "[|@[";
+  Format.fprintf fmt "[|@[";
   Array.iteri(fun i interval ->
   	if not (Apron.Interval.is_top interval) then begin
-			if not !first then fprintf fmt ";@ ";
+			if not !first then Format.fprintf fmt ";@ ";
 			let var = Apron.Environment.var_of_dim env i in
 			let name = Apron.Var.to_string var in
-			fprintf fmt "%s in %a" name
+			Format.fprintf fmt "%s in %a" name
 				print_apron_interval interval;
 			first := false
     end;
   )tinterval;
-  fprintf fmt "@]|]";;
+  Format.fprintf fmt "@]|]";;
 
 let print_abstract1 fmt abs =
   if !Loop_parameters.print_box then
@@ -109,9 +103,9 @@ let make_fpmanager
     end;
     (* Printing functions *)
     Fixpoint.print_vertex=Equation.print_point;
-    Fixpoint.print_hedge=pp_print_int;
+    Fixpoint.print_hedge=Format.pp_print_int;
     Fixpoint.print_abstract = Apron.Abstract1.print;
-    Fixpoint.print_arc = begin fun fmt () -> pp_print_string fmt "()" end;
+    Fixpoint.print_arc = begin fun fmt () -> Format.pp_print_string fmt "()" end;
     (* Fixpoint Options *)
     Fixpoint.accumulate = false;
     (* Widening Options *)
@@ -128,12 +122,12 @@ let make_fpmanager
     (* DOT Options *)
     Fixpoint.dot_fmt = None;(*!Option.dot_fmt;*)
     Fixpoint.dot_vertex=Equation.print_point;
-    Fixpoint.dot_hedge=pp_print_int;
+    Fixpoint.dot_hedge=Format.pp_print_int;
     Fixpoint.dot_attrvertex=Equation.print_point;
     Fixpoint.dot_attrhedge= 
     	begin fun fmt hedge ->
       	let transfer = PSHGraph.attrhedge graph hedge in
-      	fprintf fmt "%i: %a"
+      	Format.fprintf fmt "%i: %a"
 				hedge
 				Equation.print_transfer transfer
     	end;
@@ -232,7 +226,7 @@ module Forward = struct
 		  | _ -> Apron.Abstract1.join_array manager (Array.of_list labstract)
     in
     if false then
-      printf "apply_condition %a %a => %a@."
+      Format.printf "apply_condition %a %a => %a@."
 				Apron.Abstract1.print abstract
 				(Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) expr
 				Apron.Abstract1.print res;
@@ -348,7 +342,7 @@ module Forward = struct
 	 			failwith ""
       | Equation.Condition cond ->
 	  		apply_condition manager abs cond dest
-      | Equation.Call(callerinfo,calleeinfo,tin,tout) ->
+      | Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_call manager abs calleeinfo tin dest
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_return manager abs tabs.(1) calleeinfo tin tout dest
@@ -616,7 +610,7 @@ module Backward = struct
 	  		failwith ""
       | Equation.Condition cond ->
 	  		apply_condition manager abs cond dest
-      | Equation.Call(callerinfo,calleeinfo,tin,tout) ->
+      | Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_call manager abs callerinfo calleeinfo tin dest
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
 	  		failwith ""(*apply_return manager abs callerinfo calleeinfo tin tout dest*)
@@ -656,7 +650,7 @@ module Backward = struct
 							sstart := PSette.add bpoint !sstart;
 					)*)();
 				)fundec.sallstmts;
-			with No_Definition -> Printf.printf "exception No_Definition\n";
+			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 		);
     (*List.iter(fun procedure ->
 			Spl_syn.iter_eltinstr(fun (bpoint,instr) ->
@@ -718,172 +712,172 @@ let print_output prog fmt fp =
 			try
 				let fundec = Kernel_function.get_definition kf in
 				Cil.d_block fmt fundec.sbody;
-			with No_Definition -> Printf.printf "exception No_Definition\n";
+			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 		)
     
-let var_x = Var.of_string "x";;
-let var_y = Var.of_string "y";;
-let var_z = Var.of_string "z";;
-let var_w = Var.of_string "w";;
-let var_u = Var.of_string "u";;
-let var_v = Var.of_string "v";;
-let var_a = Var.of_string "a";;
-let var_b = Var.of_string "b";;
+let var_x = Apron.Var.of_string "x";;
+let var_y = Apron.Var.of_string "y";;
+let var_z = Apron.Var.of_string "z";;
+let var_w = Apron.Var.of_string "w";;
+let var_u = Apron.Var.of_string "u";;
+let var_v = Apron.Var.of_string "v";;
+let var_a = Apron.Var.of_string "a";;
+let var_b = Apron.Var.of_string "b";;
 
 let output_of_graph graph =
 	PSHGraph.copy
-  	(fun vertex attrvertex -> attrvertex.reach)
-    (fun hedge attrhedge -> attrhedge.arc)
+  	(fun vertex attrvertex -> attrvertex.FixpointType.reach)
+    (fun hedge attrhedge -> attrhedge.FixpointType.arc)
     (fun info -> {
-			time = !(info.itime);
-			iterations = !(info.iiterations);
-			descendings = !(info.idescendings);
-			stable = !(info.istable)
+			Fixpoint.time = !(info.FixpointType.itime);
+			Fixpoint.iterations = !(info.FixpointType.iiterations);
+			Fixpoint.descendings = !(info.FixpointType.idescendings);
+			Fixpoint.stable = !(info.FixpointType.istable)
     })
     graph;;
       
 let lincons1_array_print fmt x =
-  Lincons1.array_print fmt x;;
+  Apron.Lincons1.array_print fmt x;;
 
 let generator1_array_print fmt x =
-  Generator1.array_print fmt x;;
+  Apron.Generator1.array_print fmt x;;
 
-let generate_template (man:'a Manager.t) (vars:Var.t array) (cofs:Var.t array)=
-	printf "Using Library: %s, version %s@." (Manager.get_library man) (Manager.get_version man);
+let generate_template (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
+	Format.printf "Using Library: %s, version %s@." (Apron.Manager.get_library man) (Apron.Manager.get_version man);
 	try
-		let env = Environment.make vars cofs in
-  	printf "env=%a@."
-   	 (fun x -> Environment.print x) env;
+		let env = Apron.Environment.make vars cofs in
+  	Format.printf "env=%a@."
+   	 (fun x -> Apron.Environment.print x) env;
     
-    let tab = Lincons1.array_make env (Array.length vars) in
-    let expr = Linexpr1.make env in
-    let cons = Lincons1.make expr Lincons1.EQ in
-  	Lincons1.array_set tab 0 cons;
+    let tab = Apron.Lincons1.array_make env (Array.length vars) in
+    let expr = Apron.Linexpr1.make env in
+    let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
+  	Apron.Lincons1.array_set tab 0 cons;
   	
   	
-		printf "tab = %a@." lincons1_array_print tab;
+		Format.printf "tab = %a@." lincons1_array_print tab;
 
-		let abs = Abstract1.of_lincons_array man env tab in
-		printf "abs=%a@." Abstract1.print abs;
-		let array = Abstract1.to_generator_array man abs in
-		printf "gen=%a@." generator1_array_print array;
-		let array = Abstract1.to_generator_array man abs in
-		printf "gen=%a@." generator1_array_print array;
+		let abs = Apron.Abstract1.of_lincons_array man env tab in
+		Format.printf "abs=%a@." Apron.Abstract1.print abs;
+		let array = Apron.Abstract1.to_generator_array man abs in
+		Format.printf "gen=%a@." generator1_array_print array;
+		let array = Apron.Abstract1.to_generator_array man abs in
+		Format.printf "gen=%a@." generator1_array_print array;
 		
   with Failure(e)->Printf.printf "make failure\n";;
 	
-let ex1 (man:'a Manager.t) : 'a Abstract1.t =
-  printf "Using Library: %s, version %s@." (Manager.get_library man) (Manager.get_version man);
+let ex1 (man:'a Apron.Manager.t) : 'a Apron.Abstract1.t =
+  Printf.printf "Using Library: %s, version %s@." (Apron.Manager.get_library man) (Apron.Manager.get_version man);
 
-  let env = Environment.make
+  let env = Apron.Environment.make
     [|var_x; var_y; var_z; var_w|]
     [|var_u; var_v; var_a; var_b|]
   in
-  let env2 = Environment.make [|var_x; var_y; var_z; var_w|] [||]
+  let env2 = Apron.Environment.make [|var_x; var_y; var_z; var_w|] [||]
   in
-  printf "env=%a@.env2=%a@."
-    (fun x -> Environment.print x) env
-    (fun x -> Environment.print x) env2
+  Format.printf "env=%a@.env2=%a@."
+    (fun x -> Apron.Environment.print x) env
+    (fun x -> Apron.Environment.print x) env2
   ;
   (* Creation of abstract value
      1/2x+2/3y=1, [1,2]<=z+2w<=4, 0<=u<=5 *)
-  let tab = Lincons1.array_make env 5 in
+  let tab = Apron.Lincons1.array_make env 5 in
 
-  let expr = Linexpr1.make env in
-  Linexpr1.set_array expr
+  let expr = Apron.Linexpr1.make env in
+  Apron.Linexpr1.set_array expr
     [|
-      (Coeff.Scalar (Scalar.Mpqf (Mpqf.of_frac 1 2)), var_x);
-      (Coeff.Scalar (Scalar.Mpqf (Mpqf.of_frac 2 3)), var_y)
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_frac 1 2)), var_x);
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_frac 2 3)), var_y)
     |]
-    (Some (Coeff.Scalar (Scalar.Mpqf (Mpqf.of_int (1)))))
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (1)))))
     ;
-  let cons = Lincons1.make expr Lincons1.EQ in
-  Lincons1.array_set tab 0 cons;
+  let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
+  Apron.Lincons1.array_set tab 0 cons;
 
-  let expr = Linexpr1.make env in
-  Linexpr1.set_array expr
+  let expr = Apron.Linexpr1.make env in
+  Apron.Linexpr1.set_array expr
     [|
-      (Coeff.Scalar (Scalar.Float (-1.0)), var_z);
-      (Coeff.Scalar (Scalar.Float (-2.0)), var_w)
+      (Apron.Coeff.Scalar (Apron.Scalar.Float (-1.0)), var_z);
+      (Apron.Coeff.Scalar (Apron.Scalar.Float (-2.0)), var_w)
     |]
-    (Some (Coeff.Scalar (Scalar.Float (4.0))))
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Float (4.0))))
   ;
-  Lincons1.array_set tab 1 (Lincons1.make expr Lincons1.SUPEQ);
+  Apron.Lincons1.array_set tab 1 (Apron.Lincons1.make expr Apron.Lincons1.SUPEQ);
  
-  let expr = Linexpr1.make env2 in
-  Linexpr1.set_array expr
+  let expr = Apron.Linexpr1.make env2 in
+  Apron.Linexpr1.set_array expr
     [|
-      (Coeff.Scalar (Scalar.Float 1.0), var_z);
-      (Coeff.Scalar (Scalar.Float 2.0), var_w)
+      (Apron.Coeff.Scalar (Apron.Scalar.Float 1.0), var_z);
+      (Apron.Coeff.Scalar (Apron.Scalar.Float 2.0), var_w)
     |]
     (Some 
-      (Coeff.Interval
-	(Interval.of_infsup
-	  (Scalar.Float (-2.0))
-	  (Scalar.Float (-1.0)))))
+      (Apron.Coeff.Interval
+	(Apron.Interval.of_infsup
+	  (Apron.Scalar.Float (-2.0))
+	  (Apron.Scalar.Float (-1.0)))))
     ;
-  Linexpr1.extend_environment_with expr env;
-  Lincons1.array_set tab 2 (Lincons1.make expr Lincons1.SUPEQ);
+  Apron.Linexpr1.extend_environment_with expr env;
+  Apron.Lincons1.array_set tab 2 (Apron.Lincons1.make expr Apron.Lincons1.SUPEQ);
  
-  let cons = Lincons1.make (Linexpr1.make env) Lincons1.SUPEQ in
-  Lincons1.set_array cons
+  let cons = Apron.Lincons1.make (Apron.Linexpr1.make env) Apron.Lincons1.SUPEQ in
+  Apron.Lincons1.set_array cons
     [|
-      (Coeff.Scalar (Scalar.Mpqf (Mpqf.of_int 1)), var_u)
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 1)), var_u)
     |]
     None
   ;
-  Lincons1.array_set tab 3 cons;
-  let cons = Lincons1.make (Linexpr1.make env) Lincons1.SUPEQ in
-  Lincons1.set_array cons
+  Apron.Lincons1.array_set tab 3 cons;
+  let cons = Apron.Lincons1.make (Apron.Linexpr1.make env) Apron.Lincons1.SUPEQ in
+  Apron.Lincons1.set_array cons
     [|
-      (Coeff.Scalar (Scalar.Mpqf (Mpqf.of_int (-1))), var_u)
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), var_u)
     |]
-    (Some (Coeff.Scalar (Scalar.Mpqf (Mpqf.of_int 5))))
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 5))))
   ;
-  Lincons1.array_set tab 4 cons;
+  Apron.Lincons1.array_set tab 4 cons;
  
-  printf "tab = %a@." lincons1_array_print tab;
+  Format.printf "tab = %a@." lincons1_array_print tab;
 
-  let abs = Abstract1.of_lincons_array man env tab in
-  printf "abs=%a@." Abstract1.print abs;
-  let array = Abstract1.to_generator_array man abs in
-  printf "gen=%a@." generator1_array_print array;
-  let array = Abstract1.to_generator_array man abs in
-  printf "gen=%a@." generator1_array_print array;
+  let abs = Apron.Abstract1.of_lincons_array man env tab in
+  Format.printf "abs=%a@." Apron.Abstract1.print abs;
+  let array = Apron.Abstract1.to_generator_array man abs in
+  Format.printf "gen=%a@." generator1_array_print array;
+  let array = Apron.Abstract1.to_generator_array man abs in
+  Format.printf "gen=%a@." generator1_array_print array;
 
   (* Extraction (we first extract values for existing constraints, then for
      dimensions) *)
-  let box = Abstract1.to_box man abs in
-  printf "box=%a@." (print_array Interval.print) box.Abstract1.interval_array;
+  let box = Apron.Abstract1.to_box man abs in
+  Format.printf "box=%a@." (print_array Apron.Interval.print) box.Apron.Abstract1.interval_array;
   for i=0 to 4 do
-    let expr = Lincons1.get_linexpr1 (Lincons1.array_get tab i) in
-    let box = Abstract1.bound_linexpr man abs expr in
-    printf "Bound of %a = %a@."
-      Linexpr1.print expr
-      Interval.print box;
+    let expr = Apron.Lincons1.get_linexpr1 (Apron.Lincons1.array_get tab i) in
+    let box = Apron.Abstract1.bound_linexpr man abs expr in
+    Format.printf "Bound of %a = %a@."
+      Apron.Linexpr1.print expr
+      Apron.Interval.print box;
   done;
   (* 2. dimensions *)
   (* 3. of box *)
-  let abs2 = Abstract1.of_box man env [|var_x; var_y; var_z; var_w; var_u; var_v; var_a; var_b|]
-    box.Abstract1.interval_array 
+  let abs2 = Apron.Abstract1.of_box man env [|var_x; var_y; var_z; var_w; var_u; var_v; var_a; var_b|]
+    box.Apron.Abstract1.interval_array 
   in
-  printf "abs2=%a@." Abstract1.print abs2;
+  Format.printf "abs2=%a@." Apron.Abstract1.print abs2;
   (* 4. Tests top and bottom *)
-  let abs3 = Abstract1.bottom man env in
-  printf "abs3=%a@.is_bottom(abs3)=%b@."
-    Abstract1.print abs3 
-    (Abstract1.is_bottom man abs3);
+  let abs3 = Apron.Abstract1.bottom man env in
+  Format.printf "abs3=%a@.is_bottom(abs3)=%b@."
+    Apron.Abstract1.print abs3 
+    (Apron.Abstract1.is_bottom man abs3);
 
-  printf "abs=%a@." 
-    Abstract1.print abs;
-  let p2 = Abstract1.expand man abs (var_y) [|Var.of_string "y1"; Var.of_string "y2"|] in
-  printf "p2=expand(abs,y,[y1,y2]))=%a@."
-    Abstract1.print p2; 
-  let p2 = Abstract1.expand man abs (var_u) [|Var.of_string "u1"; Var.of_string "u2"|] in
-  printf "p2=expand(abs,u,[u1,u2]))=%a@."
-    Abstract1.print p2;
-	let interval_x = Abstract1.bound_variable man abs var_x in
-	Interval.print Format.std_formatter interval_x;
+  Format.printf "abs=%a@." 
+    Apron.Abstract1.print abs;
+  let p2 = Apron.Abstract1.expand man abs (var_y) [|Apron.Var.of_string "y1"; Apron.Var.of_string "y2"|] in
+  Format.printf "p2=expand(abs,y,[y1,y2]))=%a@."
+    Apron.Abstract1.print p2; 
+  let p2 = Apron.Abstract1.expand man abs (var_u) [|Apron.Var.of_string "u1"; Apron.Var.of_string "u2"|] in
+  Format.printf "p2=expand(abs,u,[u1,u2]))=%a@."
+    Apron.Abstract1.print p2;
+	let interval_x = Apron.Abstract1.bound_variable man abs var_x in
+	Apron.Interval.print Format.std_formatter interval_x;
 	Format.print_flush ();
   abs
 ;;

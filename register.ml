@@ -1,23 +1,8 @@
-open LoopInvariant
-open Project
 open Cil_types
 open Cil
-open Cil_datatype
-open Visitor
-open Function_analysis
-open Db
-open Ast_printer
-open Globals
-open Db.LoopInvariant
-open Logic_typing
-open Kernel_function
-open Annotations
-open State_builder
-open Extlib
 open LiVisitor
 open Translate
-open Datatype
-open Template
+open Function_analysis
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -41,25 +26,25 @@ module Enabled =
 class loopInvariant = object (self)
 
   inherit Visitor.generic_frama_c_visitor
-    (Project.current ()) (inplace_visit ()) as super
+    (Project.current ()) (Cil.inplace_visit ()) as super
 
   initializer !Db.Value.compute ();
 
 	val mutable decls = [];
 
   method private current_ki =
-    match self#current_stmt with None -> Kglobal; | Some s -> Kstmt s;
+    match self#current_stmt with None -> Cil_types.Kglobal; | Some s -> Cil_types.Kstmt s;
 
   method vvdec vi =
     let ki = self#current_ki in
     if Db.Value.is_accessible ki then begin
       let z =
 	!Db.Value.lval_to_zone
-	  ki ~with_alarms:CilE.warn_none_mode (Var vi, NoOffset)
+	  ki ~with_alarms:CilE.warn_none_mode (Cil_types.Var vi, Cil_types.NoOffset)
       in
       decls <-  (vi, z) :: decls;
     end;
-    DoChildren
+    Cil.DoChildren
     
 
   method vstmt_aux s =
@@ -70,7 +55,7 @@ class loopInvariant = object (self)
   	Cil.d_code_annotation Format.std_formatter c;
   	DoChildren
 end
-
+	
 	 
 let loopInvariantAnalysis (cil: Cil_types.file) =
       	(*Globals.Functions.iter (fun kf ->
@@ -127,72 +112,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 			Format.print_flush ();
 	)gannot_list;
       	
-      	(*List.iter(fun li->
-      		Printf.printf "logic_var_info=%s\n" li.l_var_info.lv_name;
-      		Printf.printf "li.params.len=%d\n" (List.length li.l_tparams);
-      		List.iter(fun para->
-      			Printf.printf "para=%s\n" para;
-      		)li.l_tparams;
-      		List.iter(fun lvar->
-      			Printf.printf "profile_var=%s\n" lvar.lv_name;
-      			Printf.printf "var_type=";
-      			Cil.d_logic_type Format.std_formatter lvar.lv_type;
-      			Format.print_flush ();
-      			Printf.printf "\n";
-      		)li.l_profile;
-      		match li.l_body with
-      		| LBpred(pn)->      		
-		  		(match pn.content with
-		  		| Psubtype(t1,t2)->
-		  			Printf.printf "Psubtype\n";
-		  		| Pfresh(t)->
-		  			Printf.printf "Pfresh\n";
-		  		| Pvalid_range(t1,t2,t3)->
-		  			Printf.printf "Pvalid_range\n";
-		  		| Pvalid_index(t1,t2)->
-		  			Printf.printf "Pvalid_index\n";
-		  		| Pvalid(t)->
-		  			Printf.printf "Pvalid\n";
-		  		| Pat(pn1,label)->
-		  			Printf.printf "Pat\n";
-		  		| Pexists(q,pn1)->
-		  			Printf.printf "Pexists\n";
-		  		| Pforall(q,pn1)->
-		  			Printf.printf "Pforall\n";
-		  		| Plet(linfo,pn1)->
-		  			Printf.printf "Plet\n";
-		  		| Pfalse->
-		  			Printf.printf "Pfalse\n";
-		  		| Ptrue->
-		  			Printf.printf "Ptrue\n";
-		  		| Papp(linfo,l1,l2)->
-		  			Printf.printf "Papp\n";
-		  		| Pseparated(tl)->
-		  			Printf.printf "Pseparated\n";
-		  		| Prel(re,t1,t2)->
-		  			Printf.printf "Prel\n";
-		  		| Pand(pn1,pn2)->
-		  			Printf.printf "Pand\n";
-		  		| Por(pn1,pn2)->
-		  			Printf.printf "Por\n";
-		  		| Pxor(pn1,pn2)->
-		  			Printf.printf "Pxor\n";
-		  		| Pimplies(pn1,pn2)->
-		  			Printf.printf "Pimplies\n";
-		  		| Piff(pn1,pn2)->
-		  			Printf.printf "Piff\n";
-		  		| Pnot(pn1)->
-		  			Printf.printf "Pnot\n";
-		  		| Pif(t,pn1,pn2)->
-		  			Printf.printf "Pif\n";
-		  		| _->
-		  			Printf.printf "other\n";
-		  		);
-      		| _->
-      			();
-      	)!linfo_list;*)
-      	
-		(**before compute, must clear first. set clear_id to be false*)
+	(*before compute, must clear first. set clear_id to be false*)
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
 	
@@ -201,9 +121,32 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk;
 	Printf.printf "Frontend.compute_and_display over\n";
 	
+	
+	let funsigs =
+		let funsig = Hashtbl.create 2 in
+		Globals.Functions.iter(fun kf ->
+			let name = Kernel_function.get_name kf in
+			match kf.fundec with
+			| Definition(dec,_)->
+			  Hashtbl.add funsig name {Loop_parameters.sspec=dec.sspec;Loop_parameters.sformals=Some dec.sformals;}
+		  | Declaration(spec,v,vlo,_)->
+		    Hashtbl.add funsig name {Loop_parameters.sspec=spec;Loop_parameters.sformals=vlo;}
+		);
+		funsig;
+	in
+	Printf.printf "hash len=%d\n" (Hashtbl.length funsigs);
+	Hashtbl.iter(fun name signature->
+		Printf.printf "name=%s\n" name;
+		Cil.d_funspec Format.std_formatter signature.Loop_parameters.sspec;Format.print_flush ();Printf.printf "\n";
+	)funsigs;
 	let visitor = new liVisitor (Project.current ()) in
-	Globals.Functions.iter(fun kf ->
-		translate_kf kf;
+	Globals.Functions.iter(fun kf ->		
+		match kf.fundec with
+		| Definition(_,_)->
+	    translate_kf kf;
+      (*prove_kf kf;*)
+    | Declaration(spec,v,vlo,_)->
+      ();
 	);
   
   Globals.Functions.iter(fun kf ->
@@ -242,8 +185,12 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  List.iter(fun pn->
 		  	Cil.d_predicate_named Format.std_formatter pn;Format.print_flush ();Printf.printf "\n";
 		  )!assumes;
-    	analysis_kf kf !linfo_list !assumes visitor;
+		  match kf.fundec with
+		  | Definition(_,_)->
+	    	analysis_kf kf !linfo_list !assumes visitor;
       		(*prove_kf kf;*)
+      | Declaration(spec,v,vlo,_)->
+      	();
     );
   );
       	
@@ -278,12 +225,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		
 		
 	Printf.printf "%s\n" "----cil.globals";
-		
-					(**let get_loc_str location=
-						let loc=Cil.d_loc Format.std_formatter location in
-						Pretty.sprint 80 doc;
-					in*)
-		
 		(*!Db.Value.compute ();
 		let visitor = new File.check_file cil.fileName in*)
 		
@@ -346,7 +287,7 @@ let compute_loop_invariant () =
 		| _->();
 		);
     );
-	ignore (visitFramacFile (new loopInvariant) (Ast.get ()));
+	ignore (Visitor.visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
 	

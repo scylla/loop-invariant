@@ -1,10 +1,3 @@
-open Dynamic
-open Type
-open Datatype
-open Cil_types
-open Cil_datatype
-open Property_status
-open Property_status.Consolidation
 
 let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip=
 	(*let wp_run = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in
@@ -23,7 +16,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip=
 	wp_compute (Some(kf)) bhv (Some(ip));
 	let status = Property_status.Consolidation.get ip in
 	(match status with
-	| Considered_valid|Valid(_)|Valid_under_hyp(_)|Valid_but_dead(_)->
+	| Property_status.Consolidation.Considered_valid|Property_status.Consolidation.Valid(_)|Property_status.Consolidation.Valid_under_hyp(_)|Property_status.Consolidation.Valid_but_dead(_)->
 		Printf.printf "Valid?\n";1;
 	|_->
 		Printf.printf "Invalid\n";0;
