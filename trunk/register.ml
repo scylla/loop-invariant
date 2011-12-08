@@ -128,17 +128,13 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 			let name = Kernel_function.get_name kf in
 			match kf.fundec with
 			| Definition(dec,_)->
-			  Hashtbl.add funsig name {Loop_parameters.sspec=dec.sspec;Loop_parameters.sformals=Some dec.sformals;}
+			  Hashtbl.add funsig name {Loop_parameters.spec=dec.sspec;Loop_parameters.formals=Some dec.sformals;}
 		  | Declaration(spec,v,vlo,_)->
-		    Hashtbl.add funsig name {Loop_parameters.sspec=spec;Loop_parameters.sformals=vlo;}
+		    Hashtbl.add funsig name {Loop_parameters.spec=spec;Loop_parameters.formals=vlo;}
 		);
 		funsig;
 	in
-	Printf.printf "hash len=%d\n" (Hashtbl.length funsigs);
-	Hashtbl.iter(fun name signature->
-		Printf.printf "name=%s\n" name;
-		Cil.d_funspec Format.std_formatter signature.Loop_parameters.sspec;Format.print_flush ();Printf.printf "\n";
-	)funsigs;
+	
 	let visitor = new liVisitor (Project.current ()) in
 	Globals.Functions.iter(fun kf ->		
 		match kf.fundec with
@@ -187,7 +183,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  )!assumes;
 		  match kf.fundec with
 		  | Definition(_,_)->
-	    	analysis_kf kf !linfo_list !assumes visitor;
+	    	analysis_kf kf !linfo_list !assumes funsigs visitor;
       		(*prove_kf kf;*)
       | Declaration(spec,v,vlo,_)->
       	();

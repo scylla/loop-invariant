@@ -323,8 +323,8 @@ let () =
     ]
 *)
 type procsignature ={
-	mutable sspec:Cil_types.funspec;
-	mutable sformals:Cil_types.varinfo list option;
+	mutable spec:Cil_types.funspec;
+	mutable formals:Cil_types.varinfo list option;
 }
 	
 type displaytags = {

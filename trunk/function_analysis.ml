@@ -1,9 +1,6 @@
 open Cil
 open Cil_types
 open Cil_datatype
-open LiVisitor
-open LiAnnot
-open Template
 
 (*
 let locUnknown = ({Lexing.position.pos_fname="";},{Lexing.position.pos_fname="";})
@@ -117,7 +114,7 @@ let generate_predicate_list_from_block pre_list (block:Cil_types.block) =
 	pre_list;
 	);*)
 	
-let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:block) (linfo_list:logic_info list)  (assumes:predicate named list)  (visitor:liVisitor)=
+let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list)  (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
 	
 	let lt = ref [] in
 	let total_lt = ref [] in
@@ -202,11 +199,23 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		(*Set End*)
 		| Call(lo,e1,el,loc)->
 			Printf.printf "Call in loop\n";
-			Li_utils.print_exp_type e1;
-			Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
-			List.iter(fun e->
-				Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
-			)el;
+			let name = Li_utils.get_exp_name e1 in
+			(try
+				let (fsig:Loop_parameters.procsignature) = Hashtbl.find funsigs name in
+				Cil.d_funspec Format.std_formatter fsig.Loop_parameters.spec;Format.print_flush ();Printf.printf "\n";
+				
+				(match fsig.Loop_parameters.formals with
+				| Some(fl)->
+					let vars = Li_utils.extract_varinfos_from_explist el in
+					fsig.Loop_parameters.formals <- Some(vars);
+					List.iter(fun v->
+						Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
+					)fl;
+					Cil.d_funspec Format.std_formatter fsig.Loop_parameters.spec;Format.print_flush ();Printf.printf "\n";
+				| None->();
+				);
+			with Not_found->Printf.printf "Not_found in Call in loop\n";
+			);
 		| _->
 			();(*match instr End*)
 		);
@@ -345,7 +354,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 	| _->
 		();
 	(*match s.skind End*)
-	)b.bstmts;(*List.iter End*)
+	)b.Cil_types.bstmts;(*List.iter End*)
 	!lt;
 	in
 	
@@ -364,7 +373,7 @@ let extract_varinfos_from_stmt (s:stmt) =
   in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
     visitor#varinfos
     
-let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (assumes:predicate named list) (visitor:liVisitor)= 
+let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)= 
 	try
 	let fundec = Kernel_function.get_definition kf in
 	List.iter( fun stmt ->
@@ -500,7 +509,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 	| None->();
 		 	);
 		 	Printf.printf "Analysis loop body now.\n";
-		 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes visitor in
+		 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes funsigs visitor in
 		 	total_lt := List.rev !total_lt;
 		 	Printf.printf "total_lt.len=%d\n" (List.length !total_lt);
 		 	List.iter(fun tl->
@@ -512,7 +521,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 					Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-					prove_code_annot kf stmt annot;();
+					LiAnnot.prove_code_annot kf stmt annot;();
 				);
 			)!total_lt;
 		 	Printf.printf "Analysis loop body over.\n";
@@ -520,7 +529,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
 				let root_code_annot_ba = Cil_types.User(annot) in
 				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-				prove_code_annot kf stmt annot;
+				LiAnnot.prove_code_annot kf stmt annot;
 			)assumes;
 		 	Printf.printf "Leave Loop Now.\n";
 		 | Block(_) ->
