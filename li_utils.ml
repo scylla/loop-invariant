@@ -1,6 +1,14 @@
 open Cil_types
 open Cil_datatype
 
+let extract_varinfos_from_explist (expl:Cil_types.exp list) =
+	let vl = ref [] in
+	List.iter(fun exp->
+		let vars = Cil.extract_varinfos_from_exp exp in
+		vl := !vl@(Varinfo.Set.elements vars);
+	)expl;
+	!vl
+	
 let print_predicate_named_type (pn:Cil_types.predicate named)=
 	match pn.content with
 	| Psubtype(t1,t2)->
@@ -48,7 +56,28 @@ let print_predicate_named_type (pn:Cil_types.predicate named)=
 	| _->
 		Printf.printf "other\n"
 		  		
-      			
+let get_exp_name (e:Cil_types.exp) =
+	match e.enode with
+	| Const(_)->Printf.printf "Const\n";assert false
+	| Lval(l)->Printf.printf "Lval:";
+		let (host,off) = l in
+		(match host with
+		| Var(v)->Printf.printf "var:";
+			v.vname;
+		| Mem(_)->Printf.printf "Mem:";assert false;
+		);
+	| SizeOf(_)->Printf.printf "SizeOf\n";assert false
+	| SizeOfE(_)->Printf.printf "SizeOfE\n";assert false
+	| SizeOfStr(_)->Printf.printf "SizeOfStr\n";assert false
+	| AlignOf(_)->Printf.printf "AlignOf\n";assert false
+	| AlignOfE(_)->Printf.printf "AlignOfE\n";assert false
+	| UnOp(_,_,_)->Printf.printf "UnOp\n";assert false
+	| BinOp(_,_,_,_)->Printf.printf "BinOp\n";assert false
+	| CastE(_,_)->Printf.printf "CastE\n";assert false
+	| AddrOf(_)->Printf.printf "AddrOf\n";assert false
+	| StartOf(_)->Printf.printf "StartOf\n";assert false
+	| Info(_,_)->Printf.printf "Info\n";assert false
+	
 let print_exp_type (e:Cil_types.exp) =
 	match e.enode with
 	| Const(_)->Printf.printf "Const\n"
