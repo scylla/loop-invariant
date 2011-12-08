@@ -1,14 +1,7 @@
 (** Generating equations from abstract syntax tree *)
 
-open Format
-open FixpointType
-open Equation
-open PSHGraph
-open Apron
 open Cil_types
-open Li_utils
-open Kernel_function
-
+open Equation
 (*  ********************************************************************** *)
 (** {2 Useful Information for generating equations} *)
 (*  ********************************************************************** *)
@@ -43,8 +36,8 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
     List.fold_left
       (begin fun (lint,lreal) var ->
       	match var.vtype with
-      	| TInt(_,_)->((Var.of_string var.vname)::lint,lreal)
-      	| TFloat(_,_)->(lint,(Var.of_string var.vname)::lreal)
+      	| TInt(_,_)->((Apron.Var.of_string var.vname)::lint,lreal)
+      	| TFloat(_,_)->(lint,(Apron.Var.of_string var.vname)::lreal)
       	| _->(lint,lreal)
 			end) ([],[]) lvar
   in
@@ -82,7 +75,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
     Equation.plocal = plocal;
     Equation.penv = penv;
   }
-  with No_Definition -> Printf.printf "exception No_Definition\n";Equation.dummy_procinfo
+  with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";Equation.dummy_procinfo
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
 let make_info (prog:Cil_types.file) : Equation.info =
@@ -113,7 +106,7 @@ let make_info (prog:Cil_types.file) : Equation.info =
 				);
 			| _->();
 		)pcode.bstmts;
-		with No_Definition -> Printf.printf "exception No_Definition\n";
+		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 	);
   
   let pointenv = Hashhe.create 3 in
@@ -133,7 +126,7 @@ let make_info (prog:Cil_types.file) : Equation.info =
 			if not (Hashhe.mem pointenv p) then
 				Hashhe.add pointenv p env;
     )pcode.bstmts;
-		with No_Definition -> Printf.printf "exception No_Definition\n";
+		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 	);
   {
     Equation.procinfo = procinfo;
@@ -369,6 +362,21 @@ module Forward = struct
       			let transfer = Equation.Condition(Boolexpr.make_cst false) in
 						Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
       		);
+      	(*| If(exp,b1,b2,l)->
+      		let cond = boolexpr_of_bexpr env bexpr in
+						let condnot = boolexpr_of_bexpr env (NOT bexpr) in
+						let condtransfer = Equation.Condition(cond) in
+						let condnottransfer = Equation.Condition(condnot) in
+						Equation.add_equation graph
+							[|bpoint|]  condtransfer block1.bpoint;
+						Equation.add_equation graph
+							[|exit_of_block block1|] (Equation.Condition(Boolexpr.make_cst true)) instr.ipoint;
+						Equation.add_equation graph
+							[|bpoint|] condnottransfer block2.bpoint;
+						Equation.add_equation graph
+							[|exit_of_block block2|] (Equation.Condition(Boolexpr.make_cst true)) instr.ipoint;
+					iter_block procinfo b1;
+					iter_block procinfo b2*)
       	| _->
       		let (p1,p2) = Li_utils.get_stmt_location stmt in
       		let transfer = Equation.Condition(Boolexpr.make_cst false) in
@@ -464,7 +472,7 @@ module Forward = struct
 				Printf.printf "in make graph procinfo\n";
 				Equation.print_procinfo fmt procinfo;
 				iter_block procinfo fundec.sbody;
-			with No_Definition -> Printf.printf "exception No_Definition\n";
+			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 		);
 
     graph

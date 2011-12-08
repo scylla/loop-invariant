@@ -1,12 +1,4 @@
-open Cil
 open Cil_types
-open Cil_datatype
-open Annotations
-open Kernel_function
-open Prove
-open Property_status
-open Property_status.Consolidation
-open Description
 
 let compareLogicInfo (linfo1:Cil_types.logic_info) (linfo2:Cil_types.logic_info) : bool =
 	let lv1 = linfo1.l_var_info in
@@ -122,7 +114,7 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
 	List.iter(fun ip->
 		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
-		flag := prove_predicate kf [] ip;
+		flag := Prove.prove_predicate kf [] ip;
 		(*let status = prove_predicate kf [] ip in
 		(match status with
 		| Considered_valid|Valid(_)|Valid_under_hyp(_)|Valid_but_dead(_)->

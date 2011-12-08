@@ -1,17 +1,6 @@
 open Cil
 open Cil_types
 open Cil_datatype
-open File
-open Annotations
-open Kernel_function
-open Logic_typing
-open Visitor
-open Project
-open Callgraph
-open Db
-open Ast_printer
-open Outputs
-open Logic_const
 open LiVisitor
 open LiAnnot
 open Template
@@ -83,7 +72,8 @@ let p_stmt_value kinstr visitor =
 let p_visitor visitor = 
 	let kinstr=visitor#current_kinstr in
 	p_stmt_value kinstr visitor;*)
-		  	 
+
+	
 let generate_predicate_list_from_block pre_list (block:Cil_types.block) =
 	()(*if (List.length block.bstmts)=0 then pre_list
 	else
@@ -210,6 +200,13 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 			lt := [];
 			();
 		(*Set End*)
+		| Call(lo,e1,el,loc)->
+			Printf.printf "Call in loop\n";
+			Li_utils.print_exp_type e1;
+			Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
+			List.iter(fun e->
+				Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
+			)el;
 		| _->
 			();(*match instr End*)
 		);
@@ -535,7 +532,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 );
 		Printf.printf "\n";
 	)fundec.sallstmts(*List.iter end*)
-	with No_Definition->Printf.printf "The given function [%s] is not a definition.\n" (Kernel_function.get_name kf)
+	with Kernel_function.No_Definition->Printf.printf "The given function [%s] is not a definition.\n" (Kernel_function.get_name kf)
 
 let analysis_assert (kf:Cil_types.kernel_function) =
 	match kf.fundec with
