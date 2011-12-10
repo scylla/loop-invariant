@@ -1,16 +1,154 @@
 open Cil_types
 open Cil_datatype
 
-let extract_varinfos_from_explist (expl:Cil_types.exp list) =
-	let vl = ref [] in
-	List.iter(fun exp->
-		let vars = Cil.extract_varinfos_from_exp exp in
-		vl := !vl@(Varinfo.Set.elements vars);
-	)expl;
-	!vl
 	
-let print_predicate_named_type (pn:Cil_types.predicate named)=
-	match pn.content with
+let print_exp_type (e:Cil_types.exp) =
+	match e.enode with
+	| Const(_)->Printf.printf "Const\n"
+	| Lval(l)->Printf.printf "Lval:";
+		let (host,off) = l in
+		(match host with
+		| Var(v)->Printf.printf "var:";
+			Cil.d_type Format.std_formatter v.vtype; Printf.printf "TFun:\n";
+		| Mem(_)->Printf.printf "Mem:";
+		);
+		(match off with
+		| NoOffset->Printf.printf "NoOffset\n";
+		| Field(_,_)->Printf.printf "Field\n";
+		| Index(_,_)->Printf.printf "Index\n";
+		)
+	| SizeOf(_)->Printf.printf "SizeOf\n"
+	| SizeOfE(_)->Printf.printf "SizeOfE\n"
+	| SizeOfStr(_)->Printf.printf "SizeOfStr\n"
+	| AlignOf(_)->Printf.printf "AlignOf\n"
+	| AlignOfE(_)->Printf.printf "AlignOfE\n"
+	| UnOp(_,_,_)->Printf.printf "UnOp\n"
+	| BinOp(_,_,_,_)->Printf.printf "BinOp\n"
+	| CastE(_,_)->Printf.printf "CastE\n"
+	| AddrOf(_)->Printf.printf "AddrOf\n"
+	| StartOf(_)->Printf.printf "StartOf\n"
+	| Info(_,_)->Printf.printf "Info\n"
+	
+let get_constant_str (c:Cil_types.Const) :string =
+	match c with
+  | CInt64(_, _, Some s)->s
+  | CInt64(i, ik, _) ->
+    let suffix = 
+		  match ik with
+		  | IUInt -> "U"
+		  | ILong -> "L"
+		  | IULong -> "UL"
+		  | ILongLong -> if Cil.theMachine.msvcMode then "L" else "LL"
+		  | IULongLong -> if Cil.theMachine.msvcMode then "UL" else "ULL"
+		  | IInt | IBool | IShort | IUShort | IChar | ISChar | IUChar -> ""
+    in
+    let prefix =
+    	if suffix <> "" then ""
+      else if ik = IInt then ""
+      else Pretty_utils.sfprintf "(%a)" d_ikind ik
+    in
+    fprintf fmt "%s%a" prefix (pretty_C_constant suffix ik) i
+
+  | CStr(s) ->Escape.escape_string s
+  | CWStr(s) ->
+       (* text ("L\"" ^ escape_string s ^ "\"")  *)
+       fprintf fmt "L";
+       List.iter
+			 (fun elt ->
+					if (elt >= Int64.zero &&
+					elt <= (Int64.of_int 255)) then
+					  fprintf fmt "%S"
+				(Escape.escape_char (Char.chr (Int64.to_int elt)))
+					else
+					  fprintf fmt "\"\\x%LX\"" elt;
+					fprintf fmt "@ ")s;
+	 (* we cannot print L"\xabcd" "feedme" as L"\xabcdfeedme" --
+	  * the former has 7 wide characters and the later has 3. *)
+
+  | CChr(c) ->Escape.escape_char c
+  | CReal(_, _, Some s) ->s
+  | CReal(f, fsize, None) ->string_of_float f
+  | CEnum {einame = s} ->s
+   
+let rec replace_logic_varname (p:Cil_types.predicate) (lv:Cil_types.logic_var) (exp:Cil_types.exp) =
+	Printf.printf "replace now\n";
+	print_exp_type exp;
+	match exp.enode with
+	| Lval((host,_))->
+		(match host with
+		| Var(v)->
+			lv.lv_name <- v.vname;
+		| _->();
+		)
+	| CastE(_,e)->
+		replace_logic_varname p lv e
+	| Const(con)->		
+		lv.lv_name <- (get_constant_str con)
+	| _->()
+	
+let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
+	match t.term_node with
+	| TLval((thost,toffset))|TAddrOf((thost,toffset))|TStartOf((thost,toffset))->
+		(match thost with
+		| TVar(lv)->
+			let len = (List.length formals)-1 in
+			for i=0 to len do
+			(
+				if ((List.nth formals i).vname)=lv.lv_name then
+				(replace_logic_varname p lv (List.nth args i););
+			);done
+		| TResult(_)|TMem(_)->();
+		);
+	| TSizeOfE(t)|TAlignOfE(t)|TUnOp(_,t)|TCastE(_,t)|Tlambda(_,t)|Tat(t,_)|Tbase_addr(t)|Tblock_length(t)|TCoerce(t,_)|Ttypeof(t)|Tcomprehension(t,_,_)|Tlet(_,t)->
+		replace_term t p formals args;
+	| TBinOp(_,t1,t2)|TUpdate(t1,_,t2)|TCoerceE(t1,t2)->
+		replace_term t1 p formals args;
+		replace_term t2 p formals args
+	| Tapp(_,_,tl)|TDataCons(_,tl)|Tunion(tl)|Tinter(tl)->
+		List.iter(fun t->
+			replace_term t p formals args;
+		)tl
+	| Tif(t1,t2,t3)->
+		replace_term t1 p formals args;
+		replace_term t2 p formals args;
+		replace_term t3 p formals args
+	| Trange(to1,to2)->
+		(match to1 with
+		| Some(t)->
+			replace_term t p formals args;
+		| None->();
+		);
+		(match to2 with
+		| Some(t)->
+			replace_term t p formals args;
+		| None->();
+		)
+	| TConst(_)|TSizeOf(_)|TSizeOfStr(_)|TAlignOf(_)|Tnull|Ttype(_)|Tempty_set->()
+		
+let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
+	match p with
+	| Psubtype(t1,t2)|Pvalid_index(t1,t2)|Prel(_,t1,t2)->
+		replace_term t1 p formals args;
+		replace_term t2 p formals args
+	| Pfresh(t)|Pvalid(t)->
+		replace_term t p formals args
+	| Pvalid_range(t1,t2,t3)->
+		replace_term t1 p formals args;
+		replace_term t2 p formals args;
+		replace_term t3 p formals args
+	| Pat(pn,_)|Pexists(_,pn)|Pforall(_,pn)|Plet(_,pn)|Pnot(pn)->
+		replace_predicate_var pn.content formals args
+	| Papp(_,_,tl)|Pseparated(tl)->
+		List.iter(fun t->
+			replace_term t p formals args;
+		)tl
+	| Pand(pn1,pn2)|Por(pn1,pn2)|Pxor(pn1,pn2)|Pimplies(pn1,pn2)|Piff(pn1,pn2)|Pif(_,pn1,pn2)->
+		replace_predicate_var pn1.content formals args;
+		replace_predicate_var pn2.content formals args
+	| Pfalse|Ptrue->()
+		
+let print_predicate_named_type (p:Cil_types.predicate) =
+	match p with
 	| Psubtype(t1,t2)->
 		Printf.printf "Psubtype\n"
 	| Pfresh(t)->
@@ -77,33 +215,7 @@ let get_exp_name (e:Cil_types.exp) =
 	| AddrOf(_)->Printf.printf "AddrOf\n";assert false
 	| StartOf(_)->Printf.printf "StartOf\n";assert false
 	| Info(_,_)->Printf.printf "Info\n";assert false
-	
-let print_exp_type (e:Cil_types.exp) =
-	match e.enode with
-	| Const(_)->Printf.printf "Const\n"
-	| Lval(l)->Printf.printf "Lval:";
-		let (host,off) = l in
-		(match host with
-		| Var(v)->Printf.printf "var:";
-			Cil.d_type Format.std_formatter v.vtype; Printf.printf "TFun:\n";
-		| Mem(_)->Printf.printf "Mem:";
-		);
-		(match off with
-		| NoOffset->Printf.printf "NoOffset\n";
-		| Field(_,_)->Printf.printf "Field\n";
-		| Index(_,_)->Printf.printf "Index\n";
-		)
-	| SizeOf(_)->Printf.printf "SizeOf\n"
-	| SizeOfE(_)->Printf.printf "SizeOfE\n"
-	| SizeOfStr(_)->Printf.printf "SizeOfStr\n"
-	| AlignOf(_)->Printf.printf "AlignOf\n"
-	| AlignOfE(_)->Printf.printf "AlignOfE\n"
-	| UnOp(_,_,_)->Printf.printf "UnOp\n"
-	| BinOp(_,_,_,_)->Printf.printf "BinOp\n"
-	| CastE(_,_)->Printf.printf "CastE\n"
-	| AddrOf(_)->Printf.printf "AddrOf\n"
-	| StartOf(_)->Printf.printf "StartOf\n"
-	| Info(_,_)->Printf.printf "Info\n"
+
 	
 (** Return an integer constant term from the given value. *)
 let mk_int_term value = Cil.lconstant (My_bigint.of_int value)
@@ -157,4 +269,12 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 	| UnspecifiedSequence(seq)->
 		let block = Cil.block_from_unspecified_sequence seq in
 		let first_stmt = List.nth block.bstmts 0 in
-		get_stmt_location first_stmt;
+		get_stmt_location first_stmt;;
+		
+let get_block_spoint (b:Cil_types.block) :Cil_types.location =
+	let first_stmt = List.nth b.bstmts 0 in
+	get_stmt_location first_stmt;;
+
+let get_block_epoint (b:Cil_types.block) :Cil_types.location =
+	let first_stmt = List.nth b.bstmts ((List.length b.bstmts)-1) in
+	get_stmt_location first_stmt;;

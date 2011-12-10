@@ -157,7 +157,7 @@ type bexpr =
   | AND  of bexpr*bexpr
   | OR   of bexpr*bexpr
   | NOT  of bexpr (** *)
-  
+	
 let negate_texpr (texpr:Apron.Texpr1.t) : Apron.Texpr1.t
   =
   let expr = Apron.Texpr1.to_expr texpr in
@@ -235,45 +235,42 @@ let boolexpr0_of_bexpr env (bexpr:bexpr) :Apron.Tcons1.t array Boolexpr.t =
     | TRUE | BRANDOM -> Boolexpr.make_cst true
     | FALSE -> Boolexpr.make_cst false
     | CONS(cons) ->
-				let tcons = tcons_of_cons env cons in
-				Boolexpr.make_conjunction [|tcons|]
+    	Boolexpr.print (fun e->Apron.Texpr1.print_expr e;) Format.std_formatter;
+    	Format.print_flush ();Printf.printf "\n";
+			let tcons = tcons_of_cons env cons in
+			Boolexpr.make_conjunction [|tcons|]
 		| AND(e1,e2) ->
-				Boolexpr.make_and ~cand
-					(translate e1) (translate e2)
+			Boolexpr.make_and ~cand	(translate e1) (translate e2)
 		| OR(e1,e2) ->
-				Boolexpr.make_or (translate e1) (translate e2)
+			Boolexpr.make_or (translate e1) (translate e2)
 		| NOT(e) ->
-				begin match e with
-				| FALSE | BRANDOM -> Boolexpr.make_cst true
-				| TRUE -> Boolexpr.make_cst false
-				| CONS(cons) ->
-						let tcons = tcons_of_cons env cons in
-						let tcons = negate_tcons tcons in
-						Boolexpr.make_conjunction [|tcons|]
-				| AND(e1,e2) ->
-						Boolexpr.make_or (translate (NOT e1)) (translate (NOT e2))
-				| OR(e1,e2) ->
-						Boolexpr.make_and ~cand 
-							(translate (NOT e1)) (translate (NOT e2))
-				| NOT(e) -> translate e
-				end
+			begin match e with
+			| FALSE | BRANDOM -> Boolexpr.make_cst true
+			| TRUE -> Boolexpr.make_cst false
+			| CONS(cons) ->
+				let tcons = tcons_of_cons env cons in
+				let tcons = negate_tcons tcons in
+				Boolexpr.make_conjunction [|tcons|]
+			| AND(e1,e2) ->
+				Boolexpr.make_or (translate (NOT e1)) (translate (NOT e2))
+			| OR(e1,e2) ->
+				Boolexpr.make_and ~cand (translate (NOT e1)) (translate (NOT e2))
+			| NOT(e) -> translate e
+			end
   in
   translate bexpr
 
 let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
   let bexpr0 = boolexpr0_of_bexpr env bexpr in
   Boolexpr.map
-    (begin fun tcons ->
+    (fun tcons ->
       assert(tcons<>[||]);
       let res = Apron.Tcons1.array_make env (Array.length tcons) in
       Array.iteri	(fun i cons -> Apron.Tcons1.array_set res i cons)	tcons;
       res
-    end)
+    )
     bexpr0
 
-(*  ********************************************************************** *)
-(** {2 Forward equations} *)
-(*  ********************************************************************** *)
 let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 	match exp.enode with
 	| BinOp(op,e1,e2,ty)->
@@ -315,6 +312,32 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Apron.Texpr1.Var(Apron.Var.of_string "unknown");
 		)
 	|_->Apron.Texpr1.Var(Apron.Var.of_string "unknown")
+	  
+let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
+	match exp.enode with
+	| BinOp(op,e1,e2,tp)->
+		let te1 = force_exp_to_texp e1 in
+		let te2 = force_exp_to_texp e2 in
+		(match op with
+		| Lt->
+			CONS(te1,LT,te2)
+		| Gt->
+			CONS(te1,GT,te2)
+		| Le->
+			CONS(te1,LEQ,te2)
+		| Ge->
+			CONS(te1,GEQ,te2)
+		| Eq->
+			CONS(te1,EQ,te2)
+		| Ne->
+			CONS(te1,NEQ,te2)
+		| _->assert false
+		);
+	| _->assert false
+	
+(*  ********************************************************************** *)
+(** {2 Forward equations} *)
+(*  ********************************************************************** *)
 	
 module Forward = struct
   let make (prog:Cil_types.file) (fmt:Format.formatter): Equation.graph =
@@ -326,18 +349,20 @@ module Forward = struct
 
     let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
       let env = procinfo.Equation.penv in
-      let (p1,p2) = Li_utils.get_stmt_location (List.nth block.bstmts 0) in
+      let (p1,p2) = Li_utils.get_block_spoint block in
       let bpoint = {pos1=p1;pos2=p2} in
       ignore begin
       List.fold_left(fun bpoint stmt->
+      	let (p1,p2) = Li_utils.get_stmt_location stmt in
+      	let spoint = {pos1=p1;pos2=p2} in
       	(match stmt.skind with
       	| Instr(instr)->
+      		Printf.printf "c2equation Forward make Instr\n";
       		(match instr with
-      		| Set(lval,e,loc)->
+      		| Set(lval,e,_)->
       			Printf.printf "meet Set\n";
       			Cil.d_stmt Format.std_formatter stmt;
       			Printf.printf "\n";
-      			let (p1,p2) = loc in
       			let (host,offset) = lval in
       			(match host with
       			| Var(v)->
@@ -351,36 +376,46 @@ module Forward = struct
 							let transfer = Equation.Tassign(var,texpr) in
 							Equation.print_transfer fmt transfer;
 							Printf.printf "\n";
-							Equation.add_equation graph [|{pos1=p1;pos2=p2}|] transfer {pos1=p1;pos2=p2};
+							Equation.add_equation graph [|spoint|] transfer spoint;
 						|_->
-							let (p1,p2) = Li_utils.get_stmt_location stmt in
       				let transfer = Equation.Condition(Boolexpr.make_cst false) in
-							Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
+							Equation.add_equation graph [|bpoint|] transfer spoint;
 						);
       		|_->
-      			let (p1,p2) = Li_utils.get_stmt_location stmt in
       			let transfer = Equation.Condition(Boolexpr.make_cst false) in
-						Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
+						Equation.add_equation graph [|bpoint|] transfer spoint;
       		);
-      	(*| If(exp,b1,b2,l)->
+      	(*| Loop(_,b,_,_,_)->
+      		iter_block procinfo b;
+      	| Block(b)->
+      		iter_block procinfo b;
+      	| If(exp,b1,b2,l)->
+      		Printf.printf "c2equation Forward make If\n";
+      		let bexpr = force_exp2bexp exp in
+      		Apron.Environment.print fmt env;
       		let cond = boolexpr_of_bexpr env bexpr in
-						let condnot = boolexpr_of_bexpr env (NOT bexpr) in
-						let condtransfer = Equation.Condition(cond) in
-						let condnottransfer = Equation.Condition(condnot) in
-						Equation.add_equation graph
-							[|bpoint|]  condtransfer block1.bpoint;
-						Equation.add_equation graph
-							[|exit_of_block block1|] (Equation.Condition(Boolexpr.make_cst true)) instr.ipoint;
-						Equation.add_equation graph
-							[|bpoint|] condnottransfer block2.bpoint;
-						Equation.add_equation graph
-							[|exit_of_block block2|] (Equation.Condition(Boolexpr.make_cst true)) instr.ipoint;
+					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
+					let condtransfer = Equation.Condition(cond) in
+					let condnottransfer = Equation.Condition(condnot) in
+					let (p1,p2) = Li_utils.get_block_spoint b1 in
+					Equation.add_equation graph
+						[|bpoint|] condtransfer {pos1=p1;pos2=p2};
+					let (p1,p2) = Li_utils.get_block_epoint b1 in
+					Equation.add_equation graph
+						[|{pos1=p1;pos2=p2}|] (Equation.Condition(Boolexpr.make_cst true)) spoint;
+						
+					let (p1,p2) = Li_utils.get_block_spoint b2 in
+					Equation.add_equation graph
+						[|bpoint|] condnottransfer {pos1=p1;pos2=p2};
+					let (p1,p2) = Li_utils.get_block_epoint b1 in
+					Equation.add_equation graph
+						[|{pos1=p1;pos2=p2}|] (Equation.Condition(Boolexpr.make_cst true)) spoint;
+							
 					iter_block procinfo b1;
 					iter_block procinfo b2*)
       	| _->
-      		let (p1,p2) = Li_utils.get_stmt_location stmt in
       		let transfer = Equation.Condition(Boolexpr.make_cst false) in
-					Equation.add_equation graph [|bpoint|] transfer {pos1=p1;pos2=p2};
+					Equation.add_equation graph [|bpoint|] transfer spoint;
 				);
 				bpoint
      	)bpoint block.bstmts;

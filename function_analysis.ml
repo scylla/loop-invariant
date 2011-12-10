@@ -199,18 +199,24 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		(*Set End*)
 		| Call(lo,e1,el,loc)->
 			Printf.printf "Call in loop\n";
+			
 			let name = Li_utils.get_exp_name e1 in
 			(try
 				let (fsig:Loop_parameters.procsignature) = Hashtbl.find funsigs name in
 				Cil.d_funspec Format.std_formatter fsig.Loop_parameters.spec;Format.print_flush ();Printf.printf "\n";
 				
+				
 				(match fsig.Loop_parameters.formals with
-				| Some(fl)->
-					let vars = Li_utils.extract_varinfos_from_explist el in
-					fsig.Loop_parameters.formals <- Some(vars);
-					List.iter(fun v->
-						Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
-					)fl;
+				| Some(fvars)->
+					let behave = fsig.Loop_parameters.spec.spec_behavior in
+					List.iter(fun b->
+						List.iter(fun (tkind,p)->
+							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
+							Li_utils.replace_predicate_var p.ip_content fvars el;
+						)b.b_post_cond;
+					)behave;
+				
+					Printf.printf "after replace vars\n";
 					Cil.d_funspec Format.std_formatter fsig.Loop_parameters.spec;Format.print_flush ();Printf.printf "\n";
 				| None->();
 				);
