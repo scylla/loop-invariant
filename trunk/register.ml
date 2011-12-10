@@ -95,7 +95,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
       	)cil.globals;*)
 		
 	let manpk = Polka.manager_alloc_strict() in
-	(*Template.ex1 manpk;*)
+	Template.ex1 manpk;
 	let linfo_list = ref [] in(*logic_info list*)
 	let gannot_list = Globals.Annotations.get_all () in
 	List.iter(fun (g,_) ->
