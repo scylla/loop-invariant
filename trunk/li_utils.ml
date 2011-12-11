@@ -177,6 +177,14 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 	| TSizeOfE(t1)|TAlignOfE(t1)|TUnOp(_,t1)|TCastE(_,t1)|Tlambda(_,t1)|Tat(t1,_)|Tbase_addr(t1)|Tblock_length(t1)|TCoerce(t1,_)|Ttypeof(t1)|Tcomprehension(t1,_,_)|Tlet(_,t1)->
 		Printf.printf "TCastE 1\n";
 		replace_term t1 p formals args;
+		let check_cons t0 t1 = 
+			(match t1.term_node with
+			| TConst(c)->
+				t0.term_node <- t1.term_node
+			| _->()
+			);
+		in
+		check_cons t t1; 
 		Printf.printf "TCastE 2\n"
 	| TBinOp(_,t1,t2)|TUpdate(t1,_,t2)|TCoerceE(t1,t2)->
 		replace_term t1 p formals args;
