@@ -7,7 +7,9 @@ open Loop_parameters
 let build_graphs (fmt:Format.formatter) (prog:Cil_types.file):graph * graph =
   (* Converting prog into a forward equation system *)
   let (fgraph:graph) = C2equation.Forward.make prog Format.std_formatter in
+	fprintf fmt "print graph after ok 1\n";
   Equation.print_graph fmt fgraph;
+	fprintf fmt "print graph after ok 2\n";
   (* Converting prog into a backward equation system *)
   let (bgraph:graph) = C2equation.Backward.make prog in
   (fgraph,bgraph)
@@ -27,7 +29,7 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:0
 				in
 				fprintf fmt "%sAnnotated program after forward analysis%s@ " (!Loop_parameters.displaytags).precolorB (!Loop_parameters.displaytags).postcolor;
-					fp
+				fp
 			| Loop_parameters.Backward ->
 				Printf.printf "Backward\n";
 				let fp =

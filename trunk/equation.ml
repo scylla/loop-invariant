@@ -17,7 +17,9 @@ let print_point fmt p =
 	
 (** A function in an equation: identified by an integer *)
 type hedge = int(*use Cil_types.stmt.sid??*)
-
+let print_hedge fmt e =
+	fprintf fmt "%d" e
+	
 let compare_point (a:vertex) (b:vertex) =
   a.pos1.pos_lnum - b.pos1.pos_lnum
 
@@ -144,19 +146,6 @@ let add_equation (graph:graph) (torg:var array) (transfer:transfer) (dest:var):u
 (*  ===================================================================== *)
 (** {3 Printing functions} *)
 (*  ===================================================================== *)
-
-let print_graph fmt graph =
-	fprintf fmt "print_graph\n"
-    (*PSHGraph.copy
-      (fun vertex attrvertex -> attrvertex.reach)
-      (fun hedge attrhedge -> attrhedge.arc)
-      (fun info -> {
-				time = !(info.itime);
-				iterations = !(info.iiterations);
-				descendings = !(info.idescendings);
-				stable = !(info.istable)
-      })
-      graph*)
       
 let print_list
   ?(first=("[@[":(unit,Format.formatter,unit) format))
@@ -222,3 +211,26 @@ let print_transfer fmt transfer = match transfer with
       print_tvar pout
       calleeinfo.pname
       print_tvar pin
+      
+let print_unit fmt ()=
+	fprintf fmt ""
+	
+let print_graph fmt graph =
+	PSHGraph.print 
+		print_point
+		print_hedge
+		print_unit 
+		print_transfer 
+		print_info 
+		fmt
+		graph
+    (*PSHGraph.copy
+      (fun vertex attrvertex -> attrvertex.reach)
+      (fun hedge attrhedge -> attrhedge.arc)
+      (fun info -> {
+				time = !(info.itime);
+				iterations = !(info.iiterations);
+				descendings = !(info.idescendings);
+				stable = !(info.istable)
+      })
+      graph*)

@@ -10,20 +10,6 @@ open Equation
 (** {3 Utility functions} *)
 (*  ---------------------------------------------------------------------- *)
 
-(** Last element of a list *)
-let rec last_of_list = function
-  | [] -> failwith ""
-  | [x] -> x
-  | x::l -> last_of_list l
-
-(** Exit point of a block *)
-let exit_of_block (block:Cil_types.block) :Cil_types.location =
-  if block.bstmts=[] then
-    (Lexing.dummy_pos,Lexing.dummy_pos)
-  else begin
-    let stmt = last_of_list block.bstmts in
-    Li_utils.get_stmt_location stmt
-  end
 
 (** Extract an array of variables from variable declaration list *)
 let convert (lvar:varinfo list) : Apron.Var.t array =
@@ -51,7 +37,6 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
 
 (** Build a [Equation.procinfo] object from [Spl_syn.procedure]. *)
 let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
-	try
 	let fundec = Kernel_function.get_definition proc in
 	let (pcode:block) = fundec.sbody in
 	let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
@@ -75,58 +60,61 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
     Equation.plocal = plocal;
     Equation.penv = penv;
   }
-  with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";Equation.dummy_procinfo
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
 let make_info (prog:Cil_types.file) : Equation.info =
   let procinfo = Hashhe.create 3 in
   Globals.Functions.iter(fun kf ->
-		let info = make_procinfo kf in
-  	if info!=Equation.dummy_procinfo then
-    (Printf.printf "info!=Equation.dummy_procinfo,add procinfo\n";
-  	Printf.printf "make procinfo:\n";
-  	Equation.print_procinfo Format.std_formatter info;
-  	Printf.printf "\n";Hashhe.add procinfo info.pname info)
+  	match kf.fundec with
+  	| Definition(dec,_)->
+			let info = make_procinfo kf in
+			Printf.printf "make procinfo:\n";
+			Equation.print_procinfo Format.std_formatter info;
+			Printf.printf "info.pname=%s\n" info.pname;
+			Hashhe.add procinfo info.pname info
+		| _->()
 	);
 
   let callret = DHashhe.create 3 in
   Globals.Functions.iter(fun kf ->
-  	try
-		let fundec = Kernel_function.get_definition kf in
-		let (pcode:block) = fundec.sbody in
-		let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
-		let bpoint = {pos1=p1;pos2=p2} in
-		List.iter(fun stmt->
-			match stmt.skind with
-			| Instr(ins)->
-				(match ins with
-				| Call(_,_,_,(p1,p2))->
-					DHashhe.add callret bpoint {pos1=p1;pos2=p2};
+  	match kf.fundec with
+  	| Definition(dec,_)->
+			let fundec = Kernel_function.get_definition kf in
+			let (pcode:block) = fundec.sbody in
+			let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+			let bpoint = {pos1=p1;pos2=p2} in
+			List.iter(fun stmt->
+				match stmt.skind with
+				| Instr(ins)->
+					(match ins with
+					| Call(_,_,_,(p3,p4))->
+						DHashhe.add callret bpoint {pos1=p3;pos2=p4};
+					| _->();
+					);
 				| _->();
-				);
-			| _->();
-		)pcode.bstmts;
-		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
+			)pcode.bstmts;
+		| _->();
 	);
   
   let pointenv = Hashhe.create 3 in
   Globals.Functions.iter(fun kf ->
-  	try
-  	let fundec = Kernel_function.get_definition kf in
-		let (pcode:block) = fundec.sbody in
-		let pinfo = Hashhe.find procinfo fundec.svar.vname in
-    let env = pinfo.Equation.penv in
-    let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
-    let bpoint = {pos1=p1;pos2=p2} in
-    List.iter(fun stmt->
-    	let (p1,p2) = Li_utils.get_stmt_location stmt in
-    	let p = {pos1=p1;pos2=p2} in
-    	if not (Hashhe.mem pointenv bpoint) then
-				Hashhe.add pointenv bpoint env;
-			if not (Hashhe.mem pointenv p) then
-				Hashhe.add pointenv p env;
-    )pcode.bstmts;
-		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
+  	match kf.fundec with
+  	| Definition(dec,_)->
+			let fundec = Kernel_function.get_definition kf in
+			let (pcode:block) = fundec.sbody in
+			let pinfo = Hashhe.find procinfo fundec.svar.vname in
+		  let env = pinfo.Equation.penv in
+		  let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+		  let bpoint = {pos1=p1;pos2=p2} in
+		  List.iter(fun stmt->
+		  	let (p1,p2) = Li_utils.get_stmt_location stmt in
+		  	let p = {pos1=p1;pos2=p2} in
+		  	if not (Hashhe.mem pointenv bpoint) then
+					Hashhe.add pointenv bpoint env;
+				if not (Hashhe.mem pointenv p) then
+					Hashhe.add pointenv p env;
+		  )pcode.bstmts;
+    | _->();
 	);
   {
     Equation.procinfo = procinfo;
@@ -295,23 +283,47 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			let te1 = force_exp_to_texp e1 in
 			let te2 = force_exp_to_texp e2 in
 			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		|_->Apron.Texpr1.Var(Apron.Var.of_string "unknown");
+		|_->
+			Printf.printf "unknownBinOp\n";
+			Li_utils.print_exp_type exp;
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+			Apron.Texpr1.Var(Apron.Var.of_string "unknownBinOp");
 		)
 	| UnOp(op,e,ty)->
 		(match op with
 		| Neg->
 			let te = force_exp_to_texp e in
 			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| _->Apron.Texpr1.Var(Apron.Var.of_string "unknown");
+		| _->
+			Printf.printf "unknownUnOp\n";
+			Li_utils.print_exp_type exp;
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+			Apron.Texpr1.Var(Apron.Var.of_string "unknownUnOp");
 		)
 	| Const(cons)->
 		(match cons with
-		| CInt64(i,kind,Some s)->
+		| CInt64(i,kind,_)->
 			Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));
+		| CReal(f,_,_)->
+			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
 		| _->
-			Apron.Texpr1.Var(Apron.Var.of_string "unknown");
+			Printf.printf "unknownConst\n";
+			Li_utils.print_exp_type exp;
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
 		)
-	|_->Apron.Texpr1.Var(Apron.Var.of_string "unknown")
+	| Lval((host,offset))->
+		(match host with
+		| Var(v)->
+			Apron.Texpr1.Var(Apron.Var.of_string v.vname);
+		| Mem(e)->
+			force_exp_to_texp e;
+		);
+	|_->
+		Printf.printf "unknownEnode\n";
+		Li_utils.print_exp_type exp;
+		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 	  
 let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 	match exp.enode with
@@ -346,7 +358,10 @@ module Forward = struct
   	Equation.print_info fmt info;
   	Printf.printf "\n";
     let graph = Equation.create 3 info in
-
+		Format.fprintf fmt "print graph just new 1\n";
+		Equation.print_graph fmt graph;
+		Format.fprintf fmt "print graph just new 2\n";
+		
     let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
       let env = procinfo.Equation.penv in
       let (p1,p2) = Li_utils.get_block_spoint block in
@@ -377,19 +392,21 @@ module Forward = struct
 							Equation.print_transfer fmt transfer;
 							Printf.printf "\n";
 							Equation.add_equation graph [|spoint|] transfer spoint;
-						|_->
-      				let transfer = Equation.Condition(Boolexpr.make_cst false) in
+						| _->
+      				let transfer = Equation.Condition(Boolexpr.make_cst true) in
 							Equation.add_equation graph [|bpoint|] transfer spoint;
 						);
-      		|_->
-      			let transfer = Equation.Condition(Boolexpr.make_cst false) in
+      		| _->
+      			let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|bpoint|] transfer spoint;
       		);
-      	(*| Loop(_,b,_,_,_)->
+      	| Loop(_,b,_,_,_)->
       		iter_block procinfo b;
       	| Block(b)->
       		iter_block procinfo b;
-      	| If(exp,b1,b2,l)->
+      	| UnspecifiedSequence(seq)->
+					iter_block procinfo (Cil.block_from_unspecified_sequence seq);
+      	(*| If(exp,b1,b2,l)->
       		Printf.printf "c2equation Forward make If\n";
       		let bexpr = force_exp2bexp exp in
       		Apron.Environment.print fmt env;
@@ -414,7 +431,7 @@ module Forward = struct
 					iter_block procinfo b1;
 					iter_block procinfo b2*)
       	| _->
-      		let transfer = Equation.Condition(Boolexpr.make_cst false) in
+      		let transfer = Equation.Condition(Boolexpr.make_cst true) in
 					Equation.add_equation graph [|bpoint|] transfer spoint;
 				);
 				bpoint
@@ -501,13 +518,14 @@ module Forward = struct
    	in
 
 		Globals.Functions.iter(fun kf ->
-			try
+			match kf.fundec with
+			| Definition(_,_)->
 				let fundec = Kernel_function.get_definition kf in
 				let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
 				Printf.printf "in make graph procinfo\n";
 				Equation.print_procinfo fmt procinfo;
 				iter_block procinfo fundec.sbody;
-			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
+			| _->();
 		);
 
     graph
@@ -519,7 +537,6 @@ end
 (*  ********************************************************************** *)
 
 module Backward = struct
-	exception No_Definition
   let make (prog:Cil_types.file) : Equation.graph =
   	let info = make_info prog in
     let graph = Equation.create 3 info in

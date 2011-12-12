@@ -90,7 +90,7 @@ let print_exp_type (e:Cil_types.exp) =
 		let (host,off) = l in
 		(match host with
 		| Var(v)->Printf.printf "var:";
-			Cil.d_type Format.std_formatter v.vtype; Printf.printf "TFun:\n";
+			Cil.d_type Format.std_formatter v.vtype;
 		| Mem(_)->Printf.printf "Mem:";
 		);
 		(match off with

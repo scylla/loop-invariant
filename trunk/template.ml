@@ -74,6 +74,9 @@ let make_fpmanager
   {
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
+    	Printf.printf "find bottom1\n";
+    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
+    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx)
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
@@ -342,7 +345,7 @@ module Forward = struct
 	 			failwith ""
       | Equation.Condition cond ->
 	  		apply_condition manager abs cond dest
-      | Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
+	  	| Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_call manager abs calleeinfo tin dest
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_return manager abs tabs.(1) calleeinfo tin tout dest
@@ -392,12 +395,14 @@ module Forward = struct
     else(
     	Printf.printf "sstart not empty\n";
       let abstract_init = 
-      	Printf.printf "abstract_init\n";
       	begin fun vertex ->
+      		Printf.printf "abstract_init\n";
 					begin match output with
 					| None ->
 						Printf.printf "ouput is none in get abstract_init\n";
-						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex)
+						Equation.print_point fmt vertex;
+						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex);
+						Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
 					| Some(output) ->
 						Printf.printf "ouput is Some in get abstract_init\n";
 						PSHGraph.attrvertex output vertex
@@ -405,7 +410,7 @@ module Forward = struct
       	end
       in
       let fpmanager =
-      	Printf.printf "fpmanager\n";
+      	Printf.printf "fpmanager1\n";
 				make_fpmanager ~fmt graph ~output	apply abstract_init	manager ~debug
       in
       let fp =
@@ -420,15 +425,20 @@ module Forward = struct
 					~priority:(PSHGraph.Filter filter)
 					graph sstart)
 				else*)
-				Printf.printf "sstart1\n";
+				Printf.printf "print sstart1:\n";
 				PSette.iter(fun v->
 					Equation.print_point Format.std_formatter v;
 				)sstart;
 				Printf.printf "\n";
-					
+				
     		if sstart!=dummy_sstart then
 					begin
 					Printf.printf "sstart!=dummy_sstart\n";
+					Fixpoint.make_strategy_default
+							~vertex_dummy:Equation.vertex_dummy
+							~hedge_dummy:Equation.hedge_dummy
+							graph sstart;
+					Printf.printf "make_strategy_default2\n";
 					let result = Fixpoint.analysis_std
 						fpmanager graph sstart
 						(Fixpoint.make_strategy_default
@@ -441,15 +451,15 @@ module Forward = struct
 					result
 					end
 				else
-							begin
-							Printf.printf "sstart==dummy_sstart\n";
-							let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
-							let result = PSHGraph.create Equation.compare 0 sta in
-							Printf.printf "analysis_std result\n";
-							Fixpoint.print_output fpmanager fmt result;
-							Printf.printf "\n";
-							result
-							end
+					begin
+					Printf.printf "sstart==dummy_sstart\n";
+					let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
+					let result = PSHGraph.create Equation.compare 0 sta in
+					Printf.printf "analysis_std result\n";
+					Fixpoint.print_output fpmanager fmt result;
+					Printf.printf "\n";
+					result
+					end
 			in
 			fp
 		)
