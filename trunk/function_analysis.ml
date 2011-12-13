@@ -15,60 +15,7 @@ let count_loop_number (funDec:Cil_types.fundec) =
 		| _ -> loop_number := !loop_number;
 	)funDec.sallstmts;
 	!loop_number;
-	
-let d_stmt_option stmt = 
-	match stmt with
-	| None -> Printf.printf "%s" "None";
-	| Some s ->Cil.d_stmt Format.std_formatter s;
-	| _ -> Printf.printf "%s" "i donnot konw";
-
-let p_stmt_succs stmt =
-	match stmt with
-	| None -> Printf.printf "\n";
-	| Some s -> 
-		List.iter(fun succe ->
-			Cil.d_stmt Format.std_formatter succe;
-		)s.succs;
-		Printf.printf "\n";
-	| _ -> Printf.printf "\n";
-
-let p_stmt_preds stmt =
-	match stmt with
-	| None -> Printf.printf "\n";
-	| Some s -> 
-		List.iter(fun succe ->
-			Cil.d_stmt Format.std_formatter succe;
-		)s.preds;
-		Printf.printf "\n";
-	| _ -> Printf.printf "\n";
-
-let p_stmt_value kinstr visitor =
-	match kinstr with
-	| Kstmt (stmt) -> 
-		(
-		match stmt.skind with
-		| Instr (instr) ->
-			(
-			match instr with
-			| Set(lval,exp,location) ->
-				let lval2 = visitFramacLval visitor lval in
-				!Ast_printer.d_lval Format.std_formatter lval2;
-				let v1 = !Db.Value.access (Kstmt stmt) lval in
-				let v2 = !Db.Value.access_after kinstr lval in
-				Db.Value.pretty Format.std_formatter v1;
-				Db.Value.pretty Format.std_formatter v2;
-			| _ ->
-				Printf.printf "not Set\n";
-			);
-		| _ ->
-			Printf.printf "not Instr\n";
-		);		
-	| Kglobal ->
-		Printf.printf "Kglobal\n";
-			
-let p_visitor visitor = 
-	let kinstr=visitor#current_kinstr in
-	p_stmt_value kinstr visitor;*)
+*)
 
 	
 let generate_predicate_list_from_block pre_list (block:Cil_types.block) =

@@ -74,10 +74,12 @@ let make_fpmanager
   {
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
-    	Printf.printf "find bottom1\n";
+    	Printf.printf "find bottom1\nHashhe.find vtx:\n";
     	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
-    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);
-      Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx)
+    	try
+    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";
+      Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
+      with Not_found->Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
       (* Apron.Abstract1.canonicalize man abs *)
@@ -106,7 +108,7 @@ let make_fpmanager
     end;
     (* Printing functions *)
     Fixpoint.print_vertex=Equation.print_point;
-    Fixpoint.print_hedge=Format.pp_print_int;
+    Fixpoint.print_hedge=Equation.print_hedge;
     Fixpoint.print_abstract = Apron.Abstract1.print;
     Fixpoint.print_arc = begin fun fmt () -> Format.pp_print_string fmt "()" end;
     (* Fixpoint Options *)
@@ -125,7 +127,7 @@ let make_fpmanager
     (* DOT Options *)
     Fixpoint.dot_fmt = None;(*!Option.dot_fmt;*)
     Fixpoint.dot_vertex=Equation.print_point;
-    Fixpoint.dot_hedge=Format.pp_print_int;
+    Fixpoint.dot_hedge=Equation.print_hedge;
     Fixpoint.dot_attrvertex=Equation.print_point;
     Fixpoint.dot_attrhedge= 
     	begin fun fmt hedge ->
@@ -146,6 +148,8 @@ let make_emptyoutput
   let info = PSHGraph.info graph in
   PSHGraph.map graph
     (begin fun vertex attr ->
+    	Printf.printf "make_emptyoutput\nHashhe.find vtx:\n";
+    	Equation.print_point Format.std_formatter vertex;Format.print_flush ();Printf.printf "\n";
       Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
     end)
     (begin fun hedge arc -> () end)
@@ -224,6 +228,7 @@ module Forward = struct
     let res = 
     	match labstract with
 		  | [] ->
+		  	Printf.printf "apply_condition Apron.Abstract1.bottom1";
 				Apron.Abstract1.bottom manager (Apron.Abstract1.env abstract)
 		  | [x] -> x
 		  | _ -> Apron.Abstract1.join_array manager (Array.of_list labstract)
@@ -401,6 +406,8 @@ module Forward = struct
 					| None ->
 						Printf.printf "ouput is none in get abstract_init\n";
 						Equation.print_point fmt vertex;
+    				Printf.printf "abstract_init\nHashhe.find vtx:\n";
+    				Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
 						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex);
 						Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
 					| Some(output) ->
@@ -434,11 +441,13 @@ module Forward = struct
     		if sstart!=dummy_sstart then
 					begin
 					Printf.printf "sstart!=dummy_sstart\n";
+					Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv Equation.vertex_dummy);
 					Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
 							graph sstart;
 					Printf.printf "make_strategy_default2\n";
+					fpmanager;
 					let result = Fixpoint.analysis_std
 						fpmanager graph sstart
 						(Fixpoint.make_strategy_default
@@ -723,7 +732,7 @@ let print_output prog fmt fp =
 				let fundec = Kernel_function.get_definition kf in
 				Cil.d_block fmt fundec.sbody;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
-		)
+	)
     
 let var_x = Apron.Var.of_string "x";;
 let var_y = Apron.Var.of_string "y";;

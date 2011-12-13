@@ -295,11 +295,37 @@ let swap (l:varinfo list) i j =
 	done;
 	List.rev !nl;;
 	
+let print_instrkind (ins:Cil_types.instr) =
+	match ins with
+	| Set _->Printf.printf "Set\n"
+	| Call _->Printf.printf "Call\n"
+	| Asm _->Printf.printf "Asm\n"
+	| Skip _->Printf.printf "Skip\n"
+	| Code_annot _->Printf.printf "Code_annot\n"
+	
+let print_stmtkind (s:Cil_types.stmtkind) =
+	match s with
+	| Instr (ins)->
+		Printf.printf "Instr\n";
+		print_instrkind ins
+	| Return _->Printf.printf "Return\n"
+	| Goto _->Printf.printf "Goto\n"
+	| Break _->Printf.printf "Break\n"
+	| Continue _->Printf.printf "Continue\n"
+	| If _->Printf.printf "If\n"
+	| Switch _->Printf.printf "Switch\n"
+	| Loop _->Printf.printf "Loop\n"
+	| Block _->Printf.printf "Block\n"
+	| UnspecifiedSequence _->Printf.printf "UnspecifiedSequence\n"
+	| TryFinally _->Printf.printf "TryFinally\n"
+	| TryExcept _->Printf.printf "TryExcept\n"
+	
 let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location = 
 	match s.skind with
 	| Instr(instr)->
 		(match instr with
-		| Set(_,_,l)|Call(_,_,_,l)|Asm(_,_,_,_,_,l)|Skip(l)|Code_annot(_,l)->l;
+		| Set(_,_,l)|Call(_,_,_,l)|Asm(_,_,_,_,_,l)|Skip(l)|Code_annot(_,l)->
+			Printf.printf "Instr loc1\n";Cil.d_loc Format.std_formatter l;Format.print_flush ();Printf.printf "\nInstr loc2\n";l;
 		);
 	| Return(_,l)|Goto(_,l)|Break(l)|Continue(l)|If(_,_,_,l)|Switch(_,_,_,l)|Loop(_,_,l,_,_)|TryFinally(_,_,l)|TryExcept(_,_,_,l)->l;
 	| Block(block)->
@@ -311,9 +337,14 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 		get_stmt_location first_stmt;;
 		
 let get_block_spoint (b:Cil_types.block) :Cil_types.location =
-	let first_stmt = List.nth b.bstmts 0 in
-	get_stmt_location first_stmt;;
+	if (List.length b.bstmts)>0 then
+	(let first_stmt = List.nth b.bstmts 0 in
+	print_stmtkind first_stmt.skind;
+	get_stmt_location first_stmt;
+	)else (Lexing.dummy_pos,Lexing.dummy_pos);;
 
 let get_block_epoint (b:Cil_types.block) :Cil_types.location =
-	let first_stmt = List.nth b.bstmts ((List.length b.bstmts)-1) in
-	get_stmt_location first_stmt;;
+	if (List.length b.bstmts)>0 then
+	(let first_stmt = List.nth b.bstmts ((List.length b.bstmts)-1) in
+	get_stmt_location first_stmt;
+	)else (Lexing.dummy_pos,Lexing.dummy_pos);;

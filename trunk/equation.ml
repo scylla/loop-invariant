@@ -13,12 +13,14 @@ type point = {pos1:Lexing.position;pos2:Lexing.position}
 type vertex = point
 
 let print_point fmt p =
-	fprintf fmt "%s:%d" p.pos1.Lexing.pos_fname p.pos1.Lexing.pos_lnum
+	fprintf fmt "%s:%d" p.pos1.Lexing.pos_fname p.pos1.Lexing.pos_lnum;
+	Format.print_flush ();Printf.printf "\n"
 	
 (** A function in an equation: identified by an integer *)
 type hedge = int(*use Cil_types.stmt.sid??*)
 let print_hedge fmt e =
-	fprintf fmt "%d" e
+	fprintf fmt "%d" e;
+	Format.print_flush ()
 	
 let compare_point (a:vertex) (b:vertex) =
   a.pos1.pos_lnum - b.pos1.pos_lnum

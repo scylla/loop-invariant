@@ -58,42 +58,6 @@ end
 	
 	 
 let loopInvariantAnalysis (cil: Cil_types.file) =
-      	(*Globals.Functions.iter (fun kf ->
-      		Self.result "enter function %s.\n" (Kernel_function.get_name kf);
-      		Printf.printf "the funspec is as follow:\n";
-		  	let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
-		  	Cil.d_funspec Format.std_formatter funspec;
-		  	Printf.printf "\n";
-		  	
-		  	Printf.printf "the precondition is as follow:\n";
-		  	let pre = Kernel_function.precondition kf in
-		  	Cil.d_predicate_named Format.std_formatter pre;
-		  	Printf.printf "\n";
-		  	
-		  	Printf.printf "the postcondition is as follow:\n";
-		  	let post = Kernel_function.postcondition kf Cil_types.Normal in
-		  	Cil.d_predicate_named Format.std_formatter post;
-		  	Printf.printf "\n";*)
-		  	
-		  	(*Printf.printf "the code annotations are as follow:\n";
-		  	let annot_list = Kernel_function.code_annotations kf in(*(stmt*rooted_code_annotation before_after) list*)
-		  	List.iter(fun (stmt,root_code_annot_ba) ->
-		  		(*Cil.d_stmt Format.std_formatter stmt;*)(*only stmts which own annotations*)
-		  	)annot_list;
-		  	
-		  	let global = Kernel_function.get_global kf in
-		  	Function_analysis.print_kf_global global;
-		  			  	
-		  	Printf.printf "\n";
-		  	
-		  	Self.result "leave function %s.\n" (Kernel_function.get_name kf);
-      	);*)
-      	
-      	(*List.iter(fun g ->(
-      	Function_analysis.print_kf_global g;
-      	)
-      	)cil.globals;*)
-		
 	let manpk = Polka.manager_alloc_strict() in
 	Template.ex1 manpk;
 	let linfo_list = ref [] in(*logic_info list*)
@@ -274,15 +238,21 @@ let theMain () =
 let compute_loop_invariant () = 
 	Ast.compute ();
 	Unroll_loops.compute 1 (Ast.get ());
-    Globals.Functions.iter (fun kf ->
-    	(match kf.fundec with
-      	| Definition(dec,_)->
-      		Cfg.clearCFGinfo ~clear_id:true dec;
-      		Cfg.prepareCFG dec;
+  Globals.Functions.iter (fun kf ->
+   (match kf.fundec with
+   	| Definition(dec,_)->
+      Cfg.clearCFGinfo ~clear_id:true dec;
+      Cfg.prepareCFG dec;
 			Cfg.computeCFGInfo dec true;
 		| _->();
-		);
-    );
+	);
+  );
+  let fpath = "/home/lzh/preprocess.c" in
+  let out_file = open_out fpath in
+  Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" (Ast.get ());
+	flush out_file;
+	close_out out_file;
+	let newfile = File.from_filename fpath in
 	ignore (Visitor.visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
