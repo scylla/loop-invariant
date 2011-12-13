@@ -162,53 +162,8 @@ class liVisitor prj = object (self)
 			| Some(s)->
 				(*let func = self#current_func in
 				Annotations.add_assert s [Ast.self] ~before:true pn;*)();
-			| None->(););
-			(match pn.content with
-      		| Psubtype(t1,t2)->
-      			Printf.printf "Psubtype\n";
-      		| Pfresh(t)->
-      			Printf.printf "Pfresh\n";
-      		| Pvalid_range(t1,t2,t3)->
-      			Printf.printf "Pvalid_range\n";
-      		| Pvalid_index(t1,t2)->
-      			Printf.printf "Pvalid_index\n";
-      		| Pvalid(t)->
-      			Printf.printf "Pvalid\n";
-      		| Pat(pn1,label)->
-      			Printf.printf "Pat\n";
-      		| Pexists(q,pn1)->
-      			Printf.printf "Pexists\n";
-      		| Pforall(q,pn1)->
-      			Printf.printf "Pforall\n";
-      		| Plet(linfo,pn1)->
-      			Printf.printf "Plet\n";
-      		| Pfalse->
-      			Printf.printf "Pfalse\n";
-      		| Ptrue->
-      			Printf.printf "Ptrue\n";
-      		| Papp(linfo,l1,l2)->
-      			Printf.printf "Papp\n";
-      		| Pseparated(tl)->
-      			Printf.printf "Pseparated\n";
-      		| Prel(re,t1,t2)->
-      			Printf.printf "Prel\n";
-      		| Pand(pn1,pn2)->
-      			Printf.printf "Pand\n";
-      		| Por(pn1,pn2)->
-      			Printf.printf "Por\n";
-      		| Pxor(pn1,pn2)->
-      			Printf.printf "Pxor\n";
-      		| Pimplies(pn1,pn2)->
-      			Printf.printf "Pimplies\n";
-      		| Piff(pn1,pn2)->
-      			Printf.printf "Piff\n";
-      		| Pnot(pn1)->
-      			Printf.printf "Pnot\n";
-      		| Pif(t,pn1,pn2)->
-      			Printf.printf "Pif\n";
-      		| _->
-      			Printf.printf "other\n";
-      		);
+			| None->();
+			);
 			SkipChildren
 		)
 		|_->(
