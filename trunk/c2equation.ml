@@ -321,7 +321,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		|_->
 			Printf.printf "unknownBinOp\n";
-			Li_utils.print_exp_type exp;
+			TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownBinOp");
 		)
@@ -332,7 +332,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| _->
 			Printf.printf "unknownUnOp\n";
-			Li_utils.print_exp_type exp;
+			TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownUnOp");
 		)
@@ -344,7 +344,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
 		| _->
 			Printf.printf "unknownConst\n";
-			Li_utils.print_exp_type exp;
+			TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
 		)
@@ -357,7 +357,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 		);
 	|_->
 		Printf.printf "unknownEnode\n";
-		Li_utils.print_exp_type exp;
+		TypePrinter.print_exp_type Format.std_formatter exp;
 		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 	  
@@ -409,7 +409,7 @@ module Forward = struct
       Equation.print_point fmt bpoint;      
       Cil.d_block fmt block;Format.print_flush ();Printf.printf "\n";
       List.fold_left(fun bpoint stmt->
-      	Li_utils.print_stmtkind stmt.skind;
+      	TypePrinter.print_stmtkind fmt stmt.skind;
       	let (p1,p2) = Li_utils.get_stmt_location stmt in
       	let spoint = {pos1=p1;pos2=p2} in
 				if spoint != Equation.vertex_dummy then

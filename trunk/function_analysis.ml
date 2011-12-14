@@ -161,7 +161,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 					List.iter(fun b->
 						List.iter(fun (tkind,p)->
 							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
-							Li_utils.print_predicate_type p.ip_content;
+							TypePrinter.print_predicate_type Format.std_formatter p.ip_content;
 							Li_utils.replace_predicate_var p.ip_content fvars el;
 						)b.b_post_cond;
 					)behave;

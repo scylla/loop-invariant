@@ -1,115 +1,7 @@
 open Cil_types
 open Cil_datatype
+open TypePrinter
 
-		
-let print_predicate_type (p:Cil_types.predicate) =
-	match p with
-	| Psubtype(t1,t2)->
-		Printf.printf "Psubtype\n"
-	| Pfresh(t)->
-		Printf.printf "Pfresh\n"
-	| Pvalid_range(t1,t2,t3)->
-		Printf.printf "Pvalid_range\n"
-	| Pvalid_index(t1,t2)->
-		Printf.printf "Pvalid_index\n"
-	| Pvalid(t)->
-		Printf.printf "Pvalid\n"
-	| Pat(pn1,label)->
-		Printf.printf "Pat\n"
-	| Pexists(q,pn1)->
-		Printf.printf "Pexists\n"
-	| Pforall(q,pn1)->
-		Printf.printf "Pforall\n"
-	| Plet(linfo,pn1)->
-		Printf.printf "Plet\n"
-	| Pfalse->
-		Printf.printf "Pfalse\n"
-	| Ptrue->
-		Printf.printf "Ptrue\n"
-	| Papp(linfo,l1,l2)->
-		Printf.printf "Papp\n"
-	| Pseparated(tl)->
-		Printf.printf "Pseparated\n"
-	| Prel(re,t1,t2)->
-		Printf.printf "Prel\n"
-	| Pand(pn1,pn2)->
-		Printf.printf "Pand\n"
-	| Por(pn1,pn2)->
-		Printf.printf "Por\n"
-	| Pxor(pn1,pn2)->
-		Printf.printf "Pxor\n"
-	| Pimplies(pn1,pn2)->
-		Printf.printf "Pimplies\n"
-	| Piff(pn1,pn2)->
-		Printf.printf "Piff\n"
-	| Pnot(pn1)->
-		Printf.printf "Pnot\n"
-	| Pif(t,pn1,pn2)->
-		Printf.printf "Pif\n"
-	| _->
-		Printf.printf "other\n"
-		
-let print_tnode_type (tnode:Cil_types.term_node) =
-	match tnode with		
-	| TConst _->Printf.printf "TConst\n"
-	| TLval _->Printf.printf "TLval\n"
-	| TSizeOf _->Printf.printf "TSizeOf\n"
-	| TSizeOfE _->Printf.printf "TSizeOfE\n"
-	| TSizeOfStr _->Printf.printf "TSizeofStr\n"
-	| TAlignOf _->Printf.printf "TAlignOf\n"
-	| TAlignOfE _->Printf.printf "TAlignOfE\n"
-	| TUnOp _->Printf.printf "TUnOp\n"
-	| TBinOp _->Printf.printf "TBinOp\n"
-	| TCastE _->Printf.printf "TCastE\n"
-	| TAddrOf _->Printf.printf "TAddrOf\n"
-	| TStartOf _->Printf.printf "TStartOf\n"
-	| Tapp _->Printf.printf "Tapp\n"
-	| Tlambda _->Printf.printf "Tlambda\n"
-	| TDataCons _->Printf.printf "TDataCons\n"
-	| Tif _->Printf.printf "Tif\n"
-	| Tat _->Printf.printf "Tat\n"
-	| Tbase_addr _->Printf.printf "Tbase_addr\n"
-	| Tblock_length _->Printf.printf "Tblock_length\n"
-	| Tnull _->Printf.printf "Tnull\n"
-	| TCoerce _->Printf.printf "TCoerce\n"
-	| TCoerceE _->Printf.printf "TCoerceE\n"
-	| TUpdate _->Printf.printf "TUpdate\n"
-	| Ttypeof _->Printf.printf "Ttypeof\n"
-	| Ttype _->Printf.printf "Ttype\n"
-	| Tempty_set _->Printf.printf "Tempty_set\n"
-	| Tunion _->Printf.printf "Tunion\n"
-	| Tinter _->Printf.printf "Tinter\n"
-	| Tcomprehension _->Printf.printf "Tcomprehension\n"
-	| Trange _->Printf.printf "Trange\n"
-	| Tlet _->Printf.printf "Tlet\n"
-	
-let print_exp_type (e:Cil_types.exp) =
-	match e.enode with
-	| Const(_)->Printf.printf "Const\n"
-	| Lval(l)->Printf.printf "Lval:";
-		let (host,off) = l in
-		(match host with
-		| Var(v)->Printf.printf "var:";
-			Cil.d_type Format.std_formatter v.vtype;
-		| Mem(_)->Printf.printf "Mem:";
-		);
-		(match off with
-		| NoOffset->Printf.printf "NoOffset\n";
-		| Field(_,_)->Printf.printf "Field\n";
-		| Index(_,_)->Printf.printf "Index\n";
-		)
-	| SizeOf(_)->Printf.printf "SizeOf\n"
-	| SizeOfE(_)->Printf.printf "SizeOfE\n"
-	| SizeOfStr(_)->Printf.printf "SizeOfStr\n"
-	| AlignOf(_)->Printf.printf "AlignOf\n"
-	| AlignOfE(_)->Printf.printf "AlignOfE\n"
-	| UnOp(_,_,_)->Printf.printf "UnOp\n"
-	| BinOp(_,_,_,_)->Printf.printf "BinOp\n"
-	| CastE(_,_)->Printf.printf "CastE\n"
-	| AddrOf(_)->Printf.printf "AddrOf\n"
-	| StartOf(_)->Printf.printf "StartOf\n"
-	| Info(_,_)->Printf.printf "Info\n"
-	
 let get_constant_str (c:Cil_types.constant) =
 	match c with
   | CInt64(i, _, Some s)->Escape.escape_char (Char.chr (My_bigint.to_int i))
@@ -127,8 +19,9 @@ let get_constant_str (c:Cil_types.constant) =
    
 let rec replace_logic_varname (t:Cil_types.term) (lv:Cil_types.logic_var) (exp:Cil_types.exp) =
 	Printf.printf "replace now\n";
-	Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
-	print_exp_type exp;
+	let fmt = Format.std_formatter in
+	Cil.d_exp fmt exp;Format.print_flush ();Printf.printf "\n";
+	TypePrinter.print_exp_type fmt exp;
 	match exp.enode with
 	| Lval((host,offset))|AddrOf((host,offset))|StartOf((host,offset))->
 		(match host with
@@ -158,8 +51,9 @@ let rec replace_logic_varname (t:Cil_types.term) (lv:Cil_types.logic_var) (exp:C
 	| _->Printf.printf "other no replace\n"
 	
 let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
-	Cil.d_term Format.std_formatter t;Format.print_flush ();Printf.printf "\n";
-	print_tnode_type t.term_node;
+	let fmt = Format.std_formatter in
+	Cil.d_term fmt t;Format.print_flush ();Printf.printf "\n";
+	TypePrinter.print_tnode_type fmt t.term_node;
 	match t.term_node with
 	| TLval((thost,toffset))|TAddrOf((thost,toffset))|TStartOf((thost,toffset))->
 		(match thost with
@@ -211,7 +105,8 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 	| TConst(_)|TSizeOf(_)|TSizeOfStr(_)|TAlignOf(_)|Tnull|Ttype(_)|Tempty_set->()
 		
 let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
-	print_predicate_type p;
+	let fmt = Format.std_formatter in
+	TypePrinter.print_predicate_type fmt p;
 	match p with
 	| Psubtype(t1,t2)|Pvalid_index(t1,t2)|Prel(_,t1,t2)->
 		replace_term t1 p formals args;
@@ -294,31 +189,7 @@ let swap (l:varinfo list) i j =
 		(nl := (List.nth l k)::!nl;)
 	done;
 	List.rev !nl;;
-	
-let print_instrkind (ins:Cil_types.instr) =
-	match ins with
-	| Set _->Printf.printf "Set\n"
-	| Call _->Printf.printf "Call\n"
-	| Asm _->Printf.printf "Asm\n"
-	| Skip _->Printf.printf "Skip\n"
-	| Code_annot _->Printf.printf "Code_annot\n"
-	
-let print_stmtkind (s:Cil_types.stmtkind) =
-	match s with
-	| Instr (ins)->
-		Printf.printf "Instr\n";
-		print_instrkind ins
-	| Return _->Printf.printf "Return\n"
-	| Goto _->Printf.printf "Goto\n"
-	| Break _->Printf.printf "Break\n"
-	| Continue _->Printf.printf "Continue\n"
-	| If _->Printf.printf "If\n"
-	| Switch _->Printf.printf "Switch\n"
-	| Loop _->Printf.printf "Loop\n"
-	| Block _->Printf.printf "Block\n"
-	| UnspecifiedSequence _->Printf.printf "UnspecifiedSequence\n"
-	| TryFinally _->Printf.printf "TryFinally\n"
-	| TryExcept _->Printf.printf "TryExcept\n"
+
 	
 let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location = 
 	match s.skind with
@@ -339,7 +210,7 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 let get_block_spoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then
 	(let first_stmt = List.nth b.bstmts 0 in
-	print_stmtkind first_stmt.skind;
+	TypePrinter.print_stmtkind Format.std_formatter first_stmt.skind;
 	get_stmt_location first_stmt;
 	)else (Lexing.dummy_pos,Lexing.dummy_pos);;
 
