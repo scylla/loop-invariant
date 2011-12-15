@@ -160,9 +160,21 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 					let behave = fsig.Loop_parameters.spec.spec_behavior in
 					List.iter(fun b->
 						List.iter(fun (tkind,p)->
+							Printf.printf "brfore replace predicate\n";
 							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
 							TypePrinter.print_predicate_type Format.std_formatter p.ip_content;
-							Li_utils.replace_predicate_var p.ip_content fvars el;
+							
+							let copy_visitor = new Visitor.frama_c_copy (Project.current ()) in
+							let np = Copy.copy_IdPredicate copy_visitor p in
+							Li_utils.replace_predicate_var np.ip_content fvars el;
+							Printf.printf "after replace predicate\n";
+							Cil.d_identified_predicate Format.std_formatter np;Format.print_flush ();Printf.printf "\n";
+							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
+							
+							let np = Logic_const.unamed np.ip_content in
+							total_lt := [np]::!total_lt;
+							Printf.printf "new named\n";
+							Cil.d_predicate_named Format.std_formatter np;Format.print_flush ();Printf.printf "\n";
 						)b.b_post_cond;
 					)behave;
 				
