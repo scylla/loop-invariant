@@ -26,7 +26,7 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 			| Loop_parameters.Forward ->
 				Printf.printf "Forward\n";
 				let fp =
-					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:0
+					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:3
 				in
 				fprintf fmt "%sAnnotated program after forward analysis%s@ " (!Loop_parameters.displaytags).precolorB (!Loop_parameters.displaytags).postcolor;
 				fp
@@ -40,7 +40,12 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 			end
     in
       (* Display *)
-      Template.print_output prog fmt fp;
-      previous := Some fp;
-    )!analysis;
+    Template.print_output prog fmt fp;
+    previous := Some fp;
+    match !previous with
+    | Some(out)->
+      Printf.printf "previous is some\n";
+    | None->
+      Printf.printf "previous is none\n";
+  )!analysis;
   ()

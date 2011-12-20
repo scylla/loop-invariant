@@ -192,7 +192,8 @@ let print_info fmt info =
     (Hashhe.print print_point Apron.Environment.print) info.pointenv
     info.counter
 
-let print_transfer fmt transfer = match transfer with
+let print_transfer fmt transfer = 
+	match transfer with
   | Lassign _ -> failwith ""
   | Tassign(v,e) ->
       fprintf fmt "%a = %a"
