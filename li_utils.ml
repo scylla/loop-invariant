@@ -18,42 +18,28 @@ let get_constant_str (c:Cil_types.constant) =
   | CEnum (item) ->item.eiorig_name
    
 let rec replace_logic_varname (t:Cil_types.term) (lv:Cil_types.logic_var) (exp:Cil_types.exp) =
-	Printf.printf "replace now\n";
 	let fmt = Format.std_formatter in
-	Cil.d_exp fmt exp;Format.print_flush ();Printf.printf "\n";
-	TypePrinter.print_exp_type fmt exp;
 	match exp.enode with
 	| Lval((host,offset))|AddrOf((host,offset))|StartOf((host,offset))->
 		(match host with
 		| Var(v)->
-			Printf.printf "Var name replace:%s,%s\n" lv.lv_name v.vname;
 			lv.lv_name <- v.vname;
 		| Mem(e1)->
-			Printf.printf "Mem in replace 1\n";
 			replace_logic_varname t lv e1;
-			Printf.printf "Mem in replace 2\n";
-			(*(match offset with
-			| Index(e,_)->replace_logic_varname p lv e;
-			| _->();
-			);*)
 		)
 	| CastE(_,e)|SizeOfE(e)|AlignOfE(e)|Info(e,_)->
 		replace_logic_varname t lv e
 	| Const(con)->
-		Printf.printf "Const replace\n";
 		t.term_node <- TConst(con)(*modify Cil_types.term.term_node to be mutable*)
-		(*lv.lv_name <- (get_constant_str con)*)
 	| UnOp(_,e1,_)->
 		replace_logic_varname t lv e1
 	| BinOp(_,e1,e2,_)->
 		replace_logic_varname t lv e1;
 		replace_logic_varname t lv e2
-	| _->Printf.printf "other no replace\n"
+	| _->()
 	
 let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
 	let fmt = Format.std_formatter in
-	Cil.d_term fmt t;Format.print_flush ();Printf.printf "\n";
-	TypePrinter.print_tnode_type fmt t.term_node;
 	match t.term_node with
 	| TLval((thost,toffset))|TAddrOf((thost,toffset))|TStartOf((thost,toffset))->
 		(match thost with
@@ -61,7 +47,6 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 			let len = (List.length formals)-1 in
 			for i=0 to len do
 			(
-				Printf.printf "formals_i=%s,lv_name=%s\n" ((List.nth formals i).vname) lv.lv_name;
 				if ((List.nth formals i).vname)=lv.lv_name then
 				(replace_logic_varname t lv (List.nth args i););
 			);done
@@ -69,7 +54,6 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 		| TResult(_)->();
 		);
 	| TSizeOfE(t1)|TAlignOfE(t1)|TUnOp(_,t1)|TCastE(_,t1)|Tlambda(_,t1)|Tat(t1,_)|Tbase_addr(t1)|Tblock_length(t1)|TCoerce(t1,_)|Ttypeof(t1)|Tcomprehension(t1,_,_)|Tlet(_,t1)->
-		Printf.printf "TCastE 1\n";
 		replace_term t1 p formals args;
 		let check_cons t0 t1 = 
 			(match t1.term_node with
@@ -78,8 +62,7 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 			| _->()
 			);
 		in
-		check_cons t t1; 
-		Printf.printf "TCastE 2\n"
+		check_cons t t1
 	| TBinOp(_,t1,t2)|TUpdate(t1,_,t2)|TCoerceE(t1,t2)->
 		replace_term t1 p formals args;
 		replace_term t2 p formals args
@@ -106,7 +89,6 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 		
 let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
 	let fmt = Format.std_formatter in
-	TypePrinter.print_predicate_type fmt p;
 	match p with
 	| Psubtype(t1,t2)|Pvalid_index(t1,t2)|Prel(_,t1,t2)->
 		replace_term t1 p formals args;
@@ -127,7 +109,7 @@ let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo
 		replace_predicate_var pn1.content formals args;
 		replace_predicate_var pn2.content formals args
 	| Pfalse|Ptrue->()
-		  		
+
 let get_exp_name (e:Cil_types.exp) =
 	match e.enode with
 	| Const(_)->Printf.printf "Const\n";assert false
@@ -196,7 +178,7 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 	| Instr(instr)->
 		(match instr with
 		| Set(_,_,l)|Call(_,_,_,l)|Asm(_,_,_,_,_,l)|Skip(l)|Code_annot(_,l)->
-			(*Printf.printf "Instr loc1\n";Cil.d_loc Format.std_formatter l;Format.print_flush ();Printf.printf "\nInstr loc2\n";*)l;
+			l;
 		);
 	| Return(_,l)|Goto(_,l)|Break(l)|Continue(l)|If(_,_,_,l)|Switch(_,_,_,l)|Loop(_,_,l,_,_)|TryFinally(_,_,l)|TryExcept(_,_,_,l)->l;
 	| Block(block)->
@@ -213,7 +195,7 @@ let get_block_spoint (b:Cil_types.block) :Cil_types.location =
 	(*TypePrinter.print_stmtkind Format.std_formatter first_stmt.skind;*)
 	get_stmt_location first_stmt;
 	)else
-	(Printf.printf "b_spoint:dummy\n";Cil.d_block Format.std_formatter b;Format.print_flush ();Printf.printf "\n";(Lexing.dummy_pos,Lexing.dummy_pos));;
+	(Printf.printf "b_spoint:dummy\n";(Lexing.dummy_pos,Lexing.dummy_pos));;
 
 let get_block_epoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then

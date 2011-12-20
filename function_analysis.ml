@@ -146,44 +146,26 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		(*Set End*)
 		| Call(lo,e1,el,loc)->
 			Printf.printf "Call in loop\n";
-			List.iter(fun e->
-				Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
-			)el;
 			let name = Li_utils.get_exp_name e1 in
 			(try
 				let (fsig:Loop_parameters.procsignature) = Hashtbl.find funsigs name in
-				Cil.d_funspec Format.std_formatter fsig.Loop_parameters.spec;Format.print_flush ();Printf.printf "\n";
-				
-				
+								
 				(match fsig.Loop_parameters.formals with
 				| Some(fvars)->
 					let behave = fsig.Loop_parameters.spec.spec_behavior in
 					List.iter(fun b->
 						List.iter(fun (tkind,p)->
-							Printf.printf "brfore replace predicate\n";
-							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
-							TypePrinter.print_predicate_type Format.std_formatter p.ip_content;
-							
 							let copy_visitor = new Visitor.frama_c_copy (Project.current ()) in
 							let np = Copy.copy_predicate p.ip_content in
-							(*let np = Copy.copy_predicate p.ip_content in*)
 							Li_utils.replace_predicate_var np fvars el;
-							(*Printf.printf "after replace predicate\n";
-							Cil.d_identified_predicate Format.std_formatter np;Format.print_flush ();Printf.printf "\n";
-							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";*)
 							
 							let np = Logic_const.unamed np in
-							(*total_lt := [np]::!total_lt;
-							Printf.printf "new named\n";
-							Cil.d_predicate_named Format.std_formatter np;Format.print_flush ();Printf.printf "\n";*)
+							(*total_lt := [np]::!total_lt;*)
 							let annot = Logic_const.new_code_annotation(AInvariant([],true,np)) in
 							let root_code_annot_ba = Cil_types.User(annot) in
 							Annotations.add kf loop_stmt [Ast.self] root_code_annot_ba;
 						)b.b_post_cond;
 					)behave;
-				
-					Printf.printf "after replace vars\n";
-					Cil.d_funspec Format.std_formatter fsig.Loop_parameters.spec;Format.print_flush ();Printf.printf "\n";
 				| None->();
 				);
 			with Not_found->Printf.printf "Not_found in Call in loop\n";
@@ -439,7 +421,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 		let vars = extract_varinfos_from_stmt stmt in
 		 		let lvars = Varinfo.Set.elements vars in
 		 		
-				let var_x = Apron.Var.of_string "x" in
+				(*let var_x = Apron.Var.of_string "x" in
 				let apron_vars = Array.make (List.length lvars) var_x in
 				let cofs = Array.make (List.length lvars) var_x in
 				for i=0 to (List.length lvars)-1 do
@@ -448,7 +430,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 					cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
 				done;
 				let manpk = Polka.manager_alloc_strict() in
-				Template.generate_template manpk apron_vars cofs;
+				Template.generate_template manpk apron_vars cofs;*)
 			
 		 		List.iter(fun linfo->
 					visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
