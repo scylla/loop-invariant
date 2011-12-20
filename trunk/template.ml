@@ -45,7 +45,7 @@ let print_abstract1 fmt abs =
   else
     Apron.Abstract1.print fmt abs;;
 
-(** Build a fixpoint manager (for module [Fixpoint]) given:
+(* Build a fixpoint manager (for module [Fixpoint]) given:
   - an equation graph (forward or backward)
   - optionally, the result of a previous, dual analysis
   - a function [apply graph output manager hyperedge tabstract]
@@ -74,7 +74,7 @@ let make_fpmanager
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
     	(*Printf.printf "find bottom1\nHashhe.find vtx:\n";
-    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";*)
+    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";Equation.vertex_dummy*)
     	try
     	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
@@ -385,7 +385,7 @@ module Forward = struct
       	Printf.printf "ouput is some in get sstart\n";
 				let abstract = PSHGraph.attrvertex output start in
 				if Apron.Abstract1.is_bottom manager abstract then
-	   		(Printf.printf "bottom manager\n";PSette.singleton Equation.compare_point start;(*PSette.empty Equation.compare_point*))
+	   		(Printf.printf "bottom manager\n";PSette.empty Equation.compare_point)
 	 			else
 	   		(Printf.printf "not bottom manager\n";PSette.singleton Equation.compare_point start)
       end
@@ -405,9 +405,7 @@ module Forward = struct
 					| None ->
 						Printf.printf "ouput is none in get abstract_init\n";
 						Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
-    				Printf.printf "abstract_init\nHashhe.find vtx:\n";
-    				Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
-						Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
+						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex)
 					| Some(output) ->
 						Printf.printf "ouput is Some in get abstract_init\n";
 						Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
@@ -706,11 +704,63 @@ module Backward = struct
 		)
 end
 
+let print_apron_scalar fmt scalar =
+  let res = Apron.Scalar.is_infty scalar in
+  if res<>0 then
+    Format.pp_print_string fmt
+      (if res<0 then "-oo" else "+oo")
+  else begin
+    match scalar with
+    | Apron.Scalar.Float _ | Apron.Scalar.Mpfrf _ ->
+			Apron.Scalar.print fmt scalar
+    | Apron.Scalar.Mpqf mpqf ->
+			Apron.Scalar.print fmt (Apron.Scalar.Float (Mpqf.to_float mpqf))
+  end
+
+let print_apron_interval fmt itv =
+  Format.fprintf fmt "[@[<hv>%a;@,%a@]]"
+    print_apron_scalar itv.Apron.Interval.inf
+    print_apron_scalar itv.Apron.Interval.sup
+
+let print_apron_box fmt box =
+  let tinterval = box.Apron.Abstract1.interval_array in
+  let env = box.Apron.Abstract1.box1_env in
+  let first = ref true in
+  Format.fprintf fmt "[|@[";
+  Array.iteri
+    (begin fun i interval ->
+      if not (Apron.Interval.is_top interval) then begin
+				if not !first then Format.fprintf fmt ";@ ";
+				let var = Apron.Environment.var_of_dim env i in
+				let name = Apron.Var.to_string var in
+				Format.fprintf fmt "%s in %a" name
+					print_apron_interval interval;
+				first := false
+      end;
+    end)
+    tinterval
+  ;
+  Format.fprintf fmt "@]|]"
+  
+let print_abstract1 fmt abs =
+	let man = Apron.Abstract1.manager abs in
+	let box = Apron.Abstract1.to_box man abs in
+	print_apron_box fmt box;
+	Apron.Abstract1.print fmt abs
+	
 let print_output prog fmt fp =
+	let print_comment point =
+		let abs = PSHGraph.attrvertex fp point in
+		print_abstract1 fmt abs;
+	in
 	Globals.Functions.iter(fun kf ->
 			try
 				let fundec = Kernel_function.get_definition kf in
-				Cil.d_block fmt fundec.sbody;
+				List.iter(fun s->
+					let (p1,p2) = Li_utils.get_stmt_location s in
+					print_comment {Equation.pos1=p1;Equation.pos2=p2;};
+					Printf.printf "\n";
+				)fundec.sallstmts;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 	)
     

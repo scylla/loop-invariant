@@ -28,20 +28,18 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 				let fp =
 					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:3
 				in
-				fprintf fmt "%sAnnotated program after forward analysis%s@ " (!Loop_parameters.displaytags).precolorB (!Loop_parameters.displaytags).postcolor;
 				fp
 			| Loop_parameters.Backward ->
 				Printf.printf "Backward\n";
 				let fp =
 					Template.Backward.compute ~fmt prog bgraph ~output:(!previous) manager ~debug:0
 				in
-				fprintf fmt "Annotated program after backward analysis@ ";
-					fp
+				fp
 			end
     in
       (* Display *)
-    Template.print_output prog fmt fp;
     previous := Some fp;
+    Template.print_output prog fmt fp;
     match !previous with
     | Some(out)->
       Printf.printf "previous is some\n";

@@ -103,7 +103,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Globals.Functions.iter(fun kf ->		
 		match kf.fundec with
 		| Definition(_,_)->
-	    translate_kf kf;
+	    Translate.translate_kf kf;
       (*prove_kf kf;*)
     | Declaration(spec,v,vlo,_)->
       ();

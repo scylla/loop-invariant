@@ -110,7 +110,7 @@ type transfer =
       (** Assignement by a tree expression *)
   | Condition of Apron.Tcons1.earray Boolexpr.t
       (** Filtering of a predicate by a Boolean expression *)
-  | Calle of procinfo * procinfo * (Apron.Var.t array) * (Apron.Var.t array)
+  | Calle of procinfo * procinfo * (Apron.Var.t array) * (Apron.Var.t array) option
       (** Procedure call, of the form
 	  [Call(callerinfo,calleeinfo,actual input parameters,actual
 	  output parameters)] *)
@@ -196,20 +196,32 @@ let print_transfer fmt transfer =
 	match transfer with
   | Lassign _ -> failwith ""
   | Tassign(v,e) ->
-      fprintf fmt "%a = %a"
-      Apron.Var.print v
-      Apron.Texpr1.print e
+    fprintf fmt "%a = %a"
+    Apron.Var.print v
+    Apron.Texpr1.print e
   | Condition(bexpr) ->
-      fprintf fmt "IF %a"
-      (Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) bexpr
+    fprintf fmt "IF %a"
+    (Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) bexpr
   | Calle(callerinfo,calleeinfo,pin,pout) ->
+  	(match pout with
+  	| Some(out)->
       fprintf fmt "CALL %a = %s(%a)"
+      print_tvar out
+      calleeinfo.pname
+      print_tvar pin
+    | None->
+    	fprintf fmt "CALL %s(%a)"
+      calleeinfo.pname
+      print_tvar pin
+    )
+  | Return(callerinfo,calleeinfo,pin,pout) ->
+  	if (Array.length pout)>0 then
+      fprintf fmt "RETURN %a = %s(%a)"
       print_tvar pout
       calleeinfo.pname
       print_tvar pin
-  | Return(callerinfo,calleeinfo,pin,pout) ->
-      fprintf fmt "RETURN %a = %s(%a)"
-      print_tvar pout
+     else
+      fprintf fmt "RETURN %s(%a)"
       calleeinfo.pname
       print_tvar pin
       
