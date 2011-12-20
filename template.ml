@@ -1,4 +1,3 @@
-
 open Cil_types
 
 let print_array = Apron.Abstract0.print_array;;
@@ -74,12 +73,12 @@ let make_fpmanager
   {
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
-    	Printf.printf "find bottom1\nHashhe.find vtx:\n";
-    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
+    	(*Printf.printf "find bottom1\nHashhe.find vtx:\n";
+    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";*)
     	try
     	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
-      with Not_found->Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
+      with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
       (* Apron.Abstract1.canonicalize man abs *)
@@ -147,20 +146,20 @@ let make_emptyoutput
   =
   let info = PSHGraph.info graph in
   PSHGraph.map graph
-    (begin fun vertex attr ->
+    (fun vertex attr ->
     	Printf.printf "make_emptyoutput\nHashhe.find vtx:\n";
     	Equation.print_point Format.std_formatter vertex;Format.print_flush ();Printf.printf "\n";
       Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
-    end)
-    (begin fun hedge arc -> () end)
-    (begin fun info ->
+    )
+    (fun hedge arc -> ())
+    (fun info ->
       {
 				Fixpoint.time = 0.0;
 				Fixpoint.iterations = 0;
 				Fixpoint.descendings = 0;
 				Fixpoint.stable = false;
       }
-    end)
+    )
     
 let environment_of_tvar
   (typ_of_var : Apron.Var.t -> Apron.Environment.typvar)
@@ -195,20 +194,15 @@ module Forward = struct
   let apply_tassign (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (var: Apron.Var.t) (expr:Apron.Texpr1.t) (dest:'a Apron.Abstract1.t option)
     =
     let res =
+    	Printf.printf "apply_tassign\n";
     	Apron.Abstract1.assign_texpr
 				manager abstract
 				var expr dest
     in
-(*
-    printf "apply_tassign %a := %a (%a) = %a@."
-      Apron.Var.print var Apron.Texpr1.print expr
-      Apron.Abstract1.print abstract
-      Apron.Abstract1.print res
-    ;
-*)
     res;;
 
   let apply_condition (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (expr:Apron.Tcons1.earray Boolexpr.t) (dest:'a Apron.Abstract1.t option) :'a Apron.Abstract1.t =
+  	Printf.printf "apply_condition\n";
     let labstract =
       match expr with
       | Boolexpr.TRUE ->
@@ -247,6 +241,7 @@ module Forward = struct
     (inargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
+    Printf.printf "apply_call\n";
     (* current environment *)
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
@@ -281,6 +276,7 @@ module Forward = struct
     (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
+    Printf.printf "apply_return\n";
      (* 0. We forget local variables in abscallee *)
     let env =
       Apron.Environment.remove (Apron.Abstract1.env abscallee) (calleeinfo.Equation.plocal)
@@ -308,11 +304,11 @@ module Forward = struct
     if tlinexpr<>[||] then
       Apron.Abstract1.assign_linexpr_array_with
 				manager res
-				outargs tlinexpr None ;
+				outargs tlinexpr None ;*)
     (* 4. We remove the introduced temporary variables *)
 		  Apron.Abstract1.change_environment_with
 		    manager res
-		    (Apron.Abstract1.env abscaller) false;*)
+		    (Apron.Abstract1.env abscaller) false;
     (* 5. We possibly intersect with the result of a previous analysis *)
     begin match dest with
     | None -> ()
@@ -332,11 +328,13 @@ module Forward = struct
     unit * 'a Apron.Abstract1.t
     =
     let transfer = PSHGraph.attrhedge graph hedge in
+    Printf.printf "apply transfer is\n";Equation.print_transfer Format.std_formatter transfer;Format.print_flush ();Printf.printf "\n";
     let abs = tabs.(0) in
     let dest = 
     	match output with
-      | None -> None
+      | None -> Printf.printf "dest output is None\n";None
       | Some(output) ->
+      	Printf.printf "dest output is Some\n";
 				let tdest = PSHGraph.succvertex graph hedge in
 				assert(Array.length tdest = 1);
 				let dest = PSHGraph.attrvertex output tdest.(0) in
@@ -384,11 +382,12 @@ module Forward = struct
       	Printf.printf "ouput is none in get sstart\n";
 	 		 	PSette.singleton Equation.compare_point start
       | Some output ->
+      	Printf.printf "ouput is some in get sstart\n";
 				let abstract = PSHGraph.attrvertex output start in
 				if Apron.Abstract1.is_bottom manager abstract then
-	   		 PSette.empty Equation.compare_point
+	   		(Printf.printf "bottom manager\n";PSette.singleton Equation.compare_point start;(*PSette.empty Equation.compare_point*))
 	 			else
-	   		 (PSette.singleton Equation.compare_point start)
+	   		(Printf.printf "not bottom manager\n";PSette.singleton Equation.compare_point start)
       end
       with Not_found->Printf.printf "Not_found when get sstart\n";dummy_sstart
     in
@@ -405,13 +404,13 @@ module Forward = struct
 					begin match output with
 					| None ->
 						Printf.printf "ouput is none in get abstract_init\n";
-						Equation.print_point fmt vertex;
+						Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
     				Printf.printf "abstract_init\nHashhe.find vtx:\n";
     				Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
-						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex);
 						Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
 					| Some(output) ->
 						Printf.printf "ouput is Some in get abstract_init\n";
+						Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
 						PSHGraph.attrvertex output vertex
 					end
       	end
@@ -422,32 +421,10 @@ module Forward = struct
       in
       let fp =
       	Printf.printf "start analysis in Template.ml\n";
-				(*if !Option.iteration_guided then
-					Fixpoint.analysis_guided
-						fpmanager graph sstart
-						(fun filter  ->
-							Fixpoint.make_strategy_default
-					~vertex_dummy:Equation.vertex_dummy
-					~hedge_dummy:Equation.hedge_dummy
-					~priority:(PSHGraph.Filter filter)
-					graph sstart)
-				else*)
-				Printf.printf "print sstart1:\n";
-				PSette.iter(fun v->
-					Equation.print_point Format.std_formatter v;
-				)sstart;
-				Printf.printf "\n";
 				
     		if sstart!=dummy_sstart then
 					begin
 					Printf.printf "sstart!=dummy_sstart\n";
-					Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv Equation.vertex_dummy);
-					Fixpoint.make_strategy_default
-							~vertex_dummy:Equation.vertex_dummy
-							~hedge_dummy:Equation.hedge_dummy
-							graph sstart;
-					Printf.printf "make_strategy_default2\n";
-					fpmanager;
 					let result = Fixpoint.analysis_std
 						fpmanager graph sstart
 						(Fixpoint.make_strategy_default
@@ -612,14 +589,17 @@ module Backward = struct
     unit * 'a Apron.Abstract1.t
     =
     let transfer = PSHGraph.attrhedge graph hedge in
+    Printf.printf "apply transfer is\n";Equation.print_transfer Format.std_formatter transfer;Format.print_flush ();Printf.printf "\n";
     let abs = tabs.(0) in
-    let dest = match output with
-      | None -> None
+    let dest = 
+    	match output with
+      | None -> Printf.printf "output is none in get dest\n";None
       | Some(output) ->
-	  let tdest = PSHGraph.succvertex graph hedge in
-	  assert(Array.length tdest = 1);
-	  let dest = PSHGraph.attrvertex output tdest.(0) in
-	  Some dest
+      	Printf.printf "output is some in get dest\n";
+				let tdest = PSHGraph.succvertex graph hedge in
+				assert(Array.length tdest = 1);
+				let dest = PSHGraph.attrvertex output tdest.(0) in
+				Some dest
     in
     let res =
       match transfer with

@@ -196,7 +196,7 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 	| Instr(instr)->
 		(match instr with
 		| Set(_,_,l)|Call(_,_,_,l)|Asm(_,_,_,_,_,l)|Skip(l)|Code_annot(_,l)->
-			Printf.printf "Instr loc1\n";Cil.d_loc Format.std_formatter l;Format.print_flush ();Printf.printf "\nInstr loc2\n";l;
+			(*Printf.printf "Instr loc1\n";Cil.d_loc Format.std_formatter l;Format.print_flush ();Printf.printf "\nInstr loc2\n";*)l;
 		);
 	| Return(_,l)|Goto(_,l)|Break(l)|Continue(l)|If(_,_,_,l)|Switch(_,_,_,l)|Loop(_,_,l,_,_)|TryFinally(_,_,l)|TryExcept(_,_,_,l)->l;
 	| Block(block)->
@@ -210,9 +210,10 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 let get_block_spoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then
 	(let first_stmt = List.nth b.bstmts 0 in
-	TypePrinter.print_stmtkind Format.std_formatter first_stmt.skind;
+	(*TypePrinter.print_stmtkind Format.std_formatter first_stmt.skind;*)
 	get_stmt_location first_stmt;
-	)else (Lexing.dummy_pos,Lexing.dummy_pos);;
+	)else
+	(Printf.printf "b_spoint:dummy\n";Cil.d_block Format.std_formatter b;Format.print_flush ();Printf.printf "\n";(Lexing.dummy_pos,Lexing.dummy_pos));;
 
 let get_block_epoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then

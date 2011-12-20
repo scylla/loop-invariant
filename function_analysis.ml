@@ -165,16 +165,20 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 							TypePrinter.print_predicate_type Format.std_formatter p.ip_content;
 							
 							let copy_visitor = new Visitor.frama_c_copy (Project.current ()) in
-							let np = Copy.copy_IdPredicate copy_visitor p in
-							Li_utils.replace_predicate_var np.ip_content fvars el;
-							Printf.printf "after replace predicate\n";
+							let np = Copy.copy_predicate p.ip_content in
+							(*let np = Copy.copy_predicate p.ip_content in*)
+							Li_utils.replace_predicate_var np fvars el;
+							(*Printf.printf "after replace predicate\n";
 							Cil.d_identified_predicate Format.std_formatter np;Format.print_flush ();Printf.printf "\n";
-							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
+							Cil.d_identified_predicate Format.std_formatter p;Format.print_flush ();Printf.printf "\n";*)
 							
-							let np = Logic_const.unamed np.ip_content in
-							total_lt := [np]::!total_lt;
+							let np = Logic_const.unamed np in
+							(*total_lt := [np]::!total_lt;
 							Printf.printf "new named\n";
-							Cil.d_predicate_named Format.std_formatter np;Format.print_flush ();Printf.printf "\n";
+							Cil.d_predicate_named Format.std_formatter np;Format.print_flush ();Printf.printf "\n";*)
+							let annot = Logic_const.new_code_annotation(AInvariant([],true,np)) in
+							let root_code_annot_ba = Cil_types.User(annot) in
+							Annotations.add kf loop_stmt [Ast.self] root_code_annot_ba;
 						)b.b_post_cond;
 					)behave;
 				
