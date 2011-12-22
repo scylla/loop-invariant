@@ -135,32 +135,33 @@ let make_info (prog:Cil_types.file) : Equation.info =
 		  (*Hashhe.add pointenv Equation.vertex_dummy env;*)
 		  
 		  let rec add_env b =
-		  	if (List.length b.bstmts)>0 then
-				(let (p1,p2) = Li_utils.get_stmt_location (List.nth b.bstmts 0) in
-				let bpoint = {pos1=p1;pos2=p2} in
-		  	List.iter(fun stmt->
-		  		let (p1,p2) = Li_utils.get_stmt_location stmt in
-					let p = {pos1=p1;pos2=p2} in
-					
+		  	if (List.length b.bstmts)>0 then begin
+					let (p1,p2) = Li_utils.get_stmt_location (List.nth b.bstmts 0) in
+					let bpoint = {pos1=p1;pos2=p2} in
 					if not (Hashhe.mem pointenv bpoint) then
 					(Hashhe.add pointenv bpoint env;);
 					
-					if not (Hashhe.mem pointenv p) then
-					(Hashhe.add pointenv p env;);
-		  		match stmt.skind with
-		  		| Block(b1)->
-		  			add_env b1;
-		  		| UnspecifiedSequence(seq)->
-		  			let block = Cil.block_from_unspecified_sequence seq in
-		  			add_env block;
-		  		| Loop(_,b1,_,_,_)->
-		  			add_env b1;
-		  		| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
-		  			add_env b1;
-		  			add_env b2;
-		  		| _->();
-				)b.bstmts
-				);
+					List.iter(fun stmt->
+						let (p1,p2) = Li_utils.get_stmt_location stmt in
+						let p = {pos1=p1;pos2=p2} in					
+					
+						if not (Hashhe.mem pointenv p) then
+						(Hashhe.add pointenv p env;);
+					
+						match stmt.skind with
+						| Block(b1)->
+							add_env b1;
+						| UnspecifiedSequence(seq)->
+							let block = Cil.block_from_unspecified_sequence seq in
+							add_env block;
+						| Loop(_,b1,_,_,_)->
+							add_env b1;
+						| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
+							add_env b1;
+							add_env b2;
+						| _->();
+					)b.bstmts
+				end
 			in
 		  add_env pcode;
     | Declaration(spec,v,vlo,loc)->
@@ -400,6 +401,13 @@ let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 			CONS(te1,NEQ,te2)
 		| _->assert false
 		);
+	| UnOp(op,e,_)->
+		(match op with
+		| LNot->
+			NOT(force_exp2bexp e);
+		| Neg->assert false;(*-*)
+		| BNot->assert false;
+		)
 	| _->assert false
 	
 (*  ********************************************************************** *)
@@ -463,26 +471,35 @@ module Forward = struct
 							(match host with
 							| Var(v)->
 								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
-								let pin = callee.pinput in
+								let pin = ref [] in
+								List.iter(fun e->
+									pin := !pin@[Apron.Var.of_string (Li_utils.get_exp_name e)];
+								)el;
 								let pout = [|Apron.Var.of_string v.vname|] in
-								let calltransfer = Equation.Calle(procinfo,callee,pin,Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,pin,pout) in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some(pout)) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),pout) in
 								Equation.add_equation graph [|bpoint|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|bpoint;callee.Equation.pexit|] returntransfer spoint;
 							| Mem(e)->
 								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
-								let pin = callee.pinput in
+								let pin = ref [] in
+								List.iter(fun e->
+									pin := !pin@[Apron.Var.of_string (Li_utils.get_exp_name e)];
+								)el;
 								let pout = [|Apron.Var.of_string (Li_utils.get_exp_name e)|] in
-								let calltransfer = Equation.Calle(procinfo,callee,pin,Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,pin,pout) in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some(pout)) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),pout) in
 								Equation.add_equation graph [|bpoint|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|bpoint;callee.Equation.pexit|] returntransfer spoint;
 							);
 						| None->
 							let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
-							let pin = callee.pinput in
-							let calltransfer = Equation.Calle(procinfo,callee,pin,None) in
-							let returntransfer = Equation.Return(procinfo,callee,pin,[||]) in
+							let pin = ref [] in
+								List.iter(fun e->
+									pin := !pin@[Apron.Var.of_string (Li_utils.get_exp_name e)];
+							)el;
+							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),None) in
+							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[||]) in
 							Equation.add_equation graph [|bpoint|] calltransfer callee.Equation.pstart;
 							(*Equation.add_equation graph [|bpoint;callee.Equation.pexit|] returntransfer spoint;*)(*no return transfer*)
       		| _->
@@ -500,7 +517,7 @@ module Forward = struct
       	| If(exp,b1,b2,l)->
       		Printf.printf "c2equation Forward make If\n";
       		let bexpr = force_exp2bexp exp in
-      		Apron.Environment.print fmt env;
+      		Apron.Environment.print fmt env;Format.print_flush ();Printf.printf "\n";
       		let cond = boolexpr_of_bexpr env bexpr in
 					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
 					let condtransfer = Equation.Condition(cond) in
@@ -536,7 +553,12 @@ module Forward = struct
 					
 					iter_block procinfo b1;
 					iter_block procinfo b2
-      	| _->
+				| Goto(sr,loc)->
+					let (p1,p2) = Li_utils.get_stmt_location !sr in
+					let transfer = Equation.Condition(Boolexpr.make_cst true) in
+					Equation.add_equation graph [|spoint|] transfer {pos1=p1;pos2=p2;};
+				| Cil_types.Return(_,_)->();
+      	| _->Printf.printf "other stmt\n";TypePrinter.print_stmtkind fmt stmt.skind;Format.print_flush ();Printf.printf "\n";
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
 					Equation.add_equation graph [|bpoint|] transfer spoint;
 				);
@@ -574,98 +596,148 @@ module Backward = struct
     let graph = Equation.create 3 info in
 
 		let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
+      if (List.length block.bstmts)>0 then(
+      let fmt = Format.std_formatter in
       let env = procinfo.Equation.penv in
-      let bpoint = Li_utils.get_stmt_location (List.nth block.bstmts 0) in
-      ();
-      (*ignore begin
-			List.fold_left
-			(begin fun point instr ->
-			  begin match instr.instruction with
-			  | SKIP ->
-					let transfer = Equation.Condition(Boolexpr.make_cst true) in
-					Equation.add_equation graph [|instr.ipoint|] transfer point;
-			  | HALT
-			  | FAIL ->
-					(* We still put a dummy equation *)
-					let transfer = Equation.Condition(Boolexpr.make_cst false) in
-					Equation.add_equation graph [|instr.ipoint|] transfer point;
-			  | ASSUME(bexpr) ->
-					let cond = boolexpr_of_bexpr env bexpr in
-					let transfer = Equation.Condition(cond) in
-					Equation.add_equation graph [|instr.ipoint|] transfer point;
-			  | ASSIGN(var,iexpr) ->
-					let (texpr:Apron.Texpr1.t) =
-						Apron.Texpr1.of_expr env iexpr
-					in
-					let transfer = Equation.Tassign(var,texpr) in
-					Equation.add_equation graph [|instr.ipoint|] transfer point;
-			  | CALL(pout,name,pin) ->
-					let callee = Hashhe.find info.Equation.procinfo name in
-					let pin = Array.of_list pin in
-					let pout = Array.of_list pout in
-					let calltransfer = Equation.Call(procinfo,callee,pin,pout) in
-					let rettransfer = Equation.Return(procinfo,callee,pin,pout) in
-					Equation.add_equation graph
-						[|callee.Equation.pstart|] calltransfer point;
-					Equation.add_equation graph
-						[|instr.ipoint|] rettransfer callee.Equation.pexit;
-			  | IF(bexpr,block) ->
-					let cond = boolexpr_of_bexpr env bexpr in
+      let (p1,p2) = Li_utils.get_block_spoint block in
+      let bpoint = {pos1=p1;pos2=p2} in
+      if bpoint != Equation.vertex_dummy then
+      ignore begin
+      List.fold_left(fun bpoint stmt->
+      	let (p1,p2) = Li_utils.get_stmt_location stmt in
+      	let spoint = {pos1=p1;pos2=p2} in
+				if spoint != Equation.vertex_dummy then
+      	(
+      	match stmt.skind with
+      	| Instr(instr)->
+      		(match instr with
+      		| Set(lval,e,_)->
+      			let (host,offset) = lval in
+      			(match host with
+      			| Var(v)->
+      				let var = Apron.Var.of_string v.vname in
+		   				let (texpr:Apron.Texpr1.t) =
+		   					let texp = (force_exp_to_texp e) in
+								Apron.Texpr1.of_expr env texp
+							in
+							let transfer = Equation.Tassign(var,texpr) in
+							
+							Equation.add_equation graph [|spoint|] transfer bpoint;
+						| Mem(e)->
+							let var = Apron.Var.of_string (Li_utils.get_exp_name e) in
+		   				let (texpr:Apron.Texpr1.t) =
+		   					let texp = (force_exp_to_texp e) in
+								Apron.Texpr1.of_expr env texp
+							in
+      				let transfer = Equation.Tassign(var,texpr) in
+							Equation.add_equation graph [|spoint|] transfer bpoint;
+						);
+					| Skip(l)->
+						let transfer = Equation.Condition(Boolexpr.make_cst true) in
+						Equation.add_equation graph [|bpoint|] transfer spoint;
+					| Call(lvo,e,el,l)->
+						match lvo with
+						| Some(lv)->
+							let (host,offset) = lv in
+							(match host with
+							| Var(v)->
+								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
+								let pin = callee.pinput in
+								let pout = [|Apron.Var.of_string v.vname|] in
+								let calltransfer = Equation.Calle(procinfo,callee,pin,Some(pout)) in
+								let returntransfer = Equation.Return(procinfo,callee,pin,pout) in
+								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer bpoint;
+								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
+							| Mem(e)->
+								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
+								let pin = callee.pinput in
+								let pout = [|Apron.Var.of_string (Li_utils.get_exp_name e)|] in
+								let calltransfer = Equation.Calle(procinfo,callee,pin,Some(pout)) in
+								let returntransfer = Equation.Return(procinfo,callee,pin,pout) in
+								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer bpoint;
+								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
+							);
+						| None->
+							let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
+							let pin = callee.pinput in
+							let calltransfer = Equation.Calle(procinfo,callee,pin,None) in
+							let returntransfer = Equation.Return(procinfo,callee,pin,[||]) in
+							Equation.add_equation graph [|callee.Equation.pstart|] calltransfer bpoint;
+							(*Equation.add_equation graph [|bpoint;callee.Equation.pexit|] returntransfer spoint;*)(*no return transfer*)
+      		| _->
+      			Printf.printf "c2equation Forward make Instr not Set,Skip,Call\n";
+      			Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
+      			let transfer = Equation.Condition(Boolexpr.make_cst true) in
+						Equation.add_equation graph [|spoint|] transfer bpoint;
+      		);
+      	| Loop(_,b,_,_,_)->
+      		iter_block procinfo b;
+      	| Block(b)->
+      		iter_block procinfo b;
+      	| UnspecifiedSequence(seq)->
+					iter_block procinfo (Cil.block_from_unspecified_sequence seq);
+      	| If(exp,b1,b2,l)->
+      		Printf.printf "c2equation Forward make If\n";
+      		let bexpr = force_exp2bexp exp in
+      		Apron.Environment.print fmt env;
+      		let cond = boolexpr_of_bexpr env bexpr in
 					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
 					let condtransfer = Equation.Condition(cond) in
 					let condnottransfer = Equation.Condition(condnot) in
-					Equation.add_equation graph
-						[|block.bpoint|] condtransfer point;
-					Equation.add_equation graph
-						[|instr.ipoint|] (Equation.Condition(Boolexpr.make_cst true)) (exit_of_block block);
-					Equation.add_equation graph
-						[|instr.ipoint|] condnottransfer point;
-					iter_block procinfo block
-			  | IFELSE(bexpr,block1,block2) ->
-					let cond = boolexpr_of_bexpr env bexpr in
-					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
-					let condtransfer = Equation.Condition(cond) in
-					let condnottransfer = Equation.Condition(condnot) in
-					Equation.add_equation graph
-						[|block1.bpoint|] condtransfer point;
-					Equation.add_equation graph
-						[|instr.ipoint|] (Equation.Condition(Boolexpr.make_cst true)) (exit_of_block block1);
-					Equation.add_equation graph
-						[|block2.bpoint|] condnottransfer point;
-					Equation.add_equation graph
-						[|instr.ipoint|] (Equation.Condition(Boolexpr.make_cst true)) (exit_of_block block2);
-					iter_block procinfo block1;
-					iter_block procinfo block2
-			  | LOOP(bexpr,block) ->
-					let cond = boolexpr_of_bexpr env bexpr in
-					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
-					let condtransfer = Equation.Condition(cond) in
-					let condnottransfer = Equation.Condition(condnot) in
-					Equation.add_equation graph
-						[|block.bpoint|] condtransfer point;
-					Equation.add_equation graph
-						[|point|] (Equation.Condition(Boolexpr.make_cst true)) (exit_of_block block);
-					Equation.add_equation graph
-						[|instr.ipoint|] condnottransfer point;
-					iter_block procinfo block
-			  end;
-			  instr.ipoint
-			end)
-			block.bpoint
-			block.instrs
+					
+					if (List.length b1.bstmts)>0 then(
+						let (p1,p2) = l in
+						let (p3,p4) = Li_utils.get_block_spoint b1 in
+						Equation.add_equation graph
+							[|{pos1=p3;pos2=p4}|] condtransfer {pos1=p1;pos2=p2};
+						Printf.printf "torg:\n";
+						Equation.print_point fmt {pos1=p1;pos2=p2};Format.print_flush ();
+						Printf.printf "\ndest:\n";
+						Equation.print_point fmt {pos1=p3;pos2=p4};Format.print_flush ();
+						let (p1,p2) = Li_utils.get_block_epoint b1 in
+						Equation.add_equation graph
+							[|spoint|] (Equation.Condition(Boolexpr.make_cst true)) {pos1=p1;pos2=p2};
+					);
+					
+					if (List.length b2.bstmts)>0 then(
+						let (p1,p2) = l in
+						let (p3,p4) = Li_utils.get_block_spoint b2 in
+						Equation.add_equation graph
+							[|{pos1=p3;pos2=p3}|] condnottransfer {pos1=p1;pos2=p2};
+						Printf.printf "torg:\n";
+						Equation.print_point fmt {pos1=p1;pos2=p2};Format.print_flush ();
+						Printf.printf "\ndest:\n";
+						Equation.print_point fmt {pos1=p3;pos2=p4};Format.print_flush ();
+						let (p1,p2) = Li_utils.get_block_epoint b1 in
+						Equation.add_equation graph
+							[|spoint|] (Equation.Condition(Boolexpr.make_cst true)) {pos1=p1;pos2=p2};
+					);
+					
+					iter_block procinfo b1;
+					iter_block procinfo b2
+      	| _->
+      		let transfer = Equation.Condition(Boolexpr.make_cst true) in
+					Equation.add_equation graph [|spoint|] transfer bpoint;
+				);
+				bpoint
+     	)bpoint block.bstmts;
       end
-      *)
+     )
     in
 
-    (*Globals.Functions.iter(fun kf ->
-			let fundec = Kernel_function.get_definition kf in
-			let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
-			iter_block procinfo fundec.sbody;
+    Globals.Functions.iter(fun kf ->
+			match kf.fundec with
+			| Definition(_,_)->
+				let fundec = Kernel_function.get_definition kf in
+				let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
+				(*Printf.printf "in make graph procinfo Definition\n";
+				Equation.print_procinfo fmt procinfo;*)
+				iter_block procinfo fundec.sbody;
+			| Declaration(spec,v,vlo,loc)->
+				(*let procinfo = Hashhe.find info.Equation.procinfo v.vname in*)
+				()(*Printf.printf "in make graph procinfo Declaration\n";
+				Equation.print_procinfo fmt procinfo;*)
 		);
-		List.iter(fun procedure ->
-			let procinfo = Hashhe.find info.Equation.procinfo procedure.pname in
-			iter_block procinfo procedure.pcode;
-    )prog.procedures;*)
 
     graph
 

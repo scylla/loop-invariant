@@ -168,15 +168,13 @@ let environment_of_tvar
   Apron.Environment.t
   =
   let (lint,lreal) =
-    Array.fold_right
-      (begin fun var (lint,lreal) ->
-	begin match typ_of_var var with
-	| Apron.Environment.INT -> (var::lint,lreal)
-	| Apron.Environment.REAL -> (lint,var::lreal)
-	end
-      end)
-      tvar
-      ([],[])
+    Array.fold_right(begin fun var (lint,lreal) ->
+    	Apron.Var.print Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
+			begin match typ_of_var var with
+			| Apron.Environment.INT -> (var::lint,lreal)
+			| Apron.Environment.REAL -> (lint,var::lreal)
+			end
+    end) tvar ([],[])
   in
   let tint = Array.of_list lint and treal = Array.of_list lreal in
   Apron.Environment.make tint treal;;
@@ -246,6 +244,7 @@ module Forward = struct
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
+    Apron.Environment.print Format.std_formatter env;Format.print_flush ();Printf.printf "\n";
     let tenv = environment_of_tvar (Apron.Environment.typ_of_var env) inargs in
     let abstract2 =
       Apron.Abstract1.change_environment manager abstract tenv false
@@ -468,17 +467,10 @@ module Backward = struct
     =
     let res =
       Apron.Abstract1.substitute_texpr
-	manager abstract
-	var expr dest
+				manager abstract
+				var expr dest
     in
-(*
-    printf "apply_tassign %a := %a (%a) = %a@."
-      Apron.Var.print var Apron.Texpr1.print expr
-      Apron.Abstract1.print abstract
-      Apron.Abstract1.print res
-    ;
-*)
-    res
+    res;;
 
   let apply_condition = Forward.apply_condition
 
@@ -517,11 +509,11 @@ module Backward = struct
     begin match dest with
     | None -> ()
     | Some dest ->
-	Apron.Abstract1.meet_with manager abstract2 dest
+			Apron.Abstract1.meet_with manager abstract2 dest
     end;
-    abstract2
+    abstract2;;
 
-  (*let apply_return
+  let apply_return
     (manager:'a Apron.Manager.t)
     (abstract:'a Apron.Abstract1.t)
     (callerinfo:Equation.procinfo)
@@ -529,51 +521,46 @@ module Backward = struct
     (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
-    (* 1. We rename actual output parameters by temporary output parameters 
+    Printf.printf "apply_return\n";;
+     (* 0. We forget local variables in abscallee 
+    let env =
+      Apron.Environment.remove (Apron.Abstract1.env abscallee) (calleeinfo.Equation.plocal)
+    in
     let res =
-      Apron.Abstract1.rename_array
-				manager abstract
-				outargs calleeinfo.Equation.poutput_tmp
+      Apron.Abstract1.change_environment manager abscallee env false
     in*)
-    (* 2. We switch to an environment composed of
-	  temporary output parameters and actual input paramaters 
-    let lint = ref [] and lreal = ref [] in
-    Array.iteri(fun i var ->
-			let list =
-				match Apron.Environment.typ_of_var calleeinfo.Equation.penv var with
-				| Apron.Environment.INT -> lint
-				| Apron.Environment.REAL -> lreal
-			in
-			let var_tmp = calleeinfo.Equation.poutput_tmp.(i) in
-			list := var_tmp :: !list
-    )calleeinfo.Equation.poutput;
-    Array.iter(fun var ->
-			let list =
-				match Apron.Environment.typ_of_var callerinfo.Equation.penv var with
-				| Apron.Environment.INT -> lint
-				| Apron.Environment.REAL -> lreal
-			in
-			list := var :: !list
-    )inargs;
-    let tint = Array.of_list !lint and treal = Array.of_list !lreal in
-    let tenv = Apron.Environment.make tint treal in
-    Apron.Abstract1.change_environment_with manager res tenv false;*)
-    (* 3. We rename
-       temporary output parameters -> formal output
-       actual input -> formal input 
+    (* 1. We rename in modified abscallee
+       - formal in parameters by actual inparameters
+       - formal out parameters by special names (to avoid name conflicts)
+    
     Apron.Abstract1.rename_array_with
-      manager res
-      (Array.append calleeinfo.Equation.poutput_tmp inargs)
-      (Array.append calleeinfo.Equation.poutput  calleeinfo.Equation.pinput)
-    ;*)
-    (* 4. We embed into callee environment 
-    Apron.Abstract1.change_environment_with manager res calleeinfo.Equation.penv false;*)
+      manager res calleeinfo.Equation.pinput inargs;*)
+    (* 2. We unify the renamed callee value and the caller value 
+    Apron.Abstract1.unify_with manager res abscaller;*)
+    (* 3. We assign the actual out parameters *)
+    (*let env = Apron.Abstract1.env res in
+    let tlinexpr =
+      Array.map(fun var ->
+				let e = Apron.Linexpr1.make ~sparse:true env in
+				Apron.Linexpr1.set_coeff e var (Apron.Coeff.s_of_int 1);
+				e
+			)calleeinfo.Equation.poutput_tmp
+    in
+    
+    if tlinexpr<>[||] then
+      Apron.Abstract1.assign_linexpr_array_with
+				manager res
+				outargs tlinexpr None ;*)
+    (* 4. We remove the introduced temporary variables 
+		  Apron.Abstract1.change_environment_with
+		    manager res
+		    (Apron.Abstract1.env abscaller) false;*)
     (* 5. We possibly intersect with the result of a previous analysis 
     begin match dest with
     | None -> ()
     | Some dest ->
 			Apron.Abstract1.meet_with manager res dest
-    end;*)
+    end;
     res*)
 
   (** Main transfer function *)
@@ -612,7 +599,7 @@ module Backward = struct
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
 	  		failwith ""(*apply_return manager abs callerinfo calleeinfo tin tout dest*)
     in
-    ((),res)
+    ((),res);;
 
   (*  ===================================================================== *)
   (** {3 Compute (post)fixpoint} *)
@@ -751,14 +738,17 @@ let print_abstract1 fmt abs =
 let print_output prog fmt fp =
 	let print_comment point =
 		let abs = PSHGraph.attrvertex fp point in
-		print_abstract1 fmt abs;
+		Printf.printf "point:";Equation.print_point fmt point;Format.print_flush ();Printf.printf "\n";
+		print_abstract1 fmt abs;Format.print_flush ();
 	in
 	Globals.Functions.iter(fun kf ->
 			try
 				let fundec = Kernel_function.get_definition kf in
 				List.iter(fun s->
 					let (p1,p2) = Li_utils.get_stmt_location s in
+					try
 					print_comment {Equation.pos1=p1;Equation.pos2=p2;};
+					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
 				)fundec.sallstmts;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
