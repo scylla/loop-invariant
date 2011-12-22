@@ -6,9 +6,20 @@
 extern void memset(void *s,int c,size_t n);
 #define LEN 20
 
+int inc(int x)
+{
+	return x+1;
+}
+
 void phase()
 {
-	int x=0,y=50;
+	int i=0;
+	while(i<10)
+	{
+		i=inc(i);
+	}
+}
+/*int x=0,y=50;
 	char buffer[LEN];
 	while(x<100)
 	{
@@ -17,5 +28,4 @@ void phase()
 		if(x>50)
 			y++;
 	}
-	assert(y==100);//||x>0
-}
+	assert(y==100);//||x>0*/

@@ -176,7 +176,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		total_lt := !lt::!total_lt;lt := [];();
 	(*Instr End*)
 	| If(exp_temp,b1,b2,l)->
-		Printf.printf "if con:\n";Cil.d_exp Format.std_formatter exp_temp;Format.print_flush ();Printf.printf "\n";			
+		Printf.printf "if con:\n";Cil.d_exp Format.std_formatter exp_temp;Format.print_flush ();Printf.printf "\n";
 		lt := [];
 		let b1_break = ref false in
 		let b2_break = ref false in
