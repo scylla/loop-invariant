@@ -14,9 +14,16 @@ int inc(int x)
 void phase()
 {
 	int i=0;
+	i=i+1;
+	if(i>0)
+	{
+		i=i+i;
+	}
 	while(i<10)
 	{
-		i=inc(i);
+		i=i+1;
+		i=i-1;
+		//i=inc(i);
 	}
 }
 /*int x=0,y=50;

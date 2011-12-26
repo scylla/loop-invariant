@@ -59,6 +59,7 @@ end
 	 
 let loopInvariantAnalysis (cil: Cil_types.file) =
 	let manpk = Polka.manager_alloc_strict() in
+	let manbox = Box.manager_alloc() in
 	(*Template.ex1 manpk;*)
 	let linfo_list = ref [] in(*logic_info list*)
 	let gannot_list = Globals.Annotations.get_all () in
@@ -82,7 +83,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	
 	let (fgraph,bgraph) = Frontend.build_graphs Format.std_formatter cil in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk;
+	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manbox;
 	Printf.printf "Frontend.compute_and_display over\n";
 	
 	
