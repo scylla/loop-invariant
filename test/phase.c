@@ -5,17 +5,18 @@
 	*/
 extern void memset(void *s,int c,size_t n);
 #define LEN 20
-
+/*
 int inc(int x)
 {
 	return x+1;
-}
+}*/
 
 void phase()
 {
 	int i=0;
 	i=i+1;
-	if(i>0)
+	i=i+2;
+	/*if(i>0)
 	{
 		i=i+i;
 	}
@@ -24,7 +25,7 @@ void phase()
 		i=i+1;
 		i=i-1;
 		//i=inc(i);
-	}
+	}*/
 }
 /*int x=0,y=50;
 	char buffer[LEN];
