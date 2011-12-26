@@ -38,13 +38,20 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
 (** Build a [Equation.procinfo] object from [Spl_syn.procedure]. *)
 let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 	match proc.fundec with
-	| Definition(dec,_)->
+	| Definition(dec,loc)->
 		let fundec = Kernel_function.get_definition proc in
 		let (pcode:block) = fundec.sbody in
-		let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts 0) in
+		let (p1,p2) = loc in(*Li_utils.get_block_spoint pcode in*)
+		Printf.printf "Definition loc\n";Cil.d_loc Format.std_formatter loc;Format.print_flush ();Printf.printf "\n";
 		let pstart = {pos1=p1;pos2=p2} in
+		let pexit = ref Equation.vertex_dummy in
+		(*if (List.length pcode.bstmts)==0 then
+		(pexit := pstart;)
+		else
+		(
 		let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
-		let pexit = {pos1=p1;pos2=p2} in
+		pexit := {pos1=p1;pos2=p2};
+		);*)
 
 		let pinput = convert fundec.sformals in
 		let plocal = convert fundec.slocals in
@@ -57,7 +64,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 			Equation.kf = proc;
 		  Equation.pname = fundec.svar.vname;
 		  Equation.pstart = pstart;
-		  Equation.pexit = pexit;
+		  Equation.pexit = !pexit;
 		  Equation.pinput = pinput;
 		  Equation.plocal = plocal;
 		  Equation.penv = penv;
@@ -90,9 +97,6 @@ let make_info (prog:Cil_types.file) : Equation.info =
   	match kf.fundec with
   	| Definition(dec,_)->
 			let info = make_procinfo kf in
-			(*Printf.printf "make procinfo:\n";
-			Equation.print_procinfo Format.std_formatter info;
-			Printf.printf "info.pname=%s\n" info.pname;*)
 			Hashhe.add procinfo info.pname info
 		| Declaration(spec,v,vlo,loc)->
 			let info = make_procinfo kf in
@@ -102,13 +106,13 @@ let make_info (prog:Cil_types.file) : Equation.info =
   let callret = DHashhe.create 3 in
   Globals.Functions.iter(fun kf ->
   	match kf.fundec with
-  	| Definition(dec,_)->
+  	| Definition(dec,loc)->
 			let fundec = Kernel_function.get_definition kf in
 			let (pcode:block) = fundec.sbody in
 			
 			let rec add_callret b =
 				if(List.length b.bstmts)>0 then begin					
-					let (p1,p2) = Li_utils.get_stmt_location (List.nth b.bstmts 0) in
+					let (p1,p2) = Li_utils.get_block_spoint b in
 					let bpoint = {pos1=p1;pos2=p2} in
 					List.iter(fun s->
 						match s.skind with
@@ -142,28 +146,32 @@ let make_info (prog:Cil_types.file) : Equation.info =
 			DHashhe.add callret bpoint bpoint;*)()
 	);
   
-  let pointenv = Hashhe.create 3 in
+  let pointenv = Hashhe.create 1 in
   
   Globals.Functions.iter(fun kf ->
   	match kf.fundec with
-  	| Definition(dec,_)->
+  	| Definition(dec,loc)->
+  		let (p1,p2) = loc in
+  		let fpoint = {pos1=p1;pos2=p2} in
 			let fundec = Kernel_function.get_definition kf in
 			let (pcode:block) = fundec.sbody in
 			let pinfo = Hashhe.find procinfo fundec.svar.vname in
 		  let env = pinfo.Equation.penv in
-		  (*Hashhe.add pointenv Equation.vertex_dummy env;*)
+		  if not (Hashhe.mem pointenv fpoint) then
+				Hashhe.add pointenv fpoint env;
 		  
 		  let rec add_env b =
 		  	if (List.length b.bstmts)>0 then begin
-					let (p1,p2) = Li_utils.get_stmt_location (List.nth b.bstmts 0) in
+					let (p1,p2) = Li_utils.get_block_spoint b in(*b.bpoint in*)
 					let bpoint = {pos1=p1;pos2=p2} in
 					if not (Hashhe.mem pointenv bpoint) then
 					(Hashhe.add pointenv bpoint env;);
 					
 					List.iter(fun stmt->
 						let (p1,p2) = Li_utils.get_stmt_location stmt in
-						let p = {pos1=p1;pos2=p2} in					
+						let p = {pos1=p1;pos2=p2} in
 					
+						
 						if not (Hashhe.mem pointenv p) then
 						(Hashhe.add pointenv p env;);
 					
@@ -184,6 +192,7 @@ let make_info (prog:Cil_types.file) : Equation.info =
 							add_env b1;
 							add_env b2;
 						| _->();
+						
 					)b.bstmts
 				end
 			in
@@ -192,9 +201,9 @@ let make_info (prog:Cil_types.file) : Equation.info =
     	let (p1,p2) = loc in
     	let bpoint = {pos1=p1;pos2=p2} in
     	let pinfo = Hashhe.find procinfo v.vname in
-		  let env = pinfo.Equation.penv in
+		  let env = pinfo.Equation.penv in(*
 		  if not (Hashhe.mem pointenv bpoint) then
-				Hashhe.add pointenv bpoint env;
+				Hashhe.add pointenv bpoint env;*)()
 	);
   {
     Equation.procinfo = procinfo;
@@ -444,9 +453,10 @@ module Forward = struct
     let graph = Equation.create 3 info in
 		
     let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
+    	Printf.printf "bpoint:\n";Cil.d_loc Format.std_formatter block.bpoint;Format.print_flush ();Printf.printf "\n";
     	if (List.length block.bstmts)>0 then(
       let env = procinfo.Equation.penv in
-      let (p1,p2) = Li_utils.get_block_spoint block in
+      let (p1,p2) = Li_utils.get_block_spoint block in(*block.bpoint in*)
       let bpoint = {pos1=p1;pos2=p2} in
       if bpoint != Equation.vertex_dummy then
       ignore begin
@@ -545,7 +555,7 @@ module Forward = struct
 					
 					if (List.length b1.bstmts)>0 then(
 						let (p1,p2) = l in
-						let (p3,p4) = Li_utils.get_block_spoint b1 in
+						let (p3,p4) = Li_utils.get_block_spoint b1 in(*b1.bpoint in*)
 						Equation.add_equation graph
 							[|{pos1=p1;pos2=p2}|] condtransfer {pos1=p3;pos2=p4};Printf.printf "add transfer Condition\n";
 						let (p1,p2) = Li_utils.get_block_epoint b1 in
@@ -555,7 +565,7 @@ module Forward = struct
 					
 					if (List.length b2.bstmts)>0 then(
 						let (p1,p2) = l in
-						let (p3,p4) = Li_utils.get_block_spoint b2 in
+						let (p3,p4) = Li_utils.get_block_spoint b2 in(*b2.bpoint in*)
 						Equation.add_equation graph
 							[|{pos1=p1;pos2=p2}|] condnottransfer {pos1=p3;pos2=p3};Printf.printf "add transfer Condition\n";
 						let (p1,p2) = Li_utils.get_block_epoint b1 in
@@ -596,9 +606,11 @@ module Forward = struct
 
 		Globals.Functions.iter(fun kf ->
 			match kf.fundec with
-			| Definition(_,_)->
+			| Definition(_,(p1,p2))->
 				let fundec = Kernel_function.get_definition kf in
 				let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
+				let transfer = Equation.Condition(Boolexpr.make_cst true) in
+				Equation.add_equation graph [|{pos1=p1;pos2=p2;}|] transfer {pos1=p1;pos2=p2;};Printf.printf "add transfer Condition\n";
 				(*Printf.printf "in make graph procinfo Definition\n";
 				Equation.print_procinfo fmt procinfo;*)
 				iter_block procinfo fundec.sbody;
@@ -625,7 +637,7 @@ module Backward = struct
       if (List.length block.bstmts)>0 then(
       let fmt = Format.std_formatter in
       let env = procinfo.Equation.penv in
-      let (p1,p2) = Li_utils.get_block_spoint block in
+      let (p1,p2) = Li_utils.get_block_spoint block in(*block.bpoint in*)
       let bpoint = {pos1=p1;pos2=p2} in
       if bpoint != Equation.vertex_dummy then
       ignore begin
@@ -712,7 +724,7 @@ module Backward = struct
 					
 					if (List.length b1.bstmts)>0 then(
 						let (p1,p2) = l in
-						let (p3,p4) = Li_utils.get_block_spoint b1 in
+						let (p3,p4) = Li_utils.get_block_spoint b1 in(*b1.bpoint in*)
 						Equation.add_equation graph
 							[|{pos1=p3;pos2=p4}|] condtransfer {pos1=p1;pos2=p2};
 						let (p1,p2) = Li_utils.get_block_epoint b1 in
@@ -722,7 +734,7 @@ module Backward = struct
 					
 					if (List.length b2.bstmts)>0 then(
 						let (p1,p2) = l in
-						let (p3,p4) = Li_utils.get_block_spoint b2 in
+						let (p3,p4) = Li_utils.get_block_spoint b2 in(*b2.bpoint in*)
 						Equation.add_equation graph
 							[|{pos1=p3;pos2=p3}|] condnottransfer {pos1=p1;pos2=p2};
 						let (p1,p2) = Li_utils.get_block_epoint b1 in

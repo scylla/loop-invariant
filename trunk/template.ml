@@ -73,14 +73,13 @@ let make_fpmanager
   {
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
-    	(*Printf.printf "find bottom1\nHashhe.find vtx:\n";
-    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";Equation.vertex_dummy
     	try
-    	Printf.printf "find bottom1\n";
-    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";*)
-      Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
-      (*Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);
-      with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])*)
+    	Printf.printf "find bottom\n";
+    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
+    	(*Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";
+      Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);*)
+      Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);
+      with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
       (* Apron.Abstract1.canonicalize man abs *)
@@ -194,8 +193,9 @@ module Forward = struct
 
   let apply_tassign (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (var: Apron.Var.t) (expr:Apron.Texpr1.t) (dest:'a Apron.Abstract1.t option)
     =
+    let fmt = Format.std_formatter in
     let res =
-    	Printf.printf "apply_tassign\n";
+    	Printf.printf "apply_tassign\n";Apron.Texpr1.print fmt expr;Format.print_flush ();Printf.printf "\n";
     	Apron.Abstract1.assign_texpr
 				manager abstract
 				var expr dest
@@ -381,6 +381,7 @@ module Forward = struct
       try
       let maininfo = Hashhe.find info.Equation.procinfo "phase" in
       let start = maininfo.Equation.pstart in
+      Printf.printf "main start:\n";Equation.print_point fmt start;Format.print_flush ();Printf.printf "\n";
       begin match output with
       | None ->
 	 		 	PSette.singleton Equation.compare_point start
@@ -395,10 +396,12 @@ module Forward = struct
     in
     
     if PSette.is_empty sstart then begin
+    	Printf.printf "PSette.is_empty sstart yes\n";
       make_emptyoutput graph manager
     end
     else(
-      let abstract_init = 
+    	Printf.printf "PSette.is_empty sstart no\n";
+      let abstract_init = (*how to specify the value of vertex?pstart*)
       	begin fun vertex ->
 					begin match output with
 					| None ->
@@ -416,13 +419,14 @@ module Forward = struct
 				
     		if sstart!=dummy_sstart then
 					begin
+					Printf.printf "sstart!=dummy_sstart\n";
 					let result = Fixpoint.analysis_std
 						fpmanager graph sstart
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
 							graph sstart) in
-					Printf.printf "analysis_std result\n";
+					Printf.printf "analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";
 					result
@@ -431,7 +435,7 @@ module Forward = struct
 					begin
 					let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
 					let result = PSHGraph.create Equation.compare 0 sta in
-					Printf.printf "analysis_std result\n";
+					Printf.printf "analysis_std resul2t\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";
 					result
@@ -709,7 +713,8 @@ let print_apron_box fmt box =
   Format.fprintf fmt "[|@[";
   Array.iteri
     (begin fun i interval ->
-      if not (Apron.Interval.is_top interval) then begin
+      if not (Apron.Interval.is_top interval) then 
+      begin
 				if not !first then Format.fprintf fmt ";@ ";
 				let var = Apron.Environment.var_of_dim env i in
 				let name = Apron.Var.to_string var in
@@ -732,7 +737,7 @@ let print_output prog fmt fp =
 	let print_comment point =
 		let abs = PSHGraph.attrvertex fp point in
 		Printf.printf "point:";Equation.print_point fmt point;Format.print_flush ();Printf.printf "\n";
-		print_abstract1 fmt abs;Format.print_flush ();
+		print_abstract1 fmt abs;Format.print_flush ();Printf.printf "\n";
 	in
 	Globals.Functions.iter(fun kf ->
 			try
