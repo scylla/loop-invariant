@@ -76,9 +76,9 @@ let make_fpmanager
     	try
     	Printf.printf "find bottom\n";
     	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
-    	(*Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";
-      Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);*)
-      Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);
+    	(*Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";*)
+      Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
+      (*Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);*)
       with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
@@ -403,6 +403,7 @@ module Forward = struct
     	Printf.printf "PSette.is_empty sstart no\n";
       let abstract_init = (*how to specify the value of vertex?pstart*)
       	begin fun vertex ->
+      		Printf.printf "in abstract_init\n";Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
 					begin match output with
 					| None ->
 						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex)

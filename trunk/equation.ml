@@ -237,13 +237,3 @@ let print_graph fmt graph =
 		print_info 
 		fmt
 		graph
-    (*PSHGraph.copy
-      (fun vertex attrvertex -> attrvertex.reach)
-      (fun hedge attrhedge -> attrhedge.arc)
-      (fun info -> {
-				time = !(info.itime);
-				iterations = !(info.iiterations);
-				descendings = !(info.idescendings);
-				stable = !(info.istable)
-      })
-      graph*)

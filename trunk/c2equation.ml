@@ -2,215 +2,6 @@
 
 open Cil_types
 open Equation
-(*  ********************************************************************** *)
-(** {2 Useful Information for generating equations} *)
-(*  ********************************************************************** *)
-
-(*  ---------------------------------------------------------------------- *)
-(** {3 Utility functions} *)
-(*  ---------------------------------------------------------------------- *)
-
-
-(** Extract an array of variables from variable declaration list *)
-let convert (lvar:varinfo list) : Apron.Var.t array =
-  Array.of_list
-  	(List.map (fun var->Apron.Var.of_string var.vname) lvar)
-
-(** Add to an environment a list of variables *)
-let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
-  let (lint,lreal) =
-    List.fold_left
-      (begin fun (lint,lreal) var ->
-      	match var.vtype with
-      	| TInt(_,_)->((Apron.Var.of_string var.vname)::lint,lreal)
-      	| TFloat(_,_)->(lint,(Apron.Var.of_string var.vname)::lreal)
-      	| _->(lint,lreal)
-			end) ([],[]) lvar
-  in
-  Apron.Environment.add env
-    (Array.of_list lint)
-    (Array.of_list lreal)
-
-(*  ---------------------------------------------------------------------- *)
-(** {3 Building preprocessed information} *)
-(*  ---------------------------------------------------------------------- *)
-
-(** Build a [Equation.procinfo] object from [Spl_syn.procedure]. *)
-let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
-	match proc.fundec with
-	| Definition(dec,loc)->
-		let fundec = Kernel_function.get_definition proc in
-		let (pcode:block) = fundec.sbody in
-		let (p1,p2) = loc in(*Li_utils.get_block_spoint pcode in*)
-		Printf.printf "Definition loc\n";Cil.d_loc Format.std_formatter loc;Format.print_flush ();Printf.printf "\n";
-		let pstart = {pos1=p1;pos2=p2} in
-		let pexit = ref Equation.vertex_dummy in
-		(*if (List.length pcode.bstmts)==0 then
-		(pexit := pstart;)
-		else
-		(
-		let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
-		pexit := {pos1=p1;pos2=p2};
-		);*)
-
-		let pinput = convert fundec.sformals in
-		let plocal = convert fundec.slocals in
-
-		let penv = Apron.Environment.make [||] [||] in
-		let penv = add_env penv fundec.sformals in
-		let penv = add_env penv fundec.slocals in
-
-		{
-			Equation.kf = proc;
-		  Equation.pname = fundec.svar.vname;
-		  Equation.pstart = pstart;
-		  Equation.pexit = !pexit;
-		  Equation.pinput = pinput;
-		  Equation.plocal = plocal;
-		  Equation.penv = penv;
- 	 }
-  | Declaration(spec,v,vlo,loc)->
-  	let pinput = ref [||] in
-  	let penv = ref (Apron.Environment.make [||] [||]) in
-  	(match vlo with
-  	| Some(vl)->
-  		pinput := convert vl;
-  		penv := add_env !penv vl;
-  	| None->();
-  	);
-  	let (p1,p2) = loc in
-  	{
-  		Equation.kf = Kernel_function.dummy ();
-		  Equation.pname = v.vname;
-		  Equation.pstart = {pos1=p1;pos2=p2};
-		  Equation.pexit = {pos1=p1;pos2=p2};
-		  Equation.pinput = !pinput;
-		  Equation.plocal = [||];
-		  Equation.penv = !penv;
-  	}
-
-(** Build a [Equation.info] object from [Spl_syn.program]. *)
-let make_info (prog:Cil_types.file) : Equation.info =
-  let procinfo = Hashhe.create 3 in
-  let fmt = Format.std_formatter in
-  Globals.Functions.iter(fun kf ->
-  	match kf.fundec with
-  	| Definition(dec,_)->
-			let info = make_procinfo kf in
-			Hashhe.add procinfo info.pname info
-		| Declaration(spec,v,vlo,loc)->
-			let info = make_procinfo kf in
-			Hashhe.add procinfo info.pname info
-	);
-
-  let callret = DHashhe.create 3 in
-  Globals.Functions.iter(fun kf ->
-  	match kf.fundec with
-  	| Definition(dec,loc)->
-			let fundec = Kernel_function.get_definition kf in
-			let (pcode:block) = fundec.sbody in
-			
-			let rec add_callret b =
-				if(List.length b.bstmts)>0 then begin					
-					let (p1,p2) = Li_utils.get_block_spoint b in
-					let bpoint = {pos1=p1;pos2=p2} in
-					List.iter(fun s->
-						match s.skind with
-						| Instr(ins)->
-							(match ins with
-							| Call(_,_,_,(p3,p4))->
-								DHashhe.add callret bpoint {pos1=p3;pos2=p4};
-							| _->();
-							)
-						| If(e,b1,b2,_)->
-							add_callret b1;
-							add_callret b2;
-						| Switch(_,b1,_,_)->
-							add_callret b1;
-						| Block(b1)->add_callret b1
-						| UnspecifiedSequence(seq)->
-							let block = Cil.block_from_unspecified_sequence seq in
-							add_callret block
-						| Loop(_,b1,_,_,_)->add_callret b1
-						| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
-							add_callret b1;add_callret b2
-						| _->()
-					)b.bstmts;
-				end
-			in
-			
-			add_callret pcode
-		| Declaration(spec,v,vlo,loc)->
-			(*let (p1,p2) = loc in
-			let bpoint = {pos1=p1;pos2=p2} in
-			DHashhe.add callret bpoint bpoint;*)()
-	);
-  
-  let pointenv = Hashhe.create 1 in
-  
-  Globals.Functions.iter(fun kf ->
-  	match kf.fundec with
-  	| Definition(dec,loc)->
-  		let (p1,p2) = loc in
-  		let fpoint = {pos1=p1;pos2=p2} in
-			let fundec = Kernel_function.get_definition kf in
-			let (pcode:block) = fundec.sbody in
-			let pinfo = Hashhe.find procinfo fundec.svar.vname in
-		  let env = pinfo.Equation.penv in
-		  if not (Hashhe.mem pointenv fpoint) then
-				Hashhe.add pointenv fpoint env;
-		  
-		  let rec add_env b =
-		  	if (List.length b.bstmts)>0 then begin
-					let (p1,p2) = Li_utils.get_block_spoint b in(*b.bpoint in*)
-					let bpoint = {pos1=p1;pos2=p2} in
-					if not (Hashhe.mem pointenv bpoint) then
-					(Hashhe.add pointenv bpoint env;);
-					
-					List.iter(fun stmt->
-						let (p1,p2) = Li_utils.get_stmt_location stmt in
-						let p = {pos1=p1;pos2=p2} in
-					
-						
-						if not (Hashhe.mem pointenv p) then
-						(Hashhe.add pointenv p env;);
-					
-						match stmt.skind with
-						| If(e,b1,b2,_)->
-							add_env b1;
-							add_env b2;
-						| Switch(_,b1,_,_)->
-							add_env b1;
-						| Block(b1)->
-							add_env b1;
-						| UnspecifiedSequence(seq)->
-							let block = Cil.block_from_unspecified_sequence seq in
-							add_env block;
-						| Loop(_,b1,_,_,_)->
-							add_env b1;
-						| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
-							add_env b1;
-							add_env b2;
-						| _->();
-						
-					)b.bstmts
-				end
-			in
-		  add_env pcode;
-    | Declaration(spec,v,vlo,loc)->
-    	let (p1,p2) = loc in
-    	let bpoint = {pos1=p1;pos2=p2} in
-    	let pinfo = Hashhe.find procinfo v.vname in
-		  let env = pinfo.Equation.penv in(*
-		  if not (Hashhe.mem pointenv bpoint) then
-				Hashhe.add pointenv bpoint env;*)()
-	);
-  {
-    Equation.procinfo = procinfo;
-    Equation.callret = callret;
-    Equation.pointenv = pointenv;
-    Equation.counter = 0;
-  }
   
 (*  ********************************************************************** *)
 (** {2 Translating expressions} *)
@@ -443,6 +234,207 @@ let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 		)
 	| _->assert false
 	
+
+
+(** Extract an array of variables from variable declaration list *)
+let convert (lvar:varinfo list) : Apron.Var.t array =
+  Array.of_list
+  	(List.map (fun var->Apron.Var.of_string var.vname) lvar)
+
+(** Add to an environment a list of variables *)
+let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
+  let (lint,lreal) =
+    List.fold_left
+      (begin fun (lint,lreal) var ->
+      	match var.vtype with
+      	| TInt(_,_)->((Apron.Var.of_string var.vname)::lint,lreal)
+      	| TFloat(_,_)->(lint,(Apron.Var.of_string var.vname)::lreal)
+      	| _->(lint,lreal)
+			end) ([],[]) lvar
+  in
+  Apron.Environment.add env
+    (Array.of_list lint)
+    (Array.of_list lreal)
+
+(*  ---------------------------------------------------------------------- *)
+(** {3 Building preprocessed information} *)
+(*  ---------------------------------------------------------------------- *)
+
+(** Build a [Equation.procinfo] object from [Spl_syn.procedure]. *)
+let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
+	match proc.fundec with
+	| Definition(dec,loc)->
+		let fundec = Kernel_function.get_definition proc in
+		let (pcode:block) = fundec.sbody in
+		let (p1,p2) = loc in(*Li_utils.get_block_spoint pcode in*)
+		let pstart = {pos1=p1;pos2=p2} in
+		let pexit = ref Equation.vertex_dummy in
+		if (List.length pcode.bstmts)==0 then
+		(pexit := pstart;)
+		else
+		(
+		let (p1,p2) = Li_utils.get_stmt_location (List.nth pcode.bstmts ((List.length pcode.bstmts)-1)) in
+		pexit := {pos1=p1;pos2=p2};
+		);
+
+		let pinput = convert fundec.sformals in
+		let plocal = convert fundec.slocals in
+
+		let penv = Apron.Environment.make [||] [||] in
+		let penv = add_env penv fundec.sformals in
+		let penv = add_env penv fundec.slocals in
+
+		{
+			Equation.kf = proc;
+		  Equation.pname = fundec.svar.vname;
+		  Equation.pstart = pstart;
+		  Equation.pexit = !pexit;
+		  Equation.pinput = pinput;
+		  Equation.plocal = plocal;
+		  Equation.penv = penv;
+ 	 }
+  | Declaration(spec,v,vlo,loc)->
+  	let pinput = ref [||] in
+  	let penv = ref (Apron.Environment.make [||] [||]) in
+  	(match vlo with
+  	| Some(vl)->
+  		pinput := convert vl;
+  		penv := add_env !penv vl;
+  	| None->();
+  	);
+  	let (p1,p2) = loc in
+  	{
+  		Equation.kf = Kernel_function.dummy ();
+		  Equation.pname = v.vname;
+		  Equation.pstart = {pos1=p1;pos2=p2};
+		  Equation.pexit = {pos1=p1;pos2=p2};
+		  Equation.pinput = !pinput;
+		  Equation.plocal = [||];
+		  Equation.penv = !penv;
+  	}
+
+(** Build a [Equation.info] object from [Spl_syn.program]. *)
+let make_info (prog:Cil_types.file) : Equation.info =
+  let procinfo = Hashhe.create 3 in
+  let fmt = Format.std_formatter in
+  Globals.Functions.iter(fun kf ->
+  	match kf.fundec with
+  	| Definition(dec,_)->
+			let info = make_procinfo kf in
+			Hashhe.add procinfo info.pname info
+		| Declaration(spec,v,vlo,loc)->
+			let info = make_procinfo kf in
+			Hashhe.add procinfo info.pname info
+	);
+
+  let callret = DHashhe.create 3 in
+  Globals.Functions.iter(fun kf ->
+  	match kf.fundec with
+  	| Definition(dec,loc)->
+			let fundec = Kernel_function.get_definition kf in
+			let (pcode:block) = fundec.sbody in
+			
+			let rec add_callret b =
+				if(List.length b.bstmts)>0 then begin					
+					let (p1,p2) = Li_utils.get_block_spoint b in
+					let bpoint = {pos1=p1;pos2=p2} in
+					List.iter(fun s->
+						match s.skind with
+						| Instr(ins)->
+							(match ins with
+							| Call(_,_,_,(p3,p4))->
+								DHashhe.add callret bpoint {pos1=p3;pos2=p4};
+							| _->();
+							)
+						| If(e,b1,b2,_)->
+							add_callret b1;
+							add_callret b2;
+						| Switch(_,b1,_,_)->
+							add_callret b1;
+						| Block(b1)->add_callret b1
+						| UnspecifiedSequence(seq)->
+							let block = Cil.block_from_unspecified_sequence seq in
+							add_callret block
+						| Loop(_,b1,_,_,_)->add_callret b1
+						| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
+							add_callret b1;add_callret b2
+						| _->()
+					)b.bstmts;
+				end
+			in
+			
+			add_callret pcode
+		| Declaration(spec,v,vlo,loc)->
+			(*let (p1,p2) = loc in
+			let bpoint = {pos1=p1;pos2=p2} in
+			DHashhe.add callret bpoint bpoint;*)()
+	);
+  
+  let pointenv = Hashhe.create 1 in
+  
+  Globals.Functions.iter(fun kf ->
+  	match kf.fundec with
+  	| Definition(dec,loc)->
+  		let (p1,p2) = loc in
+  		let fpoint = {pos1=p1;pos2=p2} in
+			let fundec = Kernel_function.get_definition kf in
+			let (pcode:block) = fundec.sbody in
+			let pinfo = Hashhe.find procinfo fundec.svar.vname in
+		  let env = pinfo.Equation.penv in
+		  if not (Hashhe.mem pointenv fpoint) then
+				Hashhe.add pointenv fpoint env;
+		  
+		  let rec add_env b =
+		  	if (List.length b.bstmts)>0 then begin
+					let (p1,p2) = Li_utils.get_block_spoint b in(*b.bpoint in*)
+					let bpoint = {pos1=p1;pos2=p2} in
+					if not (Hashhe.mem pointenv bpoint) then
+					(Hashhe.add pointenv bpoint env;);
+					
+					List.iter(fun stmt->
+						let (p1,p2) = Li_utils.get_stmt_location stmt in
+						let p = {pos1=p1;pos2=p2} in					
+						
+						if not (Hashhe.mem pointenv p) then
+						(Hashhe.add pointenv p env;);
+					
+						match stmt.skind with
+						| If(e,b1,b2,_)->
+							add_env b1;
+							add_env b2;
+						| Switch(_,b1,_,_)->
+							add_env b1;
+						| Block(b1)->
+							add_env b1;
+						| UnspecifiedSequence(seq)->
+							let block = Cil.block_from_unspecified_sequence seq in
+							add_env block;
+						| Loop(_,b1,_,_,_)->
+							add_env b1;
+						| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
+							add_env b1;
+							add_env b2;
+						| _->();
+						
+					)b.bstmts
+				end
+			in
+		  add_env pcode;
+    | Declaration(spec,v,vlo,loc)->
+    	let (p1,p2) = loc in
+    	let bpoint = {pos1=p1;pos2=p2} in
+    	let pinfo = Hashhe.find procinfo v.vname in
+		  let env = pinfo.Equation.penv in(*
+		  if not (Hashhe.mem pointenv bpoint) then
+				Hashhe.add pointenv bpoint env;*)()
+	);
+  {
+    Equation.procinfo = procinfo;
+    Equation.callret = callret;
+    Equation.pointenv = pointenv;
+    Equation.counter = 0;
+  }
+
 (*  ********************************************************************** *)
 (** {2 Forward equations} *)
 (*  ********************************************************************** *)
@@ -453,7 +445,7 @@ module Forward = struct
     let graph = Equation.create 3 info in
 		
     let rec iter_block (procinfo:Equation.procinfo) (block:block) : unit =
-    	Printf.printf "bpoint:\n";Cil.d_loc Format.std_formatter block.bpoint;Format.print_flush ();Printf.printf "\n";
+    	Printf.printf "block.bpoint:\n";Cil.d_loc fmt block.bpoint;Format.print_flush ();Printf.printf "\n";
     	if (List.length block.bstmts)>0 then(
       let env = procinfo.Equation.penv in
       let (p1,p2) = Li_utils.get_block_spoint block in(*block.bpoint in*)
@@ -491,7 +483,7 @@ module Forward = struct
 						);
 					| Skip(l)->
 						let transfer = Equation.Condition(Boolexpr.make_cst true) in
-						Equation.add_equation graph [|bpoint|] transfer spoint;Printf.printf "add transfer Condition\n";
+						Equation.add_equation graph [|bpoint|] transfer spoint;Printf.printf "Skip transfer Condition\n";
 					| Call(lvo,e,el,l)->
 						match lvo with
 						| Some(lv)->
@@ -547,7 +539,6 @@ module Forward = struct
 					iter_block procinfo (Cil.block_from_unspecified_sequence seq);
       	| If(exp,b1,b2,l)->
       		let bexpr = force_exp2bexp exp in
-      		Apron.Environment.print fmt env;Format.print_flush ();Printf.printf "\n";
       		let cond = boolexpr_of_bexpr env bexpr in
 					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
 					let condtransfer = Equation.Condition(cond) in
@@ -557,7 +548,7 @@ module Forward = struct
 						let (p1,p2) = l in
 						let (p3,p4) = Li_utils.get_block_spoint b1 in(*b1.bpoint in*)
 						Equation.add_equation graph
-							[|{pos1=p1;pos2=p2}|] condtransfer {pos1=p3;pos2=p4};Printf.printf "add transfer Condition\n";
+							[|bpoint|] condtransfer {pos1=p3;pos2=p4};Printf.printf "add transfer Condition\n";
 						let (p1,p2) = Li_utils.get_block_epoint b1 in
 						Equation.add_equation graph
 							[|{pos1=p1;pos2=p2}|] (Equation.Condition(Boolexpr.make_cst true)) spoint;Printf.printf "add transfer Condition\n";
@@ -567,7 +558,7 @@ module Forward = struct
 						let (p1,p2) = l in
 						let (p3,p4) = Li_utils.get_block_spoint b2 in(*b2.bpoint in*)
 						Equation.add_equation graph
-							[|{pos1=p1;pos2=p2}|] condnottransfer {pos1=p3;pos2=p3};Printf.printf "add transfer Condition\n";
+							[|bpoint|] condnottransfer {pos1=p3;pos2=p4};Printf.printf "add transfer Condition\n";
 						let (p1,p2) = Li_utils.get_block_epoint b1 in
 						Equation.add_equation graph
 							[|{pos1=p1;pos2=p2}|] (Equation.Condition(Boolexpr.make_cst true)) spoint;Printf.printf "add transfer Condition\n";
@@ -598,7 +589,7 @@ module Forward = struct
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
 					Equation.add_equation graph [|bpoint|] transfer spoint;Printf.printf "add transfer Condition\n";
 				);
-				bpoint
+				spoint
      	)bpoint block.bstmts;
       end
      )
@@ -610,8 +601,10 @@ module Forward = struct
 				let fundec = Kernel_function.get_definition kf in
 				let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
 				let transfer = Equation.Condition(Boolexpr.make_cst true) in
+				let (p3,p4) = Li_utils.get_block_spoint fundec.sbody in
 				Equation.add_equation graph [|{pos1=p1;pos2=p2;}|] transfer {pos1=p1;pos2=p2;};Printf.printf "add transfer Condition\n";
-				(*Printf.printf "in make graph procinfo Definition\n";
+				(*Equation.add_equation graph [|{pos1=p1;pos2=p2;}|] transfer {pos1=p3;pos2=p4;};Printf.printf "add transfer Condition\n";
+				Printf.printf "in make graph procinfo Definition\n";
 				Equation.print_procinfo fmt procinfo;*)
 				iter_block procinfo fundec.sbody;
 			| Declaration(spec,v,vlo,loc)->
