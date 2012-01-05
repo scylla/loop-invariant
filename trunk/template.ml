@@ -379,7 +379,7 @@ module Forward = struct
     let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
     let sstart =
       try
-      let maininfo = Hashhe.find info.Equation.procinfo "phase" in
+      let maininfo = Hashhe.find info.Equation.procinfo "main" in
       let start = maininfo.Equation.pstart in
       Printf.printf "main start:\n";Equation.print_point fmt start;Format.print_flush ();Printf.printf "\n";
       begin match output with
