@@ -26,13 +26,13 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 			| Loop_parameters.Forward ->
 				Printf.printf "Forward\n";
 				let fp =
-					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:0
+					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:6
 				in
 				fp
 			| Loop_parameters.Backward ->
 				Printf.printf "Backward\n";
 				let fp =
-					Template.Backward.compute ~fmt prog bgraph ~output:(!previous) manager ~debug:0
+					Template.Backward.compute ~fmt prog bgraph ~output:(!previous) manager ~debug:6
 				in
 				fp
 			end

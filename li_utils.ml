@@ -192,13 +192,19 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 let get_block_spoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then
 	(let first_stmt = List.nth b.bstmts 0 in
+	if (List.length first_stmt.preds)>0 then
+	(let last_stmt = List.nth first_stmt.preds ((List.length first_stmt.preds)-1) in
 	(*TypePrinter.print_stmtkind Format.std_formatter first_stmt.skind;*)
-	get_stmt_location first_stmt;
+	get_stmt_location last_stmt;
+	)else(get_stmt_location first_stmt;);
 	)else
-	(Printf.printf "b_spoint:dummy\n";(Lexing.dummy_pos,Lexing.dummy_pos));;
+	(Printf.printf "b_spoint2:dummy\n";(Lexing.dummy_pos,Lexing.dummy_pos));;
 
 let get_block_epoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then
-	(let first_stmt = List.nth b.bstmts ((List.length b.bstmts)-1) in
-	get_stmt_location first_stmt;
+	(let last_stmt = List.nth b.bstmts ((List.length b.bstmts)-1) in
+	if (List.length last_stmt.succs)>0 then
+	(let first_stmt = List.nth last_stmt.succs 0 in
+	get_stmt_location last_stmt;(*first_stmt?*)
+	)else(get_stmt_location last_stmt;);
 	)else (Lexing.dummy_pos,Lexing.dummy_pos);;
