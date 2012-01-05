@@ -13,7 +13,7 @@ int inc(int x)
 
 void phase()
 {
-	int i=0;
+	int i=10;
 	i=i+1;
 	i=i+2;
 	if(i>0)

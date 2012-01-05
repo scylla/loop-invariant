@@ -427,6 +427,14 @@ module Forward = struct
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
 							graph sstart) in
+					(*let result = Fixpoint.analysis_guided
+						fpmanager graph sstart
+						(fun filter  ->
+							Fixpoint.make_strategy_default
+					~vertex_dummy:Equation.vertex_dummy
+					~hedge_dummy:Equation.hedge_dummy
+					~priority:(PSHGraph.Filter filter)
+					graph sstart) in*)
 					Printf.printf "analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";
@@ -436,7 +444,7 @@ module Forward = struct
 					begin
 					let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
 					let result = PSHGraph.create Equation.compare 0 sta in
-					Printf.printf "analysis_std resul2t\n";
+					Printf.printf "analysis_std result2\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";
 					result
