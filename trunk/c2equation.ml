@@ -535,8 +535,46 @@ module Forward = struct
       		);
       	| Loop(_,b,_,_,_)->
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
-					Equation.add_equation graph [|point|] transfer spoint;Printf.printf "add transfer loop Condition\n";
-					Equation.print_transfer fmt transfer;Format.print_flush ();Printf.printf "\n";
+      		Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
+      		Cil.d_block fmt b;Format.print_flush ();Printf.printf "\n";
+      		let point1 = ref Equation.vertex_dummy and point2 = ref Equation.vertex_dummy in
+      		
+      		let flag = ref 0 in
+      		let len = List.length b.bstmts in
+      		for i=0 to len-1 do
+      			let s = List.nth b.bstmts i in
+      			let (p1,p2) = Li_utils.get_stmt_location s in
+      			if !flag==0 && (Equation.compare_point {pos1=p1;pos2=p2;} Equation.vertex_dummy)!=0 then
+      			(point1 := {pos1=p1;pos2=p2;};flag := 1;);
+      		done;
+      		
+      		let i = ref (len-1) in
+      		let flag = ref 0 in
+      		while !i>=0 do
+      			let s = List.nth b.bstmts !i in
+      			let (p1,p2) = Li_utils.get_stmt_location s in
+      			if !flag==0 && (Equation.compare_point {pos1=p1;pos2=p2;} Equation.vertex_dummy)!=0 then
+      			(point2 := {pos1=p1;pos2=p2;};flag := 1;);
+      			i := !i-1;
+      		done;
+      		
+      		List.iter(fun s->
+      			Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
+      			let (p1,p2) = Li_utils.get_stmt_location s in
+      			Equation.print_point fmt {pos1=p1;pos2=p2;};Format.print_flush ();Printf.printf "\n";
+      		)stmt.preds;
+      		let last_stmt = List.nth stmt.preds ((List.length stmt.preds)-1) in
+      		let (p1,p2) = Li_utils.get_stmt_location last_stmt in
+      		let point3 = {pos1=p1;pos2=p2} in
+      		Printf.printf "points\n";
+      		Equation.print_point fmt point3;
+      		Equation.print_point fmt !point1;
+      		Equation.print_point fmt !point2;
+      		Format.print_flush ();Printf.printf "\n";
+      		if (List.length b.bstmts)>0 then(
+						Equation.add_equation graph [|point3|] transfer !point1;
+						Equation.add_equation graph [|!point2|] transfer point3;Printf.printf "add transfer loop Condition\n";
+					);
       		iter_block procinfo b;
       	| Block(b)->
       		iter_block procinfo b;
@@ -559,7 +597,7 @@ module Forward = struct
 						let (p1,p2) = Li_utils.get_stmt_location first_stmt in
 						
 						if (Equation.compare_point {pos1=p1;pos2=p2} Equation.vertex_dummy)!=0 then(
-							let (p3,p4) = Li_utils.get_block_epoint b1 in
+							let (p3,p4) = Li_utils.get_stmt_location (List.nth b1.bstmts ((List.length b1.bstmts)-1)) in
 							Equation.add_equation graph
 								[|{pos1=p3;pos2=p4}|] (Equation.Condition(Boolexpr.make_cst true)) {pos1=p1;pos2=p2};Printf.printf "add transfer Condition\n";
 						);
