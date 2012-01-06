@@ -381,6 +381,6 @@ let domain = ref PolkaLoose (** abstract domain to use *)
 type analysis =
   | Forward
   | Backward
-let analysis = ref [Forward;Forward]
+let analysis = ref [Backward]
 
 let print_box = ref false
