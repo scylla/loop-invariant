@@ -74,9 +74,9 @@ let make_fpmanager
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
     	try
-    	Printf.printf "find bottom\n";
+    	(*Printf.printf "find bottom\n";
     	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
-    	(*Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";*)
+    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";*)
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
       (*Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);*)
       with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
@@ -336,7 +336,6 @@ module Forward = struct
     =
     let transfer = PSHGraph.attrhedge graph hedge in
     let fmt = Format.std_formatter in
-    Printf.printf "apply transfer is\n";Printf.printf "hedge=%d\n" hedge;Equation.print_transfer fmt transfer;Format.print_flush ();Printf.printf "\n";
     let abs = tabs.(0) in
     let dest = 
     	match output with
@@ -416,7 +415,7 @@ module Forward = struct
 				make_fpmanager ~fmt graph ~output	apply abstract_init	manager ~debug
       in
       let fp =
-      	Printf.printf "start analysis in Template.ml\n";
+      	Printf.printf "start fore analysis in Template.ml\n";
 				
     		if sstart!=dummy_sstart then
 					begin
@@ -435,7 +434,7 @@ module Forward = struct
 					~hedge_dummy:Equation.hedge_dummy
 					~priority:(PSHGraph.Filter filter)
 					graph sstart) in*)
-					Printf.printf "analysis_std result1\n";
+					Printf.printf "fore analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";
 					result
@@ -444,7 +443,7 @@ module Forward = struct
 					begin
 					let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
 					let result = PSHGraph.create Equation.compare 0 sta in
-					Printf.printf "analysis_std result2\n";
+					Printf.printf "fore analysis_std result2\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";
 					result
@@ -476,7 +475,7 @@ module Backward = struct
 				manager abstract
 				var expr dest
     in
-    res;;
+    res
 
   let apply_condition = Forward.apply_condition
 
@@ -488,14 +487,15 @@ module Backward = struct
     (inargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
+    Printf.printf "apply_call\n";
     (* current environment *)
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
     let tenv =
       environment_of_tvar
-	(Apron.Environment.typ_of_var env)
-	calleeinfo.Equation.pinput
+				(Apron.Environment.typ_of_var env)
+				calleeinfo.Equation.pinput
     in
     let abstract2 =
       Apron.Abstract1.change_environment manager abstract tenv false
@@ -517,7 +517,7 @@ module Backward = struct
     | Some dest ->
 			Apron.Abstract1.meet_with manager abstract2 dest
     end;
-    abstract2;;
+    abstract2
 
   let apply_return
     (manager:'a Apron.Manager.t)
@@ -527,47 +527,14 @@ module Backward = struct
     (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
-    Printf.printf "apply_return\n";;
-     (* 0. We forget local variables in abscallee 
+    Printf.printf "apply_return\n";
     let env =
-      Apron.Environment.remove (Apron.Abstract1.env abscallee) (calleeinfo.Equation.plocal)
+    	Apron.Environment.remove (Apron.Abstract1.env abstract) (calleeinfo.Equation.plocal)
     in
     let res =
-      Apron.Abstract1.change_environment manager abscallee env false
-    in*)
-    (* 1. We rename in modified abscallee
-       - formal in parameters by actual inparameters
-       - formal out parameters by special names (to avoid name conflicts)
-    
-    Apron.Abstract1.rename_array_with
-      manager res calleeinfo.Equation.pinput inargs;*)
-    (* 2. We unify the renamed callee value and the caller value 
-    Apron.Abstract1.unify_with manager res abscaller;*)
-    (* 3. We assign the actual out parameters *)
-    (*let env = Apron.Abstract1.env res in
-    let tlinexpr =
-      Array.map(fun var ->
-				let e = Apron.Linexpr1.make ~sparse:true env in
-				Apron.Linexpr1.set_coeff e var (Apron.Coeff.s_of_int 1);
-				e
-			)calleeinfo.Equation.poutput_tmp
+    	Apron.Abstract1.change_environment manager abstract env false
     in
-    
-    if tlinexpr<>[||] then
-      Apron.Abstract1.assign_linexpr_array_with
-				manager res
-				outargs tlinexpr None ;*)
-    (* 4. We remove the introduced temporary variables 
-		  Apron.Abstract1.change_environment_with
-		    manager res
-		    (Apron.Abstract1.env abscaller) false;*)
-    (* 5. We possibly intersect with the result of a previous analysis 
-    begin match dest with
-    | None -> ()
-    | Some dest ->
-			Apron.Abstract1.meet_with manager res dest
-    end;
-    res*)
+    res
 
   (** Main transfer function *)
   let apply
@@ -603,9 +570,9 @@ module Backward = struct
       | Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_call manager abs callerinfo calleeinfo tin dest
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
-	  		failwith ""(*apply_return manager abs callerinfo calleeinfo tin tout dest*)
+	  		apply_return manager abs callerinfo calleeinfo tin tout dest
     in
-    ((),res);;
+    ((),res)
 
   (*  ===================================================================== *)
   (** {3 Compute (post)fixpoint} *)
@@ -622,42 +589,51 @@ module Backward = struct
       (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output
       =
     let info = PSHGraph.info graph in
+    let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
     let sstart = ref (PSette.empty Equation.compare_point) in
     
+    let rec add_sstart (b:Cil_types.block) =
+    	let (p1,p2) = b.bpoint in
+    	let bpoint = {Equation.pos1=p1;Equation.pos2=p2;} in
+    	List.iter(fun s->
+    	match s.skind with
+    	| Cil_types.Return(_,_)->
+				let ok = 
+					match output with
+					| None -> true
+					| Some output ->
+						let abstract = PSHGraph.attrvertex output bpoint in
+						not (Apron.Abstract1.is_bottom manager abstract)
+				in
+				if ok then
+				sstart := PSette.add bpoint !sstart;
+			| If(e,b1,b2,_)->
+				add_sstart b1;
+				add_sstart b2;
+			| Switch(_,b1,_,_)->add_sstart b1;
+			| Block(b1)->add_sstart b1
+			| UnspecifiedSequence(seq)->
+				let block = Cil.block_from_unspecified_sequence seq in
+				add_sstart block;
+			| Loop(_,b1,_,_,_)->add_sstart b1
+			| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
+				add_sstart b1;
+				add_sstart b2;
+			| _->();
+			)b.bstmts;
+		in
+		
     Globals.Functions.iter(fun kf ->
 			try
 				let fundec = Kernel_function.get_definition kf in
-				List.iter(fun stmt ->
-					(*if stmt.Spl_syn.instruction = Spl_syn.FAIL then 
-					(let ok = 
-							match output with
-							| None -> true
-							| Some output ->
-									let abstract = PSHGraph.attrvertex output bpoint in
-									not (Apron.Abstract1.is_bottom manager abstract)
-						in
-						if ok then
-							sstart := PSette.add bpoint !sstart;
-					)*)();
-				)fundec.sallstmts;
+				add_sstart fundec.sbody;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 		);
-    (*List.iter(fun procedure ->
-			Spl_syn.iter_eltinstr(fun (bpoint,instr) ->
-				if instr.Spl_syn.instruction = Spl_syn.FAIL then begin
-					let ok = 
-						match output with
-						| None -> true
-						| Some output ->
-								let abstract = PSHGraph.attrvertex output bpoint in
-								not (Apron.Abstract1.is_bottom manager abstract)
-					in
-					if ok then
-						sstart := PSette.add bpoint !sstart;
-					end
-			)procedure.Spl_syn.pcode;
-    )prog.Spl_syn.procedures;*)
-
+		
+		Printf.printf "sstart:\n";
+		PSette.print ~first:"@[" ~sep:" ||@ " ~last:"@]" (fun fmt a->Equation.print_point fmt a;) fmt !sstart;
+		Format.print_flush ();Printf.printf "\n";
+		
     if PSette.is_empty !sstart then begin
       make_emptyoutput graph manager
     end
@@ -676,22 +652,31 @@ module Backward = struct
       let fpmanager = make_fpmanager ~fmt graph ~output apply abstract_init manager ~debug in
       
       let fp =
-				(*if !Option.iteration_guided then
-					Fixpoint.analysis_guided
-						fpmanager graph !sstart
-						(fun filter  ->
-							Fixpoint.make_strategy_default
-					~vertex_dummy:Equation.vertex_dummy
-					~hedge_dummy:Equation.hedge_dummy
-					~priority:(PSHGraph.Filter filter)
-					graph !sstart)
-				else*)
-					Fixpoint.analysis_std
+      	Printf.printf "start back anaslysis in Template.ml\n";
+      	
+      	if !sstart!=dummy_sstart then
+		    	begin
+					let result = Fixpoint.analysis_std
 						fpmanager graph !sstart
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
 							graph !sstart)
+					in
+					Printf.printf "back analysis_std result1\n";
+					Fixpoint.print_output fpmanager fmt result;
+					Printf.printf "\n";
+					result
+					end
+				else
+					begin
+					let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
+						let result = PSHGraph.create Equation.compare 0 sta in
+						Printf.printf "back analysis_std result2\n";
+						Fixpoint.print_output fpmanager fmt result;
+						Printf.printf "\n";
+						result
+					end
 			in
 			fp
 		)
@@ -759,16 +744,7 @@ let print_output prog fmt fp =
 					Printf.printf "\n";
 				)fundec.sallstmts;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
-	)
-    
-let var_x = Apron.Var.of_string "x";;
-let var_y = Apron.Var.of_string "y";;
-let var_z = Apron.Var.of_string "z";;
-let var_w = Apron.Var.of_string "w";;
-let var_u = Apron.Var.of_string "u";;
-let var_v = Apron.Var.of_string "v";;
-let var_a = Apron.Var.of_string "a";;
-let var_b = Apron.Var.of_string "b";;
+	)    
 
 let output_of_graph graph =
 	PSHGraph.copy
@@ -781,6 +757,15 @@ let output_of_graph graph =
 			Fixpoint.stable = !(info.FixpointType.istable)
     })
     graph;;
+    
+let var_x = Apron.Var.of_string "x";;
+let var_y = Apron.Var.of_string "y";;
+let var_z = Apron.Var.of_string "z";;
+let var_w = Apron.Var.of_string "w";;
+let var_u = Apron.Var.of_string "u";;
+let var_v = Apron.Var.of_string "v";;
+let var_a = Apron.Var.of_string "a";;
+let var_b = Apron.Var.of_string "b";;
       
 let lincons1_array_print fmt x =
   Apron.Lincons1.array_print fmt x;;

@@ -248,7 +248,7 @@ let theMain () =
     
 let compute_loop_invariant () = 
 	Ast.compute ();
-	Unroll_loops.compute 1 (Ast.get ());
+	(*Unroll_loops.compute 1 (Ast.get ());*)(*don't unroll loops now or locations in fixpoint is wrong. maybe need to modify those codes*)
   Globals.Functions.iter (fun kf ->
    (match kf.fundec with
    	| Definition(dec,_)->
