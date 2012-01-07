@@ -394,7 +394,8 @@ let make_info (prog:Cil_types.file) : Equation.info =
 					List.iter(fun stmt->
 						let (p1,p2) = Li_utils.get_stmt_location stmt in
 						let p = {pos1=p1;pos2=p2} in
-						
+						(*if the location is dummy, we generate a new vertex id 
+						and add to pointenv and also record the new id*)
 						if not (Hashhe.mem pointenv p) then
 						(Hashhe.add pointenv p env;);
 					
@@ -563,14 +564,17 @@ module Forward = struct
       			let (p1,p2) = Li_utils.get_stmt_location s in
       			Equation.print_point fmt {pos1=p1;pos2=p2;};Format.print_flush ();Printf.printf "\n";
       		)stmt.preds;
+      		
       		let last_stmt = List.nth stmt.preds ((List.length stmt.preds)-1) in
       		let (p1,p2) = Li_utils.get_stmt_location last_stmt in
       		let point3 = {pos1=p1;pos2=p2} in
+      		
       		Printf.printf "points\n";
       		Equation.print_point fmt point3;
       		Equation.print_point fmt !point1;
       		Equation.print_point fmt !point2;
       		Format.print_flush ();Printf.printf "\n";
+      		
       		if (List.length b.bstmts)>0 then(
 						Equation.add_equation graph [|point3|] transfer !point1;
 						Equation.add_equation graph [|!point2|] transfer point3;Printf.printf "add transfer loop Condition\n";
@@ -625,7 +629,7 @@ module Forward = struct
 						let (p1,p2) = Li_utils.get_stmt_location first_stmt in
 						if (Equation.compare_point {pos1=p1;pos2=p2} Equation.vertex_dummy)!=0 then(
 							Equation.add_equation graph	[|point|] condnottransfer {pos1=p1;pos2=p2};Printf.printf "add transfer Condition\n";
-							);
+						);
 					);
 					
 					iter_block procinfo b1;
