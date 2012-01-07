@@ -394,6 +394,10 @@ module Forward = struct
       with Not_found->Printf.printf "Not_found when get sstart\n";dummy_sstart
     in
     
+		Printf.printf "fore sstart:\n";
+		PSette.print ~first:"@[" ~sep:" ||@ " ~last:"@]" (fun fmt a->Equation.print_point fmt a;) fmt sstart;
+		Format.print_flush ();Printf.printf "\n";
+		
     if PSette.is_empty sstart then begin
     	Printf.printf "PSette.is_empty sstart yes\n";
       make_emptyoutput graph manager
@@ -592,9 +596,9 @@ module Backward = struct
     let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
     let sstart = ref (PSette.empty Equation.compare_point) in
     
-    let rec add_sstart (b:Cil_types.block) =
-    	let (p1,p2) = b.bpoint in
-    	let bpoint = {Equation.pos1=p1;Equation.pos2=p2;} in
+    let rec add_sstart (name:string) (b:Cil_types.block) =
+    	let first_stmt = List.hd b.bstmts in
+    	let bpoint = {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
     	List.iter(fun s->
     	match s.skind with
     	| Cil_types.Return(_,_)->
@@ -608,29 +612,30 @@ module Backward = struct
 				if ok then
 				sstart := PSette.add bpoint !sstart;
 			| If(e,b1,b2,_)->
-				add_sstart b1;
-				add_sstart b2;
-			| Switch(_,b1,_,_)->add_sstart b1;
-			| Block(b1)->add_sstart b1
+				add_sstart name b1;
+				add_sstart name b2;
+			| Switch(_,b1,_,_)->add_sstart name b1;
+			| Block(b1)->add_sstart name b1
 			| UnspecifiedSequence(seq)->
 				let block = Cil.block_from_unspecified_sequence seq in
-				add_sstart block;
-			| Loop(_,b1,_,_,_)->add_sstart b1
+				add_sstart name block;
+			| Loop(_,b1,_,_,_)->add_sstart name b1
 			| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)|If(_,b1,b2,_)->
-				add_sstart b1;
-				add_sstart b2;
+				add_sstart name b1;
+				add_sstart name b2;
 			| _->();
 			)b.bstmts;
 		in
 		
     Globals.Functions.iter(fun kf ->
 			try
+				let name = Kernel_function.get_name kf in
 				let fundec = Kernel_function.get_definition kf in
-				add_sstart fundec.sbody;
+				add_sstart name fundec.sbody;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 		);
 		
-		Printf.printf "sstart:\n";
+		Printf.printf "back sstart:\n";
 		PSette.print ~first:"@[" ~sep:" ||@ " ~last:"@]" (fun fmt a->Equation.print_point fmt a;) fmt !sstart;
 		Format.print_flush ();Printf.printf "\n";
 		
@@ -735,11 +740,12 @@ let print_output prog fmt fp =
 	in
 	Globals.Functions.iter(fun kf ->
 			try
+				let name = Kernel_function.get_name kf in
 				let fundec = Kernel_function.get_definition kf in
 				List.iter(fun s->
-					let (p1,p2) = Li_utils.get_stmt_location s in
 					try
-					print_comment {Equation.pos1=p1;Equation.pos2=p2;};
+					Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
+					print_comment {Equation.fname=name;Equation.sid=s.Cil_types.sid};
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
 				)fundec.sallstmts;
