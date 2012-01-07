@@ -81,16 +81,17 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
 	
+	let maxid = ref 0 in
 	Globals.Functions.iter(fun kf ->
-			let name = Kernel_function.get_name kf in
-			match kf.fundec with
-			| Definition(dec,loc)->
-				let (p1,p2) = loc in
-			  dec.sbody.bpoint <- (p1,p2)(*assign to ipoint of total block*)
-		  | Declaration(spec,v,vlo,_)->
-		    ()
+		match kf.fundec with
+		| Definition(dec,loc)->
+			get_block_maxid maxid dec.sbody;
+		| Declaration(spec,v,vlo,_)->
+		  ()
 	);
-		
+	
+	Translate.preprocess_bpoint maxid;
+			
 	let (fgraph,bgraph) = Frontend.build_graphs Format.std_formatter cil in
 	Printf.printf "Frontend.compute_and_display begin\n";
 	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk;

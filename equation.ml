@@ -8,29 +8,34 @@ open Cil
 (** {2 Hypergraphs *)
 (*  ********************************************************************* *)
 
-(** A variable in an equation = a control point Cil_types.location*)
-type point = {pos1:Lexing.position;pos2:Lexing.position}
+(*vertex and point*)
+type point = {fname:string;sid:int}
 type vertex = point
 
 let print_point fmt p =
-	fprintf fmt "%s:%d" p.pos1.Lexing.pos_fname p.pos1.Lexing.pos_lnum
+	fprintf fmt "%s:%d" p.fname p.sid
 	
-(** A function in an equation: identified by an integer *)
-type hedge = int(*use Cil_types.stmt.sid??*)
+(*edge*)
+type hedge = int
+
 let print_hedge fmt e =
 	fprintf fmt "%d" e
 	
 let compare_point (a:vertex) (b:vertex) =
-  a.pos1.pos_lnum - b.pos1.pos_lnum
+  (compare a.sid b.sid)(*(String.compare a.fname b.fname)&&*)
 
 let equal_point (a:vertex) (b:vertex) =
-  (a.pos1.pos_lnum  == b.pos1.pos_lnum )
+  (a.sid==b.sid)(*a.fname==b.fname&&*)
 
 let hash_point (x:vertex) =
-  abs x.pos1.pos_lnum
+  abs x.sid+5
 
-
-let vertex_dummy = {pos1=Lexing.dummy_pos;pos2=Lexing.dummy_pos}
+(*dummy*)
+let vertex_dummy = 
+	{
+		fname = "";
+		sid = -2;
+	}
 let hedge_dummy = -1
 
 let compare = {

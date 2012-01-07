@@ -172,7 +172,6 @@ let swap (l:varinfo list) i j =
 	done;
 	List.rev !nl;;
 
-	
 let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location = 
 	match s.skind with
 	| Instr(instr)->
