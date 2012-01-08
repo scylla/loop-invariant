@@ -7,7 +7,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip=
 	try
 	Dynamic.Parameter.String.set "-wp-model" "Store";(*Runtime*)
 	Dynamic.Parameter.Int.set "-wp-timeout" 15;
-	Dynamic.Parameter.String.set "-wp-out" "/home/lzh/Documents/why-out";
+	Dynamic.Parameter.String.set "-wp-out" "/home/lzh/why-out";
 	Dynamic.Parameter.Int.set "-wp-par" 1;
 	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
 	let module OKF = Datatype.Option(Kernel_function) in

@@ -726,7 +726,7 @@ let print_apron_box fmt box =
   ;
   Format.fprintf fmt "@]|]"
   
-let print_abstract1 fmt abs =
+let print_abstract1 fmt kf stmt abs =
 	let man = Apron.Abstract1.manager abs in
 	let box = Apron.Abstract1.to_box man abs in
 	(*print_apron_box fmt box;*)
@@ -738,31 +738,88 @@ let print_abstract1 fmt abs =
 		let tp = Apron.Lincons1.get_typ lincons1 in
 		Apron.Coeff.print fmt (Apron.Lincons1.get_cst lincons1);Format.print_flush ();
 		Printf.printf "%s" (Apron.Lincons1.string_of_typ tp);Format.print_flush ();
-		(*
-			match tp with
-			| Apron.Lincons1.EQ->
-				Printf.printf "=";
-			| Apron.Lincons1.SUPEQ->
-				Printf.printf "SUPEQ";
-			| Apron.Lincons1.SUP->
-				Printf.printf "SUP";
-			| Apron.Lincons1.DISEQ->
-				Printf.printf "DISEQ";
-			| Apron.Lincons1.EQMOD(_)->
-				Printf.printf "EQMOD";
-		*);
+		
+		let tnode = Cil_types.TConst(Cil_types.CReal(0.0,Cil_types.FDouble,None)) in
+		let term = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
+		let zero_term = Logic_utils.mk_dummy_term tnode Cil.doubleType in
+		let llvar = ref [] in
+		let count = ref 0 in
+		
 		Apron.Lincons1.iter(fun cof v->
 			Apron.Coeff.print fmt cof;Format.print_flush ();
 			Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
+			let tvar = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
+			let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
+				
+			let tpvar = Apron.Environment.typ_of_var lincons1.Apron.Lincons1.env v in
+			(match tpvar with
+			| Apron.Environment.INT->
+				let ltype = Cil_types.Ctype(Cil.intType) in
+				let logic_var = Cil.make_temp_logic_var ltype in
+				logic_var.lv_name <- (Apron.Var.to_string v);
+				llvar := !llvar@[logic_var];
+				let tnode = TLval((TVar(logic_var),TNoOffset)) in
+				tvar := Logic_utils.mk_dummy_term tnode Cil.intType;
+			| Apron.Environment.REAL->
+				let ltype = Cil_types.Ctype(Cil.doubleType) in
+				let logic_var = Cil.make_temp_logic_var ltype in
+				logic_var.lv_name <- (Apron.Var.to_string v);
+				llvar := !llvar@[logic_var];
+				let tnode = TLval((TVar(logic_var),TNoOffset)) in
+				tvar := Logic_utils.mk_dummy_term tnode Cil.doubleType;
+			);
+				
+			(match cof with
+			| Apron.Coeff.Scalar(sca)->
+				(match sca with
+				| Apron.Scalar.Float(f)->
+					let tnode = Cil_types.TConst(Cil_types.CReal(f,Cil_types.FDouble,None)) in
+					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
+				| Apron.Scalar.Mpqf(q)->
+					let tnode = Cil_types.TConst(Cil_types.CReal((Mpqf.to_float q),Cil_types.FDouble,None)) in
+					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
+				| _->();
+				);
+			| Apron.Coeff.Interval(_)->();
+			);
+				
+			let tnode = TBinOp(Mult,!tcof,!tvar) in
+			if !count == 0 then
+			(term := Logic_utils.mk_dummy_term tnode Cil.doubleType;count := !count+1;)
+			else
+			(
+			let term2 = Logic_utils.mk_dummy_term tnode Cil.doubleType in
+			term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,term2)) Cil.doubleType;
+			);
 		)lincons1;
+		
+		let pred = ref Ptrue in
+		(match tp with
+		| Apron.Lincons1.EQ->
+			Printf.printf "EQ";pred := Prel(Req,!term,zero_term);
+		| Apron.Lincons1.SUPEQ->
+			Printf.printf "SUPEQ";pred := Prel(Rge,!term,zero_term);
+		| Apron.Lincons1.SUP->
+			Printf.printf "SUP";pred := Prel(Rgt,!term,zero_term);
+		| Apron.Lincons1.DISEQ->
+			Printf.printf "DISEQ";pred := Prel(Rneq,!term,zero_term);
+		| Apron.Lincons1.EQMOD(_)->
+			Printf.printf "EQMOD";pred := Prel(Rle,!term,zero_term);(*%=*)
+		);
+		let pnamed = Logic_const.unamed !pred in
+		let pnamed = Logic_const.unamed (Pforall(!llvar,pnamed)) in
+		Printf.printf "generate pnamed:\n";Cil.d_predicate_named fmt pnamed;Format.print_flush ();Printf.printf "\n";
+		let annot = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+		let root_code_annot_ba = Cil_types.User(annot) in
+		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 	)lconsarray.Apron.Lincons1.lincons0_array
 	(*Apron.Abstract1.print fmt abs*)
 	
 let print_output prog fmt fp =
-	let print_comment point =
+	let print_comment kf s point =
 		let abs = PSHGraph.attrvertex fp point in
 		Printf.printf "point:";Equation.print_point fmt point;Format.print_flush ();Printf.printf "\n";
-		print_abstract1 fmt abs;Format.print_flush ();Printf.printf "\n";
+		print_abstract1 fmt kf s abs;Format.print_flush ();Printf.printf "\n";
 	in
 	Globals.Functions.iter(fun kf ->
 			try
@@ -770,7 +827,7 @@ let print_output prog fmt fp =
 				let fundec = Kernel_function.get_definition kf in
 				List.iter(fun s->
 					try
-					print_comment {Equation.fname=name;Equation.sid=s.Cil_types.sid};
+					print_comment kf s {Equation.fname=name;Equation.sid=s.Cil_types.sid};
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
 				)fundec.sallstmts;
