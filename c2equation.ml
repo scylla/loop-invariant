@@ -535,35 +535,7 @@ module Forward = struct
 					Equation.add_equation graph [|{fname=name;sid=loop.body.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=b.Cil_types.bid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) point;
 					Equation.add_equation graph [|point|] condnottransfer {fname=name;sid=stmt.Cil_types.sid};
-					(*
-      		let transfer = Equation.Condition(Boolexpr.make_cst true) in
-      		let point1 = ref Equation.vertex_dummy and point2 = ref Equation.vertex_dummy in
-      		
-      		let flag = ref 0 in
-      		let len = List.length b.bstmts in
-      		for i=0 to len-1 do
-      			let s = List.nth b.bstmts i in
-      			if !flag==0 && (Equation.compare_point {fname=name;sid=s.Cil_types.sid} Equation.vertex_dummy)!=0 then
-      			(point1 := {fname=name;sid=s.Cil_types.sid};flag := 1;);
-      		done;
-      		
-      		let i = ref (len-1) in
-      		let flag = ref 0 in
-      		while !i>=0 do
-      			let s = List.nth b.bstmts !i in
-      			if !flag==0 && (Equation.compare_point {fname=name;sid=s.Cil_types.sid} Equation.vertex_dummy)!=0 then
-      			(point2 := {fname=name;sid=s.Cil_types.sid};flag := 1;);
-      			i := !i-1;
-      		done;
-      		
-      		let last_stmt = List.nth stmt.preds ((List.length stmt.preds)-1) in
-      		let point3 = {fname=name;sid=stmt.Cil_types.sid} in
-      		
-      		if (List.length b.bstmts)>0 then(
-						Equation.add_equation graph [|point3|] transfer !point1;
-						Equation.add_equation graph [|!point2|] transfer point3;
-					);
-					*)
+					
       		iter_block name procinfo b;
       	| Block(b)->
       		iter_block name procinfo b;
