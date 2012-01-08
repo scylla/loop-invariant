@@ -3,23 +3,21 @@
 open Format
 open Lexing
 open Cil
+(*
+type loop = {con:Cil_types.exp;body:Cil_types.stmt }
 
-(*  ********************************************************************* *)
-(** {2 Hypergraphs *)
-(*  ********************************************************************* *)
-
+let print_loop fmt loop =
+	fprintf fmt "while(%a){%a}" 
+	Cil.d_exp loop.con 
+	Cil.d_stmt loop.body*)
+	 
 (*vertex and point*)
 type point = {fname:string;sid:int}
 type vertex = point
 
 let print_point fmt p =
 	fprintf fmt "%s:%d" p.fname p.sid
-	
-(*edge*)
-type hedge = int
 
-let print_hedge fmt e =
-	fprintf fmt "%d" e
 	
 let compare_point (a:vertex) (b:vertex) =
   (compare a.sid b.sid)(*(String.compare a.fname b.fname)&&*)
@@ -28,7 +26,13 @@ let equal_point (a:vertex) (b:vertex) =
   (a.sid==b.sid)(*a.fname==b.fname&&*)
 
 let hash_point (x:vertex) =
-  abs x.sid+5
+  abs (x.sid+5)
+  	
+(*edge*)
+type hedge = int
+
+let print_hedge fmt e =
+	fprintf fmt "%d" e
 
 (*dummy*)
 let vertex_dummy = 

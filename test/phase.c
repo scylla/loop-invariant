@@ -1,11 +1,16 @@
 void phase()
 {
-	int i=10;
-	i=i+1;
-	i=i+2;
-	while(i<100)
+	int x=0,y=0,z=0;
+	if(z>=10&&z<=20)
 	{
-		i=i+1;
+		while(x<=z)
+		{
+			if(x>0)
+			{
+			x=x+1;
+			y=y+3;
+			}
+		}
 	}
 }
 void main()
