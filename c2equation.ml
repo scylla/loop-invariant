@@ -519,9 +519,23 @@ module Forward = struct
       			let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
-      	| Loop(_,b,_,_,_)->
+      	| Loop(_,_,_,_,_)->
       		let loop = Translate.extract_loop stmt in
       		Equation.print_loop fmt loop;
+      		let end_stmt = Li_utils.get_stmt_end loop.body in
+      		let b = (Translate.force_stmt2block loop.body) in
+      		
+      		let bexpr = force_exp2bexp loop.con in
+      		let cond = boolexpr_of_bexpr env bexpr in
+					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
+					let condtransfer = Equation.Condition(cond) in
+					let condnottransfer = Equation.Condition(condnot) in
+					
+					Equation.add_equation graph [|point|] condtransfer {fname=name;sid=loop.body.Cil_types.sid};
+					Equation.add_equation graph [|{fname=name;sid=loop.body.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=b.Cil_types.bid};
+					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) point;
+					Equation.add_equation graph [|point|] condnottransfer {fname=name;sid=stmt.Cil_types.sid};
+					(*
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
       		let point1 = ref Equation.vertex_dummy and point2 = ref Equation.vertex_dummy in
       		
@@ -549,6 +563,7 @@ module Forward = struct
 						Equation.add_equation graph [|point3|] transfer !point1;
 						Equation.add_equation graph [|!point2|] transfer point3;
 					);
+					*)
       		iter_block name procinfo b;
       	| Block(b)->
       		iter_block name procinfo b;

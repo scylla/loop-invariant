@@ -69,7 +69,14 @@ let preprocess_bpoint maxid =
 		  ()
 	);;
 	
-
+let force_stmt2block (stmt:Cil_types.stmt) :Cil_types.block =
+	(match stmt.skind with
+	| Cil_types.Block(b)->
+		b;
+	| _->
+		Cil.mkBlock [stmt];
+	);;
+	
 let extract_loop stmt :Equation.loop =
 	let fmt = Format.std_formatter in
 	Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
