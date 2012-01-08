@@ -687,57 +687,12 @@ module Backward = struct
 		)
 end
 
-let print_apron_scalar fmt scalar =
-  let res = Apron.Scalar.is_infty scalar in
-  if res<>0 then
-    Format.pp_print_string fmt
-      (if res<0 then "-oo" else "+oo")
-  else begin
-    match scalar with
-    | Apron.Scalar.Float _ | Apron.Scalar.Mpfrf _ ->
-			Apron.Scalar.print fmt scalar
-    | Apron.Scalar.Mpqf mpqf ->
-			Apron.Scalar.print fmt (Apron.Scalar.Float (Mpqf.to_float mpqf))
-  end
-
-let print_apron_interval fmt itv =
-  Format.fprintf fmt "[@[<hv>%a;@,%a@]]"
-    print_apron_scalar itv.Apron.Interval.inf
-    print_apron_scalar itv.Apron.Interval.sup
-
-let print_apron_box fmt box =
-  let tinterval = box.Apron.Abstract1.interval_array in
-  let env = box.Apron.Abstract1.box1_env in
-  let first = ref true in
-  Format.fprintf fmt "[|@[";
-  Array.iteri
-    (begin fun i interval ->
-      if not (Apron.Interval.is_top interval) then 
-      begin
-				if not !first then Format.fprintf fmt ";@ ";
-				let var = Apron.Environment.var_of_dim env i in
-				let name = Apron.Var.to_string var in
-				Format.fprintf fmt "%s in %a" name
-					print_apron_interval interval;
-				first := false
-      end;
-    end)
-    tinterval
-  ;
-  Format.fprintf fmt "@]|]"
-  
-let print_abstract1 fmt kf stmt abs =
+let apply_abstract1 fmt kf stmt abs =
 	let man = Apron.Abstract1.manager abs in
-	let box = Apron.Abstract1.to_box man abs in
-	(*print_apron_box fmt box;*)
 	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
 	Array.iter(fun cons->
 		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
-		Apron.Lincons1.print fmt lincons1;Format.print_flush ();
-		Printf.printf "cons";
 		let tp = Apron.Lincons1.get_typ lincons1 in
-		Apron.Coeff.print fmt (Apron.Lincons1.get_cst lincons1);Format.print_flush ();
-		Printf.printf "%s" (Apron.Lincons1.string_of_typ tp);Format.print_flush ();
 		
 		let tnode = Cil_types.TConst(Cil_types.CReal(0.0,Cil_types.FDouble,None)) in
 		let term = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
@@ -746,8 +701,6 @@ let print_abstract1 fmt kf stmt abs =
 		let count = ref 0 in
 		
 		Apron.Lincons1.iter(fun cof v->
-			Apron.Coeff.print fmt cof;Format.print_flush ();
-			Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
 			let tvar = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
 			let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
 				
@@ -796,24 +749,82 @@ let print_abstract1 fmt kf stmt abs =
 		let pred = ref Ptrue in
 		(match tp with
 		| Apron.Lincons1.EQ->
-			Printf.printf "EQ";pred := Prel(Req,!term,zero_term);
+			pred := Prel(Req,!term,zero_term);
 		| Apron.Lincons1.SUPEQ->
-			Printf.printf "SUPEQ";pred := Prel(Rge,!term,zero_term);
+			pred := Prel(Rge,!term,zero_term);
 		| Apron.Lincons1.SUP->
-			Printf.printf "SUP";pred := Prel(Rgt,!term,zero_term);
+			pred := Prel(Rgt,!term,zero_term);
 		| Apron.Lincons1.DISEQ->
-			Printf.printf "DISEQ";pred := Prel(Rneq,!term,zero_term);
+			pred := Prel(Rneq,!term,zero_term);
 		| Apron.Lincons1.EQMOD(_)->
-			Printf.printf "EQMOD";pred := Prel(Rle,!term,zero_term);(*%=*)
+			pred := Prel(Rle,!term,zero_term);(*%=*)
 		);
 		let pnamed = Logic_const.unamed !pred in
 		let pnamed = Logic_const.unamed (Pforall(!llvar,pnamed)) in
-		Printf.printf "generate pnamed:\n";Cil.d_predicate_named fmt pnamed;Format.print_flush ();Printf.printf "\n";
 		let annot = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 		let root_code_annot_ba = Cil_types.User(annot) in
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 	)lconsarray.Apron.Lincons1.lincons0_array
-	(*Apron.Abstract1.print fmt abs*)
+	
+let apply_result prog fmt fp =
+	Globals.Functions.iter(fun kf ->
+		try
+			let name = Kernel_function.get_name kf in
+			let fundec = Kernel_function.get_definition kf in
+			List.iter(fun s->
+				try
+					let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=s.Cil_types.sid} in
+					apply_abstract1 fmt kf s abs;
+					with Not_found->Printf.printf "Not_found\n";
+					Printf.printf "\n";
+			)fundec.sallstmts;
+		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
+	)
+	
+let print_apron_scalar fmt scalar =
+  let res = Apron.Scalar.is_infty scalar in
+  if res<>0 then
+    Format.pp_print_string fmt
+      (if res<0 then "-oo" else "+oo")
+  else begin
+    match scalar with
+    | Apron.Scalar.Float _ | Apron.Scalar.Mpfrf _ ->
+			Apron.Scalar.print fmt scalar
+    | Apron.Scalar.Mpqf mpqf ->
+			Apron.Scalar.print fmt (Apron.Scalar.Float (Mpqf.to_float mpqf))
+  end
+
+let print_apron_interval fmt itv =
+  Format.fprintf fmt "[@[<hv>%a;@,%a@]]"
+    print_apron_scalar itv.Apron.Interval.inf
+    print_apron_scalar itv.Apron.Interval.sup
+
+let print_apron_box fmt box =
+  let tinterval = box.Apron.Abstract1.interval_array in
+  let env = box.Apron.Abstract1.box1_env in
+  let first = ref true in
+  Format.fprintf fmt "[|@[";
+  Array.iteri
+    (begin fun i interval ->
+      if not (Apron.Interval.is_top interval) then 
+      begin
+				if not !first then Format.fprintf fmt ";@ ";
+				let var = Apron.Environment.var_of_dim env i in
+				let name = Apron.Var.to_string var in
+				Format.fprintf fmt "%s in %a" name
+					print_apron_interval interval;
+				first := false
+      end;
+    end)
+    tinterval
+  ;
+  Format.fprintf fmt "@]|]"
+  
+let print_abstract1 fmt kf stmt abs =
+	let man = Apron.Abstract1.manager abs in
+	let box = Apron.Abstract1.to_box man abs in
+	print_apron_box fmt box;Format.print_flush ();
+	Apron.Abstract1.print fmt abs;Format.print_flush ()
 	
 let print_output prog fmt fp =
 	let print_comment kf s point =
@@ -832,7 +843,7 @@ let print_output prog fmt fp =
 					Printf.printf "\n";
 				)fundec.sallstmts;
 			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
-	)    
+	)
 
 let output_of_graph graph =
 	PSHGraph.copy
@@ -844,7 +855,7 @@ let output_of_graph graph =
 			Fixpoint.descendings = !(info.FixpointType.idescendings);
 			Fixpoint.stable = !(info.FixpointType.istable)
     })
-    graph;;
+    graph
     
 let var_x = Apron.Var.of_string "x";;
 let var_y = Apron.Var.of_string "y";;
