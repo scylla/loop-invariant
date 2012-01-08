@@ -520,8 +520,8 @@ module Forward = struct
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
       	| Loop(_,b,_,_,_)->
-      		(*let loop = Li_utils.extract_loop stmt in
-      		Equation.print_loop fmt loop;*)
+      		let loop = Translate.extract_loop stmt in
+      		Equation.print_loop fmt loop;
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
       		let point1 = ref Equation.vertex_dummy and point2 = ref Equation.vertex_dummy in
       		

@@ -208,28 +208,4 @@ let get_block_epoint (b:Cil_types.block) :Cil_types.location =
 		get_stmt_location first_stmt;(*first_stmt?*)
 		)else(get_stmt_location last_stmt;);
 	)else (Lexing.dummy_pos,Lexing.dummy_pos);;
-(*
-let extract_loop stmt :Equation.loop =
-	let fmt = Format.std_formatter in
-	Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
-	Printf.printf "id=%d\n" stmt.sid;
-	match stmt.skind with
-	| Loop(_,b,_,_,_)->
-		List.iter(fun s->
-			Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";Printf.printf "id=%d\n" s.sid;
-		)b.bstmts;
-		let con_stmt = List.nth b.bstmts 1 in
-		let body_stmt = List.nth b.bstmts 2 in
-		(match con_stmt.skind with
-		| If(con,_,_,_)->
-			{Equation.con=con;Equation.body=body_stmt};
-		| _->
-			let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con"))) in
-			let body_stmt = Cil.dummyStmt in
-			{Equation.con=con;Equation.body = body_stmt};
-		);
-	| _->
-		let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con"))) in
-		let body_stmt = Cil.dummyStmt in
-		{Equation.con=con;Equation.body = body_stmt};
-*)
+
