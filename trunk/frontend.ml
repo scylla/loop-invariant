@@ -40,8 +40,9 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 				fp
 			end
     in
-      (* Display *)
+      (* Apply and Display *)
     previous := Some fp;
+    Template.apply_result prog fmt fp;
     Template.print_output prog fmt fp;
     match !previous with
     | Some(out)->
