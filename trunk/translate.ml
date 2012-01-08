@@ -7,10 +7,14 @@ open Li_utils
 (*get max sid in block*)
 let rec get_block_maxid id b =
 	List.iter(fun s->
+		let fmt = Format.std_formatter in
 		if s.sid> !id then id := s.sid;
 		match s.skind with
 		| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
-		| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
+		| If(e,b1,b2,_)->
+			get_block_maxid id b1;
+			get_block_maxid id b2;
+		| TryFinally(b1,b2,_)->
 			get_block_maxid id b1;
 			get_block_maxid id b2;
 		| Switch(_,b,sl,_)->

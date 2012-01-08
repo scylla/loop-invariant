@@ -199,6 +199,8 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 		| Mem(e)->
 			force_exp_to_texp e;
 		);
+	| CastE(ty,e)->
+		force_exp_to_texp e;(*not exactly right*)
 	|_->
 		(*Printf.printf "unknownEnode\n";
 		TypePrinter.print_exp_type Format.std_formatter exp;
@@ -518,6 +520,8 @@ module Forward = struct
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
       	| Loop(_,b,_,_,_)->
+      		(*let loop = Li_utils.extract_loop stmt in
+      		Equation.print_loop fmt loop;*)
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
       		let point1 = ref Equation.vertex_dummy and point2 = ref Equation.vertex_dummy in
       		
@@ -539,9 +543,8 @@ module Forward = struct
       		done;
       		
       		let last_stmt = List.nth stmt.preds ((List.length stmt.preds)-1) in
-      		let (p1,p2) = Li_utils.get_stmt_location last_stmt in
-      		let point3 = {fname=name;sid=last_stmt.Cil_types.sid} in
-      		      		
+      		let point3 = {fname=name;sid=stmt.Cil_types.sid} in
+      		
       		if (List.length b.bstmts)>0 then(
 						Equation.add_equation graph [|point3|] transfer !point1;
 						Equation.add_equation graph [|!point2|] transfer point3;
