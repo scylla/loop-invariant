@@ -729,8 +729,34 @@ let print_apron_box fmt box =
 let print_abstract1 fmt abs =
 	let man = Apron.Abstract1.manager abs in
 	let box = Apron.Abstract1.to_box man abs in
-	print_apron_box fmt box;
-	Apron.Abstract1.print fmt abs
+	(*print_apron_box fmt box;*)
+	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
+	Array.iter(fun cons->
+		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
+		Apron.Lincons1.print fmt lincons1;Format.print_flush ();
+		Printf.printf "cons";
+		let tp = Apron.Lincons1.get_typ lincons1 in
+		Apron.Coeff.print fmt (Apron.Lincons1.get_cst lincons1);Format.print_flush ();
+		Printf.printf "%s" (Apron.Lincons1.string_of_typ tp);Format.print_flush ();
+		(*
+			match tp with
+			| Apron.Lincons1.EQ->
+				Printf.printf "=";
+			| Apron.Lincons1.SUPEQ->
+				Printf.printf "SUPEQ";
+			| Apron.Lincons1.SUP->
+				Printf.printf "SUP";
+			| Apron.Lincons1.DISEQ->
+				Printf.printf "DISEQ";
+			| Apron.Lincons1.EQMOD(_)->
+				Printf.printf "EQMOD";
+		*);
+		Apron.Lincons1.iter(fun cof v->
+			Apron.Coeff.print fmt cof;Format.print_flush ();
+			Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
+		)lincons1;
+	)lconsarray.Apron.Lincons1.lincons0_array
+	(*Apron.Abstract1.print fmt abs*)
 	
 let print_output prog fmt fp =
 	let print_comment point =
@@ -744,7 +770,6 @@ let print_output prog fmt fp =
 				let fundec = Kernel_function.get_definition kf in
 				List.iter(fun s->
 					try
-					Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
 					print_comment {Equation.fname=name;Equation.sid=s.Cil_types.sid};
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
