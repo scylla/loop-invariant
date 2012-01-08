@@ -3,13 +3,13 @@
 open Format
 open Lexing
 open Cil
-(*
+
 type loop = {con:Cil_types.exp;body:Cil_types.stmt }
 
 let print_loop fmt loop =
 	fprintf fmt "while(%a){%a}" 
 	Cil.d_exp loop.con 
-	Cil.d_stmt loop.body*)
+	Cil.d_stmt loop.body
 	 
 (*vertex and point*)
 type point = {fname:string;sid:int}
