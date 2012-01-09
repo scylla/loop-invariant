@@ -327,7 +327,8 @@ let extract_varinfos_from_stmt (s:stmt) =
   in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
     visitor#varinfos
     
-let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)= 
+let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
+	let fmt = Format.std_formatter in
 	try
 	let fundec = Kernel_function.get_definition kf in
 	List.iter( fun stmt ->
@@ -415,12 +416,11 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		  	Format.print_flush ();
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->
 		 		Printf.printf "Enter Loop Now.\n";
-		 		List.iter(fun s->
-		 			Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
-		 		)stmt.succs;
 		 		let vars = extract_varinfos_from_stmt stmt in
 		 		let lvars = Varinfo.Set.elements vars in
-		 		
+		 		List.iter(fun v->
+		 			Cil.d_var fmt v;Format.print_flush ();Printf.printf ",";
+		 		)lvars;
 				(*let var_x = Apron.Var.of_string "x" in
 				let apron_vars = Array.make (List.length lvars) var_x in
 				let cofs = Array.make (List.length lvars) var_x in
@@ -440,7 +440,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 	| Some(s)->
 		 		let con = List.nth s.succs 0 in
 		 		let ocon = Cil.get_original_stmt (Cil.inplace_visit ()) con in
-		 		Printf.printf "continue:\n";Cil.d_stmt Format.std_formatter con;Format.print_flush ();Printf.printf "\n";
+		 		Printf.printf "continue:\n";Cil.d_stmt fmt con;Format.print_flush ();Printf.printf "\n";
 			  	(
 			  	match con.skind with
 			  	| If(exp,b1,b2,l)->
