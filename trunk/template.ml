@@ -104,7 +104,6 @@ let make_fpmanager
     Fixpoint.arc_init = begin fun hedge -> () end;
     (* Interpreting hyperedges *)
     Fixpoint.apply = begin fun hedge tx ->
-    	Printf.printf "visit hedge=%d\n" hedge;
       apply graph ~output man hedge tx
     end;
     (* Printing functions *)
@@ -195,7 +194,6 @@ module Forward = struct
     =
     let fmt = Format.std_formatter in
     let res =
-    	Printf.printf "apply_tassign\n";Apron.Texpr1.print fmt expr;Format.print_flush ();Printf.printf "\n";
     	Apron.Abstract1.assign_texpr
 				manager abstract
 				var expr dest
@@ -203,7 +201,6 @@ module Forward = struct
     res
 
   let apply_condition (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (expr:Apron.Tcons1.earray Boolexpr.t) (dest:'a Apron.Abstract1.t option) :'a Apron.Abstract1.t =
-  	Printf.printf "apply_condition\n";
   	let fmt = Format.std_formatter in
     let labstract =
       match expr with
@@ -222,7 +219,6 @@ module Forward = struct
 	 		 Apron.Abstract1.meet manager abstract dest)labstract
     in
     let res = 
-		 	Printf.printf "apply_condition labstract\n";
     	List.iter(fun abs->
     		Apron.Environment.print fmt (Apron.Abstract1.env abs);Format.print_flush ();Printf.printf "\n";
     	)labstract;
@@ -247,12 +243,10 @@ module Forward = struct
     (inargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
-    Printf.printf "apply_call\n";
     (* current environment *)
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
-    Apron.Environment.print Format.std_formatter env;Format.print_flush ();Printf.printf "\n";
     let tenv = environment_of_tvar (Apron.Environment.typ_of_var env) inargs in
     let abstract2 =
       Apron.Abstract1.change_environment manager abstract tenv false
@@ -283,7 +277,6 @@ module Forward = struct
     (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
-    Printf.printf "apply_return\n";
      (* 0. We forget local variables in abscallee *)
     let env =
       Apron.Environment.remove (Apron.Abstract1.env abscallee) (calleeinfo.Equation.plocal)
@@ -380,7 +373,6 @@ module Forward = struct
       try
       let maininfo = Hashhe.find info.Equation.procinfo "main" in
       let start = maininfo.Equation.pstart in
-      Printf.printf "main start:\n";Equation.print_point fmt start;Format.print_flush ();Printf.printf "\n";
       begin match output with
       | None ->
 	 		 	PSette.singleton Equation.compare_point start
@@ -491,7 +483,6 @@ module Backward = struct
     (inargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
-    Printf.printf "apply_call\n";
     (* current environment *)
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
@@ -531,7 +522,6 @@ module Backward = struct
     (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
     (dest:'a Apron.Abstract1.t option)
     =
-    Printf.printf "apply_return\n";
     let env =
     	Apron.Environment.remove (Apron.Abstract1.env abstract) (calleeinfo.Equation.plocal)
     in
@@ -551,7 +541,6 @@ module Backward = struct
     unit * 'a Apron.Abstract1.t
     =
     let transfer = PSHGraph.attrhedge graph hedge in
-    Printf.printf "apply transfer is\n";Equation.print_transfer Format.std_formatter transfer;Format.print_flush ();Printf.printf "\n";
     let abs = tabs.(0) in
     let dest = 
     	match output with
@@ -693,6 +682,7 @@ let apply_abstract1 fmt kf stmt abs =
 	Array.iter(fun cons->
 		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
 		let tp = Apron.Lincons1.get_typ lincons1 in
+		Printf.printf "lincons1.is_unsat=%b\n" (Apron.Lincons1.is_unsat lincons1);
 		
 		let tnode = Cil_types.TConst(Cil_types.CReal(0.0,Cil_types.FDouble,None)) in
 		let term = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
@@ -746,6 +736,23 @@ let apply_abstract1 fmt kf stmt abs =
 			);
 		)lincons1;
 		
+		let cst = Apron.Lincons1.get_cst lincons1 in
+		let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
+		(match cst with
+			| Apron.Coeff.Scalar(sca)->
+				(match sca with
+				| Apron.Scalar.Float(f)->
+					let tnode = Cil_types.TConst(Cil_types.CReal(f,Cil_types.FDouble,None)) in
+					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
+				| Apron.Scalar.Mpqf(q)->
+					let tnode = Cil_types.TConst(Cil_types.CReal((Mpqf.to_float q),Cil_types.FDouble,None)) in
+					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
+				| _->();
+				);
+			| Apron.Coeff.Interval(_)->();
+		);
+		term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.doubleType;
+			
 		let pred = ref Ptrue in
 		(match tp with
 		| Apron.Lincons1.EQ->
@@ -771,10 +778,42 @@ let apply_result prog fmt fp =
 		try
 			let name = Kernel_function.get_name kf in
 			let fundec = Kernel_function.get_definition kf in
-			List.iter(fun s->
+			List.iter(fun stmt->
 				try
+				let rec apply_stmt s =
 					let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=s.Cil_types.sid} in
 					apply_abstract1 fmt kf s abs;
+					match s.skind with
+					| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
+					| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
+						List.iter(fun s->
+							apply_stmt s;
+						)b1.bstmts;
+						List.iter(fun s->
+							apply_stmt s;
+						)b2.bstmts;
+					| Switch(_,b,sl,_)->
+						List.iter(fun s->
+							apply_stmt s;
+						)b.bstmts;
+					| Loop(_,b,_,_,_)|Block(b)->
+						List.iter(fun s->
+							apply_stmt s;
+						)b.bstmts;
+					| UnspecifiedSequence(seq)->
+						let b = Cil.block_from_unspecified_sequence seq in
+						List.iter(fun s->
+							apply_stmt s;
+						)b.bstmts;
+					| TryExcept(b1,_,b2,_)->
+						List.iter(fun s->
+							apply_stmt s;
+						)b1.bstmts;
+						List.iter(fun s->
+							apply_stmt s;
+						)b2.bstmts;
+				in
+					apply_stmt stmt;
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
 			)fundec.sallstmts;
@@ -838,6 +877,7 @@ let print_output prog fmt fp =
 				let fundec = Kernel_function.get_definition kf in
 				List.iter(fun s->
 					try
+					Printf.printf "stmt res:\n";Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
 					print_comment kf s {Equation.fname=name;Equation.sid=s.Cil_types.sid};
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";

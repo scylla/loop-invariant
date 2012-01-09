@@ -29,21 +29,21 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
 			| Loop_parameters.Forward ->
 				Printf.printf "Forward\n";
 				let fp =
-					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:6
+					Template.Forward.compute ~fmt fgraph ~output:(!previous) manager ~debug:1
 				in
 				fp
 			| Loop_parameters.Backward ->
 				Printf.printf "Backward\n";
 				let fp =
-					Template.Backward.compute ~fmt prog bgraph ~output:(!previous) manager ~debug:6
+					Template.Backward.compute ~fmt prog bgraph ~output:(!previous) manager ~debug:1
 				in
 				fp
 			end
     in
       (* Apply and Display *)
     previous := Some fp;
-    Template.apply_result prog fmt fp;
     Template.print_output prog fmt fp;
+    Template.apply_result prog fmt fp;
     match !previous with
     | Some(out)->
       Printf.printf "previous is some\n";

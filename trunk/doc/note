@@ -1,3 +1,8 @@
+2012.01.09
+equation system对简单的程序没有问题，可以得到类似interproc的结果。
+如何加入模板
+dot a.dot -Tpng -o a.png
+
 2011.﻿11.21：interproc安装尚未成功
 
 在Eclipse中安装插件OcaIDE，方便编辑O'Caml 。安装新软件中，添加如下地址：
