@@ -676,12 +676,8 @@ module Backward = struct
 		)
 end
 
-let apply_abstract1 fmt kf stmt abs =
-	let man = Apron.Abstract1.manager abs in
-	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
-	Array.iter(fun cons->
-		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
-		let tp = Apron.Lincons1.get_typ lincons1 in
+let apply_lincons1 fmt kf stmt lincons1 =
+	let tp = Apron.Lincons1.get_typ lincons1 in
 		
 		let tnode = Cil_types.TConst(Cil_types.CReal(0.0,Cil_types.FDouble,None)) in
 		let term = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
@@ -768,8 +764,16 @@ let apply_abstract1 fmt kf stmt abs =
 		);
 		let pnamed = Logic_const.unamed !pred in
 		let pnamed = Logic_const.unamed (Pforall(!llvar,pnamed)) in
-		let annot = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-		let root_code_annot_ba = Cil_types.User(annot) in
+		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+		code_annotation
+		
+let apply_abstract1 fmt kf stmt abs =
+	let man = Apron.Abstract1.manager abs in
+	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
+	Array.iter(fun cons->
+		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
+		let code_annotation = apply_lincons1 fmt kf stmt lincons1 in
+		let root_code_annot_ba = Cil_types.User(code_annotation) in
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 	)lconsarray.Apron.Lincons1.lincons0_array
 	
@@ -901,15 +905,6 @@ let output_of_graph graph =
 			Fixpoint.stable = !(info.FixpointType.istable)
     })
     graph
-    
-let var_x = Apron.Var.of_string "x";;
-let var_y = Apron.Var.of_string "y";;
-let var_z = Apron.Var.of_string "z";;
-let var_w = Apron.Var.of_string "w";;
-let var_u = Apron.Var.of_string "u";;
-let var_v = Apron.Var.of_string "v";;
-let var_a = Apron.Var.of_string "a";;
-let var_b = Apron.Var.of_string "b";;
       
 let lincons1_array_print fmt x =
   Apron.Lincons1.array_print fmt x;;
@@ -917,9 +912,8 @@ let lincons1_array_print fmt x =
 let generator1_array_print fmt x =
   Apron.Generator1.array_print fmt x;;
 
-let generate_template (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
+let generate_template fmt kf stmt (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
 	Format.printf "Using Library: %s, version %s@." (Apron.Manager.get_library man) (Apron.Manager.get_version man);
-	try
 		let env = Apron.Environment.make vars cofs in
   	Format.printf "env=%a@."
    	 (fun x -> Apron.Environment.print x) env;
@@ -928,15 +922,15 @@ let generate_template (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Ap
     let expr = Apron.Linexpr1.make env in
     Apron.Linexpr1.set_array expr
     [|
-      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_frac 1 2)), vars.(0));
-      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_frac 2 3)), vars.(1))
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(0));
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(1))
     |]
-    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (10)))))(*must be a valid argument*)
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 25))))(*must be a valid argument*)
     ;
-    let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
+    let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
   	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-  	
-  	
+  	let code_annotation = apply_lincons1 fmt kf stmt cons in
+  			
 		Format.printf "tab = %a@." lincons1_array_print tab;
 
 		let abs = Apron.Abstract1.of_lincons_array man env tab in
@@ -955,7 +949,16 @@ let generate_template (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Ap
 		    Apron.Linexpr1.print expr
 		    Apron.Interval.print box;
 		done;
-  with Failure(e)->Printf.printf "make failure\n";;
+		code_annotation
+
+let var_x = Apron.Var.of_string "x";;
+let var_y = Apron.Var.of_string "y";;
+let var_z = Apron.Var.of_string "z";;
+let var_w = Apron.Var.of_string "w";;
+let var_u = Apron.Var.of_string "u";;
+let var_v = Apron.Var.of_string "v";;
+let var_a = Apron.Var.of_string "a";;
+let var_b = Apron.Var.of_string "b";;
 	
 let ex1 (man:'a Apron.Manager.t) : 'a Apron.Abstract1.t =
   Printf.printf "Using Library: %s, version %s@." (Apron.Manager.get_library man) (Apron.Manager.get_version man);
