@@ -159,7 +159,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  )!assumes;
 		  match kf.fundec with
 		  | Definition(_,_)->
-	    	analysis_kf kf !linfo_list !assumes funsigs visitor;
+	    	analysis_kf kf manpk !linfo_list !assumes funsigs visitor;
       		(*prove_kf kf;*)
       | Declaration(spec,v,vlo,_)->
       	();

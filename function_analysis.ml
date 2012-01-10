@@ -327,7 +327,7 @@ let extract_varinfos_from_stmt (s:stmt) =
   in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
     visitor#varinfos
     
-let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
+let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
 	let fmt = Format.std_formatter in
 	try
 	let fundec = Kernel_function.get_definition kf in
@@ -418,10 +418,8 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 		 		Printf.printf "Enter Loop Now.\n";
 		 		let vars = extract_varinfos_from_stmt stmt in
 		 		let lvars = Varinfo.Set.elements vars in
-		 		List.iter(fun v->
-		 			Cil.d_var fmt v;Format.print_flush ();Printf.printf ",";
-		 		)lvars;
-				(*let var_x = Apron.Var.of_string "x" in
+		 		
+				let var_x = Apron.Var.of_string "x" in
 				let apron_vars = Array.make (List.length lvars) var_x in
 				let cofs = Array.make (List.length lvars) var_x in
 				for i=0 to (List.length lvars)-1 do
@@ -429,8 +427,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (ass
 					apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"para");
 					cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
 				done;
-				let manpk = Polka.manager_alloc_strict() in
-				Template.generate_template manpk apron_vars cofs;*)
+				Template.generate_template manager apron_vars cofs;
 			
 		 		List.iter(fun linfo->
 					visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
