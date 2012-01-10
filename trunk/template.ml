@@ -682,7 +682,6 @@ let apply_abstract1 fmt kf stmt abs =
 	Array.iter(fun cons->
 		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
 		let tp = Apron.Lincons1.get_typ lincons1 in
-		Printf.printf "lincons1.is_unsat=%b\n" (Apron.Lincons1.is_unsat lincons1);
 		
 		let tnode = Cil_types.TConst(Cil_types.CReal(0.0,Cil_types.FDouble,None)) in
 		let term = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
@@ -754,7 +753,7 @@ let apply_abstract1 fmt kf stmt abs =
 		term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.doubleType;
 			
 		let pred = ref Ptrue in
-		(match tp with
+		(match tp with(*cannot be all zero_term*)
 		| Apron.Lincons1.EQ->
 			pred := Prel(Req,!term,zero_term);
 		| Apron.Lincons1.SUPEQ->
@@ -764,7 +763,8 @@ let apply_abstract1 fmt kf stmt abs =
 		| Apron.Lincons1.DISEQ->
 			pred := Prel(Rneq,!term,zero_term);
 		| Apron.Lincons1.EQMOD(_)->
-			pred := Prel(Rle,!term,zero_term);(*%=*)
+			let rterm = Logic_utils.mk_dummy_term (TBinOp(Mod,!term,zero_term)) Cil.doubleType in
+			pred := Prel(Req,!term,rterm);(*%=*)
 		);
 		let pnamed = Logic_const.unamed !pred in
 		let pnamed = Logic_const.unamed (Pforall(!llvar,pnamed)) in
@@ -780,42 +780,47 @@ let apply_result prog fmt fp =
 			let fundec = Kernel_function.get_definition kf in
 			List.iter(fun stmt->
 				try
-				let rec apply_stmt s =
-					let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=s.Cil_types.sid} in
-					apply_abstract1 fmt kf s abs;
-					match s.skind with
-					| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
-					| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
-						List.iter(fun s->
-							apply_stmt s;
-						)b1.bstmts;
-						List.iter(fun s->
-							apply_stmt s;
-						)b2.bstmts;
-					| Switch(_,b,sl,_)->
-						List.iter(fun s->
-							apply_stmt s;
-						)b.bstmts;
-					| Loop(_,b,_,_,_)|Block(b)->
-						List.iter(fun s->
-							apply_stmt s;
-						)b.bstmts;
-					| UnspecifiedSequence(seq)->
-						let b = Cil.block_from_unspecified_sequence seq in
-						List.iter(fun s->
-							apply_stmt s;
-						)b.bstmts;
-					| TryExcept(b1,_,b2,_)->
-						List.iter(fun s->
-							apply_stmt s;
-						)b1.bstmts;
-						List.iter(fun s->
-							apply_stmt s;
-						)b2.bstmts;
-				in
-					apply_stmt stmt;
-					with Not_found->Printf.printf "Not_found\n";
-					Printf.printf "\n";
+					let rec apply_stmt s =
+						match s.skind with
+						| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
+						| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
+							List.iter(fun s->
+								apply_stmt s;
+							)b1.bstmts;
+							List.iter(fun s->
+								apply_stmt s;
+							)b2.bstmts;
+						| Switch(_,b,sl,_)->
+							List.iter(fun s->
+								apply_stmt s;
+							)b.bstmts;
+						| Loop(_,_,_,_,_)->
+							let loop = Translate.extract_loop stmt in
+							let b = (Translate.force_stmt2block loop.Equation.body) in
+							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=loop.Equation.body.Cil_types.sid} in
+							apply_abstract1 fmt kf s abs;
+							List.iter(fun s->
+								apply_stmt s;
+							)b.bstmts;
+						| Block(b)->
+							List.iter(fun s->
+								apply_stmt s;
+							)b.bstmts;
+						| UnspecifiedSequence(seq)->
+							let b = Cil.block_from_unspecified_sequence seq in
+							List.iter(fun s->
+								apply_stmt s;
+							)b.bstmts;
+						| TryExcept(b1,_,b2,_)->
+							List.iter(fun s->
+								apply_stmt s;
+							)b1.bstmts;
+							List.iter(fun s->
+								apply_stmt s;
+							)b2.bstmts;
+					in
+				apply_stmt stmt;
+				with Not_found->Printf.printf "Not_found\n";
 			)fundec.sallstmts;
 		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
 	)
@@ -919,10 +924,17 @@ let generate_template (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Ap
   	Format.printf "env=%a@."
    	 (fun x -> Apron.Environment.print x) env;
     
-    let tab = Apron.Lincons1.array_make env (Array.length vars) in
+    let tab = Apron.Lincons1.array_make env ((Array.length vars)-1) in
     let expr = Apron.Linexpr1.make env in
+    Apron.Linexpr1.set_array expr
+    [|
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_frac 1 2)), vars.(0));
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_frac 2 3)), vars.(1))
+    |]
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (10)))))(*must be a valid argument*)
+    ;
     let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
-  	Apron.Lincons1.array_set tab 0 cons;
+  	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
   	
   	
 		Format.printf "tab = %a@." lincons1_array_print tab;
@@ -931,9 +943,18 @@ let generate_template (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Ap
 		Format.printf "abs=%a@." Apron.Abstract1.print abs;
 		let array = Apron.Abstract1.to_generator_array man abs in
 		Format.printf "gen=%a@." generator1_array_print array;
-		let array = Apron.Abstract1.to_generator_array man abs in
-		Format.printf "gen=%a@." generator1_array_print array;
 		
+		let box = Apron.Abstract1.to_box man abs in
+	  Format.printf "box=%a@." (print_array Apron.Interval.print) box.Apron.Abstract1.interval_array;
+	  
+	  for i=0 to ((Array.length vars)-2) do
+	  	Printf.printf "i=%d\n" i;
+		  let expr = Apron.Lincons1.get_linexpr1 (Apron.Lincons1.array_get tab i) in
+		  let box = Apron.Abstract1.bound_linexpr man abs expr in
+		  Format.printf "Bound of %a = %a@."
+		    Apron.Linexpr1.print expr
+		    Apron.Interval.print box;
+		done;
   with Failure(e)->Printf.printf "make failure\n";;
 	
 let ex1 (man:'a Apron.Manager.t) : 'a Apron.Abstract1.t =
