@@ -1,7 +1,20 @@
+open Cil
 open Cil_types
 open Cil_datatype
 open TypePrinter
 
+let extract_varinfos_from_stmt (s:stmt) =
+  let visitor = object
+    inherit nopCilVisitor
+    val mutable varinfos = Varinfo.Set.empty;
+    method varinfos = varinfos
+    method vvrbl (symb:varinfo) =
+      varinfos <- Varinfo.Set.add symb varinfos;
+      SkipChildren
+  end
+  in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
+    visitor#varinfos
+    
 let get_constant_str (c:Cil_types.constant) =
 	match c with
   | CInt64(i, _, Some s)->Escape.escape_char (Char.chr (My_bigint.to_int i))
@@ -196,7 +209,8 @@ let get_stmt_end stmt =
 		else
 		(stmt);
 	| _->stmt;
-	);;		
+	);;
+	
 let get_block_spoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then
 	(

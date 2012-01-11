@@ -176,7 +176,6 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		total_lt := !lt::!total_lt;lt := [];();
 	(*Instr End*)
 	| If(exp_temp,b1,b2,l)->
-		Printf.printf "if con:\n";Cil.d_exp Format.std_formatter exp_temp;Format.print_flush ();Printf.printf "\n";
 		lt := [];
 		let b1_break = ref false in
 		let b2_break = ref false in
@@ -315,18 +314,6 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 	generate_block_predicate loop_block;
 	total_lt
 	
-let extract_varinfos_from_stmt (s:stmt) =
-  let visitor = object
-    inherit nopCilVisitor
-    val mutable varinfos = Varinfo.Set.empty;
-    method varinfos = varinfos
-    method vvrbl (symb:varinfo) =
-      varinfos <- Varinfo.Set.add symb varinfos;
-      SkipChildren
-  end
-  in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
-    visitor#varinfos
-    
 let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
 	let fmt = Format.std_formatter in
 	try
@@ -335,7 +322,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 		(
 		match stmt.skind with
 		| If(exp,block1,block2,location)->
-			Printf.printf "if con:\n";Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 		  	let texp = constFold true (stripCasts exp) in
 		  	(
 		  	match texp.enode with
@@ -416,76 +402,36 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 		  	Format.print_flush ();
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->
 		 		Printf.printf "Enter Loop Now.\n";
-		 		let vars = extract_varinfos_from_stmt stmt in
+		 		let vars = Li_utils.extract_varinfos_from_stmt stmt in
 		 		let lvars = Varinfo.Set.elements vars in
-		 		
-				let var_x = Apron.Var.of_string "x" in
-				let apron_vars = Array.make (List.length lvars) var_x in
-				let cofs = Array.make (List.length lvars) var_x in
-				for i=0 to (List.length lvars)-1 do
-					Printf.printf "var:%s\n" (List.nth lvars i).vname;
-					apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname);
-					cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
-				done;
-				let code_annotation = Template.generate_template fmt kf stmt manager apron_vars cofs in
-				let root_code_annot_ba = Cil_types.User(code_annotation) in
-				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-				LiAnnot.prove_code_annot kf stmt code_annotation;
 		
 		 		List.iter(fun linfo->
 					visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
 				)linfo_list;
-		 	(
-		 	match stmto1 with(*continue*)
-		 	| Some(s)->
-		 		let con = List.nth s.succs 0 in
-		 		let ocon = Cil.get_original_stmt (Cil.inplace_visit ()) con in
-		 		Printf.printf "continue:\n";Cil.d_stmt fmt con;Format.print_flush ();Printf.printf "\n";
-			  	(
-			  	match con.skind with
-			  	| If(exp,b1,b2,l)->
-			  		Printf.printf "if con:\n";Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
-					let vars = Cil.extract_varinfos_from_exp exp in
-					();
-					(*List.iter(fun linfo->
-						visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
-					)linfo_list;*)
-			  	| _->();
-			  	);
-		 	| None->();
-		 	);
-		 	(
-		 	match stmto2 with(*break*)
-		 	| Some(s)->
-		 		Cil.d_stmt Format.std_formatter s;
-			  	Format.print_flush ();
-			  	Printf.printf "\n";
-		 	| None->();
-		 	);
-		 	Printf.printf "Analysis loop body now.\n";
-		 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes funsigs visitor in
-		 	total_lt := List.rev !total_lt;
-		 	Printf.printf "total_lt.len=%d\n" (List.length !total_lt);
-		 	List.iter(fun tl->
-				if (List.length tl)>0 then
-				(
-					let t_named = Logic_const.pands tl in
+			 	Printf.printf "Analysis loop body now.\n";
+			 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes funsigs visitor in
+			 	total_lt := List.rev !total_lt;
+			 	Printf.printf "total_lt.len=%d\n" (List.length !total_lt);
+			 	List.iter(fun tl->
+					if (List.length tl)>0 then
+					(
+						let t_named = Logic_const.pands tl in
 				
-					let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+						let annot = Logic_const.new_code_annotation(AInvariant([],true,t_named)) in
+						let root_code_annot_ba = Cil_types.User(annot) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+						Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
+						LiAnnot.prove_code_annot kf stmt annot;();
+					);
+				)!total_lt;
+			 	Printf.printf "Analysis loop body over.\n";
+				List.iter(fun pn->
+					let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-					LiAnnot.prove_code_annot kf stmt annot;();
-				);
-			)!total_lt;
-		 	Printf.printf "Analysis loop body over.\n";
-			List.iter(fun pn->
-				let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
-				let root_code_annot_ba = Cil_types.User(annot) in
-				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-				LiAnnot.prove_code_annot kf stmt annot;
-			)assumes;
-		 	Printf.printf "Leave Loop Now.\n";
+					LiAnnot.prove_code_annot kf stmt annot;
+				)assumes;
+			 	Printf.printf "Leave Loop Now.\n";
 		 | Block(_) ->
 		  	();
 		 | Return(_,_) ->

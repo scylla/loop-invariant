@@ -521,9 +521,28 @@ module Forward = struct
       		);
       	| Loop(_,_,_,_,_)->
       		let loop = Translate.extract_loop stmt in
-      		Equation.print_loop fmt loop;
       		let end_stmt = Li_utils.get_stmt_end loop.body in
       		let b = (Translate.force_stmt2block loop.body) in
+      		
+      		let vars = Li_utils.extract_varinfos_from_stmt stmt in
+			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
+			 		
+					let var_x = Apron.Var.of_string "x" in
+					let apron_vars = Array.make (List.length lvars) var_x in
+					let cofs = Array.make (List.length lvars) var_x in
+					for i=0 to (List.length lvars)-1 do
+						apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname);
+						cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
+					done;
+					let cons = Translate.generate_template fmt procinfo.kf stmt apron_vars cofs in
+					let constransfer = Equation.Lcons(cons) in
+					Equation.add_equation graph [|{fname=name;sid=loop.body.Cil_types.sid}|] constransfer {fname=name;sid=b.Cil_types.bid};
+							
+  				let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
+					let root_code_annot_ba = Cil_types.User(code_annotation) in
+					Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
+					(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;*)
+				
       		
       		let bexpr = force_exp2bexp loop.con in
       		let cond = boolexpr_of_bexpr env bexpr in
