@@ -79,13 +79,8 @@ let force_stmt2block (stmt:Cil_types.stmt) :Cil_types.block =
 	
 let extract_loop stmt :Equation.loop =
 	let fmt = Format.std_formatter in
-	Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
-	Printf.printf "id=%d\n" stmt.sid;
 	(match stmt.skind with
 	| Loop(_,b,_,_,_)->
-		List.iter(fun s->
-			Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";Printf.printf "id=%d\n" s.sid;
-		)b.bstmts;
 		let con_stmt = List.nth b.bstmts 1 in
 		let body_stmt = List.nth b.bstmts 2 in
 		(match con_stmt.skind with
@@ -126,3 +121,40 @@ let translate_kf (kf:Cil_types.kernel_function) =
       );
     | _->();
 	)fundec.sallstmts;;
+
+let generate_template fmt kf stmt (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
+		let env = Apron.Environment.make vars cofs in
+  	Format.printf "env=%a@."
+   	 (fun x -> Apron.Environment.print x) env;
+    
+    let tab = Apron.Lincons1.array_make env ((Array.length vars)-1) in
+    let expr = Apron.Linexpr1.make env in
+    Apron.Linexpr1.set_array expr
+    [|
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(0));
+      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(1))
+    |]
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 25))))(*must be a valid argument*)
+    ;
+    let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
+  	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+  	(*		
+		Format.printf "tab = %a@." lincons1_array_print tab;
+
+		let abs = Apron.Abstract1.of_lincons_array man env tab in
+		Format.printf "abs=%a@." Apron.Abstract1.print abs;
+		let array = Apron.Abstract1.to_generator_array man abs in
+		Format.printf "gen=%a@." generator1_array_print array;
+		
+		let box = Apron.Abstract1.to_box man abs in
+	  Format.printf "box=%a@." (print_array Apron.Interval.print) box.Apron.Abstract1.interval_array;
+	  
+	  for i=0 to ((Array.length vars)-2) do
+	  	Printf.printf "i=%d\n" i;
+		  let expr = Apron.Lincons1.get_linexpr1 (Apron.Lincons1.array_get tab i) in
+		  let box = Apron.Abstract1.bound_linexpr man abs expr in
+		  Format.printf "Bound of %a = %a@."
+		    Apron.Linexpr1.print expr
+		    Apron.Interval.print box;
+		done;*)
+		cons;;

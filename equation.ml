@@ -113,18 +113,20 @@ type var = point
 
 (** Information associated to hyperedges/functions used in equations *)
 type transfer =
+	| Lcons of Apron.Lincons1.t
+		(**linear constraint*)
   | Lassign of Apron.Var.t * Apron.Linexpr1.t
-      (** Assignement by a linear expression *)
+    (** Assignement by a linear expression *)
   | Tassign of Apron.Var.t * Apron.Texpr1.t
-      (** Assignement by a tree expression *)
+    (** Assignement by a tree expression *)
   | Condition of Apron.Tcons1.earray Boolexpr.t
-      (** Filtering of a predicate by a Boolean expression *)
+    (** Filtering of a predicate by a Boolean expression *)
   | Calle of procinfo * procinfo * (Apron.Var.t array) * (Apron.Var.t array) option
-      (** Procedure call, of the form
+    (** Procedure call, of the form
 	  [Call(callerinfo,calleeinfo,actual input parameters,actual
 	  output parameters)] *)
   | Return of procinfo * procinfo * (Apron.Var.t array) * (Apron.Var.t array)
-      (** Procedure return, of the form
+    (** Procedure return, of the form
 	  [Call(callerinfo,calleeinfo,actual input parameters,actual
 	  output parameters)] *)
 

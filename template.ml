@@ -200,6 +200,15 @@ module Forward = struct
     in
     res
 
+	let apply_lcons (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (cons:Apron.Lincons1.t)  (dest:'a Apron.Abstract1.t option):'a Apron.Abstract1.t =
+		let fmt = Format.std_formatter in
+		Printf.printf "loncons1\n";Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
+    let env = Apron.Abstract1.env abstract in
+    List.iter(fun v->
+    )
+    let expr = Apron.Lincons1.get_linexpr1 cons in
+    Apron.Abstract1.assign_linexpr manager abstract v expr dest
+		
   let apply_condition (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (expr:Apron.Tcons1.earray Boolexpr.t) (dest:'a Apron.Abstract1.t option) :'a Apron.Abstract1.t =
   	let fmt = Format.std_formatter in
     let labstract =
@@ -219,9 +228,6 @@ module Forward = struct
 	 		 Apron.Abstract1.meet manager abstract dest)labstract
     in
     let res = 
-    	List.iter(fun abs->
-    		Apron.Environment.print fmt (Apron.Abstract1.env abs);Format.print_flush ();Printf.printf "\n";
-    	)labstract;
     	match labstract with
 		  | [] ->
 		  	Apron.Environment.print fmt (Apron.Abstract1.env abstract);
@@ -341,6 +347,8 @@ module Forward = struct
     in
     let res =
       match transfer with
+      | Equation.Lcons(cons)->
+      	apply_lcons manager abs cons dest
       | Equation.Tassign(var,expr) ->
 	 			apply_tassign manager abs var expr dest
       | Equation.Lassign _ ->
@@ -675,159 +683,6 @@ module Backward = struct
 			fp
 		)
 end
-
-let apply_lincons1 fmt kf stmt lincons1 =
-	let tp = Apron.Lincons1.get_typ lincons1 in
-		
-		let tnode = Cil_types.TConst(Cil_types.CReal(0.0,Cil_types.FDouble,None)) in
-		let term = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
-		let zero_term = Logic_utils.mk_dummy_term tnode Cil.doubleType in
-		let llvar = ref [] in
-		let count = ref 0 in
-		
-		Apron.Lincons1.iter(fun cof v->
-			let tvar = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
-			let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
-				
-			let tpvar = Apron.Environment.typ_of_var lincons1.Apron.Lincons1.env v in
-			(match tpvar with
-			| Apron.Environment.INT->
-				let ltype = Cil_types.Ctype(Cil.intType) in
-				let logic_var = Cil.make_temp_logic_var ltype in
-				logic_var.lv_name <- (Apron.Var.to_string v);
-				llvar := !llvar@[logic_var];
-				let tnode = TLval((TVar(logic_var),TNoOffset)) in
-				tvar := Logic_utils.mk_dummy_term tnode Cil.intType;
-			| Apron.Environment.REAL->
-				let ltype = Cil_types.Ctype(Cil.doubleType) in
-				let logic_var = Cil.make_temp_logic_var ltype in
-				logic_var.lv_name <- (Apron.Var.to_string v);
-				llvar := !llvar@[logic_var];
-				let tnode = TLval((TVar(logic_var),TNoOffset)) in
-				tvar := Logic_utils.mk_dummy_term tnode Cil.doubleType;
-			);
-				
-			(match cof with
-			| Apron.Coeff.Scalar(sca)->
-				(match sca with
-				| Apron.Scalar.Float(f)->
-					let tnode = Cil_types.TConst(Cil_types.CReal(f,Cil_types.FDouble,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
-				| Apron.Scalar.Mpqf(q)->
-					let tnode = Cil_types.TConst(Cil_types.CReal((Mpqf.to_float q),Cil_types.FDouble,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
-				| _->();
-				);
-			| Apron.Coeff.Interval(_)->();
-			);
-				
-			let tnode = TBinOp(Mult,!tcof,!tvar) in
-			if !count == 0 then
-			(term := Logic_utils.mk_dummy_term tnode Cil.doubleType;count := !count+1;)
-			else
-			(
-			let term2 = Logic_utils.mk_dummy_term tnode Cil.doubleType in
-			term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,term2)) Cil.doubleType;
-			);
-		)lincons1;
-		
-		let cst = Apron.Lincons1.get_cst lincons1 in
-		let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.doubleType) in
-		(match cst with
-			| Apron.Coeff.Scalar(sca)->
-				(match sca with
-				| Apron.Scalar.Float(f)->
-					let tnode = Cil_types.TConst(Cil_types.CReal(f,Cil_types.FDouble,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
-				| Apron.Scalar.Mpqf(q)->
-					let tnode = Cil_types.TConst(Cil_types.CReal((Mpqf.to_float q),Cil_types.FDouble,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.doubleType;
-				| _->();
-				);
-			| Apron.Coeff.Interval(_)->();
-		);
-		term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.doubleType;
-			
-		let pred = ref Ptrue in
-		(match tp with(*cannot be all zero_term*)
-		| Apron.Lincons1.EQ->
-			pred := Prel(Req,!term,zero_term);
-		| Apron.Lincons1.SUPEQ->
-			pred := Prel(Rge,!term,zero_term);
-		| Apron.Lincons1.SUP->
-			pred := Prel(Rgt,!term,zero_term);
-		| Apron.Lincons1.DISEQ->
-			pred := Prel(Rneq,!term,zero_term);
-		| Apron.Lincons1.EQMOD(_)->
-			let rterm = Logic_utils.mk_dummy_term (TBinOp(Mod,!term,zero_term)) Cil.doubleType in
-			pred := Prel(Req,!term,rterm);(*%=*)
-		);
-		let pnamed = Logic_const.unamed !pred in
-		let pnamed = Logic_const.unamed (Pforall(!llvar,pnamed)) in
-		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-		code_annotation
-		
-let apply_abstract1 fmt kf stmt abs =
-	let man = Apron.Abstract1.manager abs in
-	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
-	Array.iter(fun cons->
-		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
-		let code_annotation = apply_lincons1 fmt kf stmt lincons1 in
-		let root_code_annot_ba = Cil_types.User(code_annotation) in
-		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-	)lconsarray.Apron.Lincons1.lincons0_array
-	
-let apply_result prog fmt fp =
-	Globals.Functions.iter(fun kf ->
-		try
-			let name = Kernel_function.get_name kf in
-			let fundec = Kernel_function.get_definition kf in
-			List.iter(fun stmt->
-				try
-					let rec apply_stmt s =
-						match s.skind with
-						| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
-						| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b1.bstmts;
-							List.iter(fun s->
-								apply_stmt s;
-							)b2.bstmts;
-						| Switch(_,b,sl,_)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| Loop(_,_,_,_,_)->
-							let loop = Translate.extract_loop stmt in
-							let b = (Translate.force_stmt2block loop.Equation.body) in
-							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=loop.Equation.body.Cil_types.sid} in
-							apply_abstract1 fmt kf s abs;
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| Block(b)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| UnspecifiedSequence(seq)->
-							let b = Cil.block_from_unspecified_sequence seq in
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| TryExcept(b1,_,b2,_)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b1.bstmts;
-							List.iter(fun s->
-								apply_stmt s;
-							)b2.bstmts;
-					in
-				apply_stmt stmt;
-				with Not_found->Printf.printf "Not_found\n";
-			)fundec.sallstmts;
-		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
-	)
 	
 let print_apron_scalar fmt scalar =
   let res = Apron.Scalar.is_infty scalar in
@@ -911,45 +766,6 @@ let lincons1_array_print fmt x =
 
 let generator1_array_print fmt x =
   Apron.Generator1.array_print fmt x;;
-
-let generate_template fmt kf stmt (man:'a Apron.Manager.t) (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
-	Format.printf "Using Library: %s, version %s@." (Apron.Manager.get_library man) (Apron.Manager.get_version man);
-		let env = Apron.Environment.make vars cofs in
-  	Format.printf "env=%a@."
-   	 (fun x -> Apron.Environment.print x) env;
-    
-    let tab = Apron.Lincons1.array_make env ((Array.length vars)-1) in
-    let expr = Apron.Linexpr1.make env in
-    Apron.Linexpr1.set_array expr
-    [|
-      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(0));
-      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(1))
-    |]
-    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 25))))(*must be a valid argument*)
-    ;
-    let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
-  	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-  	let code_annotation = apply_lincons1 fmt kf stmt cons in
-  			
-		Format.printf "tab = %a@." lincons1_array_print tab;
-
-		let abs = Apron.Abstract1.of_lincons_array man env tab in
-		Format.printf "abs=%a@." Apron.Abstract1.print abs;
-		let array = Apron.Abstract1.to_generator_array man abs in
-		Format.printf "gen=%a@." generator1_array_print array;
-		
-		let box = Apron.Abstract1.to_box man abs in
-	  Format.printf "box=%a@." (print_array Apron.Interval.print) box.Apron.Abstract1.interval_array;
-	  
-	  for i=0 to ((Array.length vars)-2) do
-	  	Printf.printf "i=%d\n" i;
-		  let expr = Apron.Lincons1.get_linexpr1 (Apron.Lincons1.array_get tab i) in
-		  let box = Apron.Abstract1.bound_linexpr man abs expr in
-		  Format.printf "Bound of %a = %a@."
-		    Apron.Linexpr1.print expr
-		    Apron.Interval.print box;
-		done;
-		code_annotation
 
 let var_x = Apron.Var.of_string "x";;
 let var_y = Apron.Var.of_string "y";;
