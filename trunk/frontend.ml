@@ -42,8 +42,8 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
       (* Apply and Display *)
     previous := Some fp;
     Apply.apply_result prog fmt fp;
-    Template.print_output prog fmt fp;
-    (*match !previous with
+    (*Template.print_output prog fmt fp;
+    match !previous with
     | Some(out)->
       Printf.printf "previous is some\n";
     | None->

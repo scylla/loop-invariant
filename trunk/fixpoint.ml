@@ -77,9 +77,9 @@ let make_strategy_default
   FixpointType.make_strategy_default
     ?depth ?priority ~vertex_dummy ~hedge_dummy graph sinit
 
-let analysis_std manager input sinit strategy (cons:Apron.Lincons1.t list)
+let analysis_std manager input sinit strategy (ap_manager:'a Apron.Manager.t)
     =
-  FixpointStd.analysis manager input sinit strategy
+  FixpointStd.analysis manager input sinit strategy ap_manager
 
 (*
 let analysis_guided manager input sinit make_strategy
