@@ -202,15 +202,11 @@ module Forward = struct
 
 	let apply_lcons (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (cons:Apron.Lincons1.t)  (dest:'a Apron.Abstract1.t option):'a Apron.Abstract1.t =
 		let fmt = Format.std_formatter in
-		Printf.printf "loncons1\n";Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
     let env = Apron.Abstract1.env abstract in
     let abs = ref (Apron.Abstract1.copy manager abstract) in
     let expr = Apron.Lincons1.get_linexpr1 cons in
     
     (*Apron.Abstract1.assign_linexpr_array manager abstract varray earray dest;*)
-    Apron.Lincons1.iter(fun c v->
-    	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
-    )cons;
     !abs
 		
   let apply_condition (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (expr:Apron.Tcons1.earray Boolexpr.t) (dest:'a Apron.Abstract1.t option) :'a Apron.Abstract1.t =
@@ -363,24 +359,6 @@ module Forward = struct
       | Equation.Lcons(cons)->
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
-      	Printf.printf "pervtexs:\n";
-      	Array.iter(fun p->
-      		Equation.print_point fmt p;Format.print_flush ();Printf.printf "\n";
-      		match output with
-      		| Some(out)->
-      			let attrvertex = PSHGraph.attrvertex out p in
-      			Apron.Abstract1.print fmt attrvertex;Format.print_flush ();Printf.printf "\n";
-      		| None->();
-      	)pvertexs;
-      	Printf.printf "svertexs:\n";
-      	Array.iter(fun p->
-      		Equation.print_point fmt p;Format.print_flush ();Printf.printf "\n";
-      		match output with
-      		| Some(out)->
-      			let attrvertex = PSHGraph.attrvertex out p in
-      			Apron.Abstract1.print fmt attrvertex;Format.print_flush ();Printf.printf "\n";
-      		| None->();
-      	)svertexs;
       	apply_lcons manager abs cons dest
       | Equation.Tassign(var,expr) ->
 	 			apply_tassign manager abs var expr dest
@@ -462,7 +440,7 @@ module Forward = struct
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
-							graph sstart) [] in
+							graph sstart) manager in
 					(*let result = Fixpoint.analysis_guided
 						fpmanager graph sstart
 						(fun filter  ->
@@ -696,7 +674,7 @@ module Backward = struct
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
-							graph !sstart) []
+							graph !sstart) manager
 					in
 					Printf.printf "back analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;

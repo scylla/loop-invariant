@@ -536,8 +536,9 @@ module Forward = struct
 					done;
 					let cons = Translate.generate_template fmt procinfo.kf stmt apron_vars cofs in
 					let constransfer = Equation.Lcons(cons) in
-					Equation.add_equation graph [|{fname=name;sid=loop.body.Cil_types.sid}|] constransfer {fname=name;sid=b.Cil_types.bid};
-							
+					Equation.add_equation graph [|point|] constransfer {fname=name;sid=b.Cil_types.bid};
+					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
+					
   				let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
 					let root_code_annot_ba = Cil_types.User(code_annotation) in
 					Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;

@@ -38,6 +38,21 @@ let treach_of_tvertex
   Array.map
     (begin fun vertex ->
       let attr = PSHGraph.attrvertex graph vertex in
+      
+      let spredhedges = PSHGraph.succhedge graph vertex in
+			let cons = ref (Hashhe.create 3) in
+			PSette.iter(fun edge->
+				let transfer = (PSHGraph.attrhedge graph edge).arc in
+				match transfer with
+				| Equation.Lcons(cons)->
+		 			Printf.printf "attrhedge,oldreach in treach_of_tvertex\n";
+					Equation.print_transfer Format.std_formatter transfer;
+					Format.print_flush ();Printf.printf "\n";
+					let oldreach = attr.reach in
+		 			Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
+				| _->();
+			)spredhedges;
+			
       attr.reach
     end)
     tvertex
@@ -56,29 +71,39 @@ let update_workingsets
   begin match info.iinfodyn with
   | None ->
       let seth = PSHGraph.succhedge graph vertex in
-      PSette.iter
-	(begin fun (h:'hedge) ->
-	  if hedge then PHashhe.replace info.iworkhedge h ();
-	  let succ = PSHGraph.succvertex graph h in
-	  assert ((Array.length succ)=1);
-	  PHashhe.replace info.iworkvertex succ.(0) ();
-	end)
-	seth
+      PSette.iter(fun (h:'hedge) ->
+				if hedge then PHashhe.replace info.iworkhedge h ();
+				let succ = PSHGraph.succvertex graph h in
+				assert ((Array.length succ)=1);
+				PHashhe.replace info.iworkvertex succ.(0) ();
+			)seth
       ;
   | Some(dyn) ->
       let maph = dyn.iequation vertex in
-      PMappe.iter
-	(begin fun h ((tpredvertex,succvertex) as tpredsucc) ->
-	  if (PSHGraph.is_hedge graph h) then begin
-	    if hedge then PHashhe.replace info.iworkhedge h ();
-	    PHashhe.replace info.iworkvertex succvertex ();
-	  end
-	  else begin
-	    PHashhe.replace dyn.iaddhedge h tpredsucc;
-	  end
-	end)
-	maph
-  end
+      PMappe.iter(fun h ((tpredvertex,succvertex) as tpredsucc) ->
+				if (PSHGraph.is_hedge graph h) then begin
+					if hedge then PHashhe.replace info.iworkhedge h ();
+					PHashhe.replace info.iworkvertex succvertex ();
+				end
+				else begin
+					PHashhe.replace dyn.iaddhedge h tpredsucc;
+				end
+			)maph
+  end;
+  let attr = PSHGraph.attrvertex graph vertex in
+  let spredhedges = PSHGraph.succhedge graph vertex in
+	let cons = ref (Hashhe.create 3) in
+	PSette.iter(fun edge->
+		let transfer = (PSHGraph.attrhedge graph edge).arc in
+		match transfer with
+		| Equation.Lcons(cons)->
+		 	Printf.printf "attrhedge,oldreach in update_workingsets\n";
+			Equation.print_transfer Format.std_formatter transfer;
+			Format.print_flush ();Printf.printf "\n";
+			let oldreach = attr.reach in
+		 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
+		| _->();
+	)spredhedges
 
 (*  ********************************************************************** *)
 (** {2 Initialisation of fixpoint computation} *)
@@ -180,6 +205,7 @@ let accumulate_vertex
     =
   let info = PSHGraph.info graph in
   let vertex = svertex.vertex in
+  
   let lhedges = svertex.hedges in
   let oldreach = attr.reach in
   if manager.print_state then av_print_intro manager vertex;
@@ -188,8 +214,7 @@ let accumulate_vertex
   let lpost = ref [] in
   let allpost = ref true in
   if manager.print_postpre then av_print_oldreach manager oldreach;
-  List.iter
-    (begin fun hedge ->
+  List.iter(fun hedge ->
       if not manager.accumulate || PHashhe.mem info.iworkhedge hedge then begin
 	PHashhe.remove info.iworkhedge hedge;
 	let tpredvertex = PSHGraph.predvertex graph hedge in
@@ -209,15 +234,30 @@ let accumulate_vertex
 	else allpost := false;
       end
       else allpost := false;
-    end)
-    lhedges
+  )lhedges
   ;
   if not !allpost || svertex.widen || PSette.mem vertex info.iinit then
     lpost := oldreach :: !lpost;
   attr.reach <- manager.join_list vertex !lpost;
-  manager.canonical vertex attr.reach;
+  manager.canonical vertex attr.reach;  
+	
   let growing = not (manager.is_leq vertex attr.reach oldreach) in
   if manager.print_state then av_print_result manager graph vertex attr growing;
+  
+  let spredhedges = PSHGraph.succhedge graph vertex in
+	let cons = ref (Hashhe.create 3) in
+	PSette.iter(fun edge->
+		let transfer = (PSHGraph.attrhedge graph edge).arc in
+		match transfer with
+		| Equation.Lcons(cons)->
+		 	Printf.printf "attrhedge,oldreach in accumulate_tvertex\n";
+			Equation.print_transfer Format.std_formatter transfer;
+			Format.print_flush ();Printf.printf "\n";
+			let oldreach = attr.reach in
+		 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
+		| _->();
+	)spredhedges; 
+	
   growing
 
 (*  ====================================================================== *)
@@ -298,6 +338,8 @@ let propagate_vertex
     if !lpost=[]
     then manager.bottom vertex
     else manager.join_list vertex !lpost;
+    
+  
   manager.canonical vertex attr.reach;
   attr.empty <- manager.is_bottom vertex attr.reach;
   let update =
@@ -306,6 +348,20 @@ let propagate_vertex
     else not (manager.is_leq vertex attr.reach oldreach)
   in
   if manager.print_state then pv_print_result manager graph vertex attr update;
+  
+  let spredhedges = PSHGraph.succhedge graph vertex in
+	let cons = ref (Hashhe.create 3) in
+	PSette.iter(fun edge->
+		let transfer = (PSHGraph.attrhedge graph edge).arc in
+		match transfer with
+		| Equation.Lcons(cons)->
+		 	Printf.printf "attrhedge,oldreach in propagate_tvertex\n";
+			Equation.print_transfer Format.std_formatter transfer;
+			Format.print_flush ();Printf.printf "\n";
+			let oldreach = attr.reach in
+		 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
+		| _->();
+	)spredhedges; 
   update
 
 (*  ====================================================================== *)
@@ -323,23 +379,15 @@ let process_vertex
     (graph:('vertex,'hedge,'abstract,'arc) fpGraph)
     ~(widening:bool)
     (svertex:('vertex,'hedge) strategy_vertex)
+    (ap_manager:'a Apron.Manager.t)
     :
     bool
     =
   let vertex = svertex.vertex in  
   let attr = PSHGraph.attrvertex graph vertex in
   
-  let spredhedges = PSHGraph.predhedge graph vertex in
-  let cons = ref (Hashhe.create 3) in
-  Printf.printf "attrhedge in process_vertex\n";
-  PSette.iter(fun edge->
-  	manager.print_arc manager.print_fmt (PSHGraph.attrhedge graph edge).arc;
-  	Format.print_flush ();Printf.printf "\n";
-  )spredhedges;
   
   let oldreach = attr.reach in
-  Printf.printf "old reach in process_vertex\n";
-  manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
   let oldempty = attr.empty in
   let growing =
     (if manager.accumulate || svertex.widen && widening then
@@ -356,15 +404,38 @@ let process_vertex
   if growing && svertex.widen then begin
     if widening && not oldempty then begin
       attr.reach <- manager.widening vertex oldreach attr.reach;
-      
+      (*
 			Printf.printf "new reach in process_vertex\n";
 			manager.print_abstract manager.print_fmt attr.reach;Format.print_flush ();Printf.printf "\n";
-			
+			*)
       manager.canonical vertex attr.reach;
       if manager.print_state then p_print_result manager graph vertex attr;
     end;
     assert (not (manager.is_leq vertex attr.reach oldreach));
   end;
+  
+  let spredhedges = PSHGraph.succhedge graph vertex in
+  let cons = ref (Hashhe.create 3) in
+  PSette.iter(fun edge->
+  	let transfer = (PSHGraph.attrhedge graph edge).arc in
+  	match transfer with
+  	| Equation.Lcons(cons)->
+ 			Printf.printf "attrhedge,oldreach in Lcons process_vertex\n";
+  		Equation.print_transfer manager.print_fmt transfer;
+  		Format.print_flush ();Printf.printf "\n";
+  		let oldreach = attr.reach in(*abstract*)
+ 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
+ 			let consa = Apron.Abstract1.to_lincons_array ap_manager oldreach in
+ 			Apron.Lincons1.array_print
+ 			~first:"[|@[<hov>" ~sep:";@ " ~last:"@]|]"
+  		manager.print_fmt consa;Format.print_flush ();Printf.printf "\n";
+  	| _->
+  		Printf.printf "attrhedge,oldreach in not Lcons process_vertex\n";
+  		Equation.print_transfer manager.print_fmt transfer;
+  		Format.print_flush ();Printf.printf "\n";
+  		let oldreach = attr.reach in
+ 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
+  )spredhedges;
   growing
 
 (*  ********************************************************************** *)
@@ -449,17 +520,15 @@ let descend_strategy
     incr counter;
     incr info.idescendings;
     (* Linear iteration on vertices of a strongly connected component *)
-    Ilist.iter
-      (begin fun flag svertex ->
-	let reducing2 = process_svertex svertex in
-	reducing := !reducing || reducing2
-      end)
-      strategy
-    ;
+    Ilist.iter(fun flag svertex ->
+			let reducing2 = process_svertex svertex in
+			reducing := !reducing || reducing2
+    )strategy;
     reducing := !reducing && (PHashhe.length info.iworkvertex) > 0;
     if !reducing && manager.print_step then d_print_step manager graph strategy counter;
   done;
   if manager.print_component then d_print_result manager graph strategy;
+  
   !reducing
 
 (*  ********************************************************************** *)
@@ -479,20 +548,34 @@ let descend
     let oldworkhedge = PHashhe.copy info.iworkhedge in
     PHashhe.clear info.iworkvertex;
     PHashhe.clear info.iworkhedge;
-    Ilist.iter
-      (begin fun _ svertex ->
-	let vertex = svertex.vertex in
-	let attrvertex = PSHGraph.attrvertex graph vertex in
-	if not attrvertex.empty then
-	  PHashhe.replace info.iworkvertex vertex ()
-      end)
-      strategy
-    ;
+    Ilist.iter(fun _ svertex ->
+			let vertex = svertex.vertex in
+			let attrvertex = PSHGraph.attrvertex graph vertex in 
+			
+			let spredhedges = PSHGraph.succhedge graph vertex in
+			let cons = ref (Hashhe.create 3) in
+			PSette.iter(fun edge->
+				let attr = PSHGraph.attrvertex graph vertex in
+				let transfer = (PSHGraph.attrhedge graph edge).arc in
+				match transfer with
+				| Equation.Lcons(cons)->
+				 	Printf.printf "attrhedge,oldreach in descend\n";
+					Equation.print_transfer Format.std_formatter transfer;
+					Format.print_flush ();Printf.printf "\n";
+					let oldreach = attr.reach in
+				 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
+				| _->();
+			)spredhedges; 
+			
+			if not attrvertex.empty then
+				PHashhe.replace info.iworkvertex vertex ()
+    )strategy;
     if manager.print_workingsets then fprintf manager.print_fmt "  %a@ " (print_workingsets manager) graph;
     ignore (descend_strategy manager graph strategy);
     let reducing = (PHashhe.length info.iworkvertex) > 0 in
     info.iworkvertex <- oldworkvertex;
     info.iworkhedge <- oldworkhedge;
+  
     reducing
   end
   else
@@ -586,6 +669,7 @@ let rec process_strategy
     (graph:('vertex,'hedge,'abstract,'arc) fpGraph)
     ~(depth:int)
     (strategy:('vertex,'hedge) strategy)
+    (ap_manager:'a Apron.Manager.t)
     :
     bool
     =
@@ -600,13 +684,13 @@ let rec process_strategy
     | elt::rest ->
 	let res =
 	  begin match elt with
-	  | Ilist.Atome(strategy_vertex) ->
-	      if PHashhe.mem info.iworkvertex strategy_vertex.vertex then
-		process_vertex manager graph ~widening strategy_vertex
-	      else
-		false
-	  | Ilist.List(strategy) ->
-	      process_strategy manager graph ~depth:(depth+1) strategy
+	  | Ilist.Atome(strategy_vertex) ->Printf.printf "Ilist.Atome in process_strategy\n";
+	    if PHashhe.mem info.iworkvertex strategy_vertex.vertex then
+				process_vertex manager graph ~widening strategy_vertex ap_manager
+	    else
+				false
+	  | Ilist.List(strategy) ->Printf.printf "Ilist.List in process_strategy\n";
+	      process_strategy manager graph ~depth:(depth+1) strategy ap_manager
 	  end
 	in
 	growing := !growing || res;
@@ -624,17 +708,14 @@ let rec process_strategy
     if not !loop && depth>=3 then begin
       (* if Bourdoncle technique, check working sets *)
       try
-	Ilist.iter
-	  (begin fun _ strategy_vertex ->
-	    if PHashhe.mem
-	      info.iworkvertex strategy_vertex.vertex
-	    then begin
-	      loop := true; raise Exit
-	    end
-	  end)
-	  strategy
-      with
-      Exit -> ()
+			Ilist.iter(fun _ strategy_vertex ->
+				if PHashhe.mem
+					info.iworkvertex strategy_vertex.vertex
+				then begin
+					loop := true; raise Exit
+				end
+			)strategy
+      with Exit -> ()
     end
     ;
     if !loop && manager.print_step then s_print_step manager graph strategy counter loop;
@@ -652,6 +733,7 @@ let rec process_toplevel_strategy
     (manager:('vertex,'hedge,'abstract,'arc) manager)
     (graph:('vertex,'hedge,'abstract,'arc) fpGraph)
     (strategy:('vertex,'hedge) strategy)
+    (ap_manager:'a Apron.Manager.t)
     :
     bool * bool
     =
@@ -665,12 +747,12 @@ let rec process_toplevel_strategy
 	| Ilist.Atome(strategy_vertex) ->
 	    if PHashhe.mem info.iworkvertex strategy_vertex.vertex then
 	      let growing =
-		process_vertex manager graph ~widening:false strategy_vertex
+		process_vertex manager graph ~widening:false strategy_vertex ap_manager
 	      in
 	      ggrowing := !ggrowing || growing
 	| Ilist.List(strategy) ->
 	    let growing =
-	      process_strategy manager graph ~depth:2 strategy
+	      process_strategy manager graph ~depth:2 strategy ap_manager
 	    in
 	    ggrowing := !ggrowing || growing;
 	    let reducing =
@@ -715,6 +797,7 @@ let analysis
     (input:('vertex,'hedge,'a,'b,'c) PSHGraph.t)
     (sinit:'vertex PSette.t)
     (strategy:('vertex,'hedge) strategy)
+    (ap_manager:'d Apron.Manager.t)
     :
     ('vertex,'hedge,'abstract,'arc) output
     =
@@ -724,7 +807,7 @@ let analysis
   let graph = init manager input sinit in
   let info = PSHGraph.info graph in
   Time.wrap_duration_add info.itime (begin fun () ->
-    let (_,reducing) = process_toplevel_strategy manager graph strategy in
+    let (_,reducing) = process_toplevel_strategy manager graph strategy ap_manager in
     let info = PSHGraph.info graph in
     info.istable := not reducing;
     if manager.print_analysis then
