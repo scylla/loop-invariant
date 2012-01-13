@@ -18,7 +18,7 @@ let build_graphs (fmt:Format.formatter) (prog:Cil_types.file):graph * graph =
   (fgraph,bgraph)
 		
 let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equation.graph) (bgraph:Equation.graph) (manager:'a Apron.Manager.t) : unit =
-  let (previous:(Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option ref) =
+  let (previous:(Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option ref) =
     ref None
   in
   List.iter(fun t ->
@@ -42,8 +42,8 @@ let compute_and_display (fmt:Format.formatter) (prog:Cil_types.file) (fgraph:Equ
       (* Apply and Display *)
     previous := Some fp;
     Apply.apply_result prog fmt fp;
-    (*Template.print_output prog fmt fp;
-    match !previous with
+    Template.print_output prog fmt fp;
+    (*match !previous with
     | Some(out)->
       Printf.printf "previous is some\n";
     | None->

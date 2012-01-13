@@ -205,6 +205,8 @@ let print_info fmt info =
 
 let print_transfer fmt transfer = 
 	match transfer with
+	| Lcons(cons1)->
+		Apron.Lincons1.print fmt cons1
   | Lassign _ -> failwith ""
   | Tassign(v,e) ->
     fprintf fmt "%a = %a"

@@ -56,17 +56,17 @@ let print_abstract1 fmt abs =
 let make_fpmanager
     ~(fmt : Format.formatter)
     (graph: Equation.graph)
-    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option)
+    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
     (apply :
       Equation.graph ->
-      output:(Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option ->
+      output:(Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option ->
       'a Apron.Manager.t -> int -> 'a Apron.Abstract1.t array ->
-      unit * 'a Apron.Abstract1.t)
+      Equation.transfer * 'a Apron.Abstract1.t)
     (abstract_init : Equation.point -> 'a Apron.Abstract1.t)
     (man:'abstract Apron.Manager.t)
     ~(debug:int)
     :
-    (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.manager
+    (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.manager
     =
   Printf.printf "make_fpmanager\n";
   let info = PSHGraph.info graph in
@@ -101,7 +101,7 @@ let make_fpmanager
     end;
     (* Initialisation of equations *)
     Fixpoint.abstract_init = abstract_init;
-    Fixpoint.arc_init = begin fun hedge -> () end;
+    Fixpoint.arc_init = begin fun hedge -> Equation.Condition(Boolexpr.make_cst true) end;
     (* Interpreting hyperedges *)
     Fixpoint.apply = begin fun hedge tx ->
       apply graph ~output man hedge tx
@@ -110,7 +110,7 @@ let make_fpmanager
     Fixpoint.print_vertex=Equation.print_point;
     Fixpoint.print_hedge=Equation.print_hedge;
     Fixpoint.print_abstract = Apron.Abstract1.print;
-    Fixpoint.print_arc = begin fun fmt () -> Format.pp_print_string fmt "()" end;
+    Fixpoint.print_arc = Equation.print_transfer;(*begin fun fmt () -> Format.pp_print_string fmt "()" end;*)
     (* Fixpoint Options *)
     Fixpoint.accumulate = false;
     (* Widening Options *)
@@ -143,7 +143,7 @@ let make_emptyoutput
   (graph : (Equation.point,int,'a,'b,'c) PSHGraph.t)
   (manager : 'abstract Apron.Manager.t)
   :
-  (Equation.point, int, 'abstract Apron.Abstract1.t,unit) Fixpoint.output
+  (Equation.point, int, 'abstract Apron.Abstract1.t,Equation.transfer) Fixpoint.output
   =
   let info = PSHGraph.info graph in
   PSHGraph.map graph
@@ -152,7 +152,7 @@ let make_emptyoutput
     	Equation.print_point Format.std_formatter vertex;Format.print_flush ();Printf.printf "\n";
       Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
     )
-    (fun hedge arc -> ())
+    (fun hedge arc -> Equation.Condition(Boolexpr.make_cst true))
     (fun info ->
       {
 				Fixpoint.time = 0.0;
@@ -204,10 +204,14 @@ module Forward = struct
 		let fmt = Format.std_formatter in
 		Printf.printf "loncons1\n";Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
     let env = Apron.Abstract1.env abstract in
-    List.iter(fun v->
-    )
+    let abs = ref (Apron.Abstract1.copy manager abstract) in
     let expr = Apron.Lincons1.get_linexpr1 cons in
-    Apron.Abstract1.assign_linexpr manager abstract v expr dest
+    
+    (*Apron.Abstract1.assign_linexpr_array manager abstract varray earray dest;*)
+    Apron.Lincons1.iter(fun c v->
+    	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
+    )cons;
+    !abs
 		
   let apply_condition (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (expr:Apron.Tcons1.earray Boolexpr.t) (dest:'a Apron.Abstract1.t option) :'a Apron.Abstract1.t =
   	let fmt = Format.std_formatter in
@@ -326,13 +330,22 @@ module Forward = struct
   (** Main transfer function *)
   let apply
     (graph:Equation.graph)
-    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option)
+    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
     (manager:'a Apron.Manager.t)
     (hedge:int)
     (tabs:'a Apron.Abstract1.t array)
     :
-    unit * 'a Apron.Abstract1.t
+    Equation.transfer * 'a Apron.Abstract1.t
     =
+    (*let spredhedges = PSHGraph.predhedge graph p in
+    let hedges = PSette.elements spredhedges in
+    let svertext =
+    	{
+    		vertex = p;
+    		hedges = hedges;
+    		widen = true;
+    	}
+    in*)
     let transfer = PSHGraph.attrhedge graph hedge in
     let fmt = Format.std_formatter in
     let abs = tabs.(0) in
@@ -348,6 +361,26 @@ module Forward = struct
     let res =
       match transfer with
       | Equation.Lcons(cons)->
+      	let pvertexs = PSHGraph.predvertex graph hedge in
+      	let svertexs = PSHGraph.succvertex graph hedge in
+      	Printf.printf "pervtexs:\n";
+      	Array.iter(fun p->
+      		Equation.print_point fmt p;Format.print_flush ();Printf.printf "\n";
+      		match output with
+      		| Some(out)->
+      			let attrvertex = PSHGraph.attrvertex out p in
+      			Apron.Abstract1.print fmt attrvertex;Format.print_flush ();Printf.printf "\n";
+      		| None->();
+      	)pvertexs;
+      	Printf.printf "svertexs:\n";
+      	Array.iter(fun p->
+      		Equation.print_point fmt p;Format.print_flush ();Printf.printf "\n";
+      		match output with
+      		| Some(out)->
+      			let attrvertex = PSHGraph.attrvertex out p in
+      			Apron.Abstract1.print fmt attrvertex;Format.print_flush ();Printf.printf "\n";
+      		| None->();
+      	)svertexs;
       	apply_lcons manager abs cons dest
       | Equation.Tassign(var,expr) ->
 	 			apply_tassign manager abs var expr dest
@@ -360,7 +393,7 @@ module Forward = struct
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_return manager abs tabs.(1) calleeinfo tin tout dest
     in
-    ((),res)
+    (transfer,res)
 
   (*  ===================================================================== *)
   (** {3 Compute (post)fixpoint} *)
@@ -369,11 +402,11 @@ module Forward = struct
   let compute
     ~(fmt : Format.formatter)
     (graph:Equation.graph)
-    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option)
+    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
     (manager:'a Apron.Manager.t)
     ~(debug:int)
     :
-    (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output
+    (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output
     =
     let info = PSHGraph.info graph in
     let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
@@ -429,7 +462,7 @@ module Forward = struct
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
-							graph sstart) in
+							graph sstart) [] in
 					(*let result = Fixpoint.analysis_guided
 						fpmanager graph sstart
 						(fun filter  ->
@@ -541,12 +574,12 @@ module Backward = struct
   (** Main transfer function *)
   let apply
     (graph:Equation.graph)
-    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option)
+    ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
     (manager:'a Apron.Manager.t)
     (hedge:int)
     (tabs:'a Apron.Abstract1.t array)
     :
-    unit * 'a Apron.Abstract1.t
+    Equation.transfer * 'a Apron.Abstract1.t
     =
     let transfer = PSHGraph.attrhedge graph hedge in
     let abs = tabs.(0) in
@@ -573,7 +606,7 @@ module Backward = struct
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_return manager abs callerinfo calleeinfo tin tout dest
     in
-    ((),res)
+    (transfer,res)
 
   (*  ===================================================================== *)
   (** {3 Compute (post)fixpoint} *)
@@ -583,11 +616,11 @@ module Backward = struct
       ~(fmt : Format.formatter)
       (prog:Cil_types.file)
       (graph:Equation.graph)
-      ~(output : (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output option)
+      ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
       (manager:'a Apron.Manager.t)
       ~(debug:int)
       :
-      (Equation.point, int, 'a Apron.Abstract1.t, unit) Fixpoint.output
+      (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output
       =
     let info = PSHGraph.info graph in
     let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
@@ -663,7 +696,7 @@ module Backward = struct
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
-							graph !sstart)
+							graph !sstart) []
 					in
 					Printf.printf "back analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;
@@ -734,6 +767,12 @@ let print_output prog fmt fp =
 		let abs = PSHGraph.attrvertex fp point in
 		Printf.printf "point:";Equation.print_point fmt point;Format.print_flush ();Printf.printf "\n";
 		print_abstract1 fmt kf s abs;Format.print_flush ();Printf.printf "\n";
+		Printf.printf "attr:";
+		let edges = PSHGraph.succhedge fp point in
+		PSette.iter(fun edge->
+			let attr = PSHGraph.attrhedge fp edge in
+			Equation.print_transfer fmt attr;Format.print_flush ();Printf.printf "\n";
+		)edges;
 	in
 	Globals.Functions.iter(fun kf ->
 			try
@@ -741,7 +780,7 @@ let print_output prog fmt fp =
 				let fundec = Kernel_function.get_definition kf in
 				List.iter(fun s->
 					try
-					Printf.printf "stmt res:\n";Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
+					Printf.printf "stmt result:\n";Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
 					print_comment kf s {Equation.fname=name;Equation.sid=s.Cil_types.sid};
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
