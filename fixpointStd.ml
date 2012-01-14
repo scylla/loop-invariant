@@ -38,21 +38,6 @@ let treach_of_tvertex
   Array.map
     (begin fun vertex ->
       let attr = PSHGraph.attrvertex graph vertex in
-      
-      let spredhedges = PSHGraph.succhedge graph vertex in
-			let cons = ref (Hashhe.create 3) in
-			PSette.iter(fun edge->
-				let transfer = (PSHGraph.attrhedge graph edge).arc in
-				match transfer with
-				| Equation.Lcons(cons)->
-		 			Printf.printf "attrhedge,oldreach in treach_of_tvertex\n";
-					Equation.print_transfer Format.std_formatter transfer;
-					Format.print_flush ();Printf.printf "\n";
-					let oldreach = attr.reach in
-		 			Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
-				| _->();
-			)spredhedges;
-			
       attr.reach
     end)
     tvertex
@@ -89,21 +74,7 @@ let update_workingsets
 					PHashhe.replace dyn.iaddhedge h tpredsucc;
 				end
 			)maph
-  end;
-  let attr = PSHGraph.attrvertex graph vertex in
-  let spredhedges = PSHGraph.succhedge graph vertex in
-	let cons = ref (Hashhe.create 3) in
-	PSette.iter(fun edge->
-		let transfer = (PSHGraph.attrhedge graph edge).arc in
-		match transfer with
-		| Equation.Lcons(cons)->
-		 	Printf.printf "attrhedge,oldreach in update_workingsets\n";
-			Equation.print_transfer Format.std_formatter transfer;
-			Format.print_flush ();Printf.printf "\n";
-			let oldreach = attr.reach in
-		 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
-		| _->();
-	)spredhedges
+  end
 
 (*  ********************************************************************** *)
 (** {2 Initialisation of fixpoint computation} *)
@@ -242,22 +213,7 @@ let accumulate_vertex
   manager.canonical vertex attr.reach;  
 	
   let growing = not (manager.is_leq vertex attr.reach oldreach) in
-  if manager.print_state then av_print_result manager graph vertex attr growing;
-  
-  let spredhedges = PSHGraph.succhedge graph vertex in
-	let cons = ref (Hashhe.create 3) in
-	PSette.iter(fun edge->
-		let transfer = (PSHGraph.attrhedge graph edge).arc in
-		match transfer with
-		| Equation.Lcons(cons)->
-		 	Printf.printf "attrhedge,oldreach in accumulate_tvertex\n";
-			Equation.print_transfer Format.std_formatter transfer;
-			Format.print_flush ();Printf.printf "\n";
-			let oldreach = attr.reach in
-		 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
-		| _->();
-	)spredhedges; 
-	
+  if manager.print_state then av_print_result manager graph vertex attr growing;	
   growing
 
 (*  ====================================================================== *)
@@ -348,20 +304,6 @@ let propagate_vertex
     else not (manager.is_leq vertex attr.reach oldreach)
   in
   if manager.print_state then pv_print_result manager graph vertex attr update;
-  
-  let spredhedges = PSHGraph.succhedge graph vertex in
-	let cons = ref (Hashhe.create 3) in
-	PSette.iter(fun edge->
-		let transfer = (PSHGraph.attrhedge graph edge).arc in
-		match transfer with
-		| Equation.Lcons(cons)->
-		 	Printf.printf "attrhedge,oldreach in propagate_tvertex\n";
-			Equation.print_transfer Format.std_formatter transfer;
-			Format.print_flush ();Printf.printf "\n";
-			let oldreach = attr.reach in
-		 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
-		| _->();
-	)spredhedges; 
   update
 
 (*  ====================================================================== *)
@@ -425,10 +367,25 @@ let process_vertex
   		Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in(*abstract*)
  			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
+ 			
+ 			Printf.printf "is_unsat=%b\n" (Apron.Lincons1.is_unsat cons);
+ 			Printf.printf "sat_lincons=%b\n" (Apron.Abstract1.sat_lincons ap_manager oldreach cons);
+ 			
  			let consa = Apron.Abstract1.to_lincons_array ap_manager oldreach in
- 			Apron.Lincons1.array_print
- 			~first:"[|@[<hov>" ~sep:";@ " ~last:"@]|]"
-  		manager.print_fmt consa;Format.print_flush ();Printf.printf "\n";
+ 			consa.Apron.Lincons1.lincons0_array <- Array.append consa.Apron.Lincons1.lincons0_array [|cons.Apron.Lincons1.lincons0|];
+ 			
+ 			let aenv = consa.Apron.Lincons1.array_env in
+ 			Array.iter(fun cons0->
+ 				let cons1 = {
+ 					Apron.Lincons1.lincons0 = cons0;
+ 					Apron.Lincons1.env = aenv;
+ 				} in
+ 				Apron.Lincons1.print manager.print_fmt cons1;Format.print_flush ();
+ 				Printf.printf "is_unsat=%b\n" (Apron.Lincons1.is_unsat cons);Format.print_flush ();Printf.printf "\n";
+ 			)consa.Apron.Lincons1.lincons0_array;
+ 			
+ 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
+ 			
   	| _->
   		Printf.printf "attrhedge,oldreach in not Lcons process_vertex\n";
   		Equation.print_transfer manager.print_fmt transfer;
