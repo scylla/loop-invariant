@@ -122,6 +122,25 @@ let translate_kf (kf:Cil_types.kernel_function) =
     | _->();
 	)fundec.sallstmts;;
 
+let copy_env env =
+	let (va1,va2) = Apron.Environment.vars env in
+	Apron.Environment.make va1 va2;;
+	
+let merge_env env1 env2 =
+	let (va1,va2) = Apron.Environment.vars env2 in
+	(*Apron.Environment.add env1 va1 va2;*)
+	Array.iter(fun v->
+		if (Apron.Environment.mem_var !env1 v)==false then
+			env1 := Apron.Environment.add !env1 [|v|] [||];
+		();
+	)va1;
+	Array.iter(fun v->
+		if (Apron.Environment.mem_var !env1 v)==false then
+			env1 := Apron.Environment.add !env1 [||] [|v|];
+		();
+	)va2;
+	!env1;;
+	
 let generate_template fmt kf stmt (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
 		let env = Apron.Environment.make vars cofs in
   	Format.printf "env=%a@."

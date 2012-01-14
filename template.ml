@@ -217,15 +217,16 @@ module Forward = struct
 	  		[abstract]
       | Boolexpr.DISJ lconj ->
 	  		List.map(fun conj ->
-	      Apron.Abstract1.meet_tcons_array manager abstract conj
+	     	 Apron.Abstract1.meet_tcons_array manager abstract conj
 	      )lconj
     in
     let labstract =
       match dest with
       | None -> labstract
       | Some dest ->
-	 		 List.map(fun abstract -> 
-	 		 Apron.Abstract1.meet manager abstract dest)labstract
+		 		List.map(fun abstract -> 
+		 			Apron.Abstract1.meet manager abstract dest
+		 		)labstract
     in
     let res = 
     	match labstract with
