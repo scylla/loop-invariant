@@ -357,37 +357,24 @@ let process_vertex
   end;
   
   let spredhedges = PSHGraph.succhedge graph vertex in
-  let cons = ref (Hashhe.create 3) in
   PSette.iter(fun edge->
   	let transfer = (PSHGraph.attrhedge graph edge).arc in
   	match transfer with
   	| Equation.Lcons(cons)->
- 			Printf.printf "attrhedge,oldreach in Lcons process_vertex\n";
+ 			Printf.printf "in Lcons process_vertex\n";
   		Equation.print_transfer manager.print_fmt transfer;
   		Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in(*abstract*)
  			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
  			
+ 			let env0 = Translate.copy_env oldreach.Apron.Abstract1.env in
+ 			let env = ref oldreach.Apron.Abstract1.env in
+ 			oldreach.Apron.Abstract1.env <- Translate.merge_env env cons.Apron.Lincons1.env;
  			Printf.printf "is_unsat=%b\n" (Apron.Lincons1.is_unsat cons);
  			Printf.printf "sat_lincons=%b\n" (Apron.Abstract1.sat_lincons ap_manager oldreach cons);
- 			
- 			let consa = Apron.Abstract1.to_lincons_array ap_manager oldreach in
- 			consa.Apron.Lincons1.lincons0_array <- Array.append consa.Apron.Lincons1.lincons0_array [|cons.Apron.Lincons1.lincons0|];
- 			
- 			let aenv = consa.Apron.Lincons1.array_env in
- 			Array.iter(fun cons0->
- 				let cons1 = {
- 					Apron.Lincons1.lincons0 = cons0;
- 					Apron.Lincons1.env = aenv;
- 				} in
- 				Apron.Lincons1.print manager.print_fmt cons1;Format.print_flush ();
- 				Printf.printf "is_unsat=%b\n" (Apron.Lincons1.is_unsat cons);Format.print_flush ();Printf.printf "\n";
- 			)consa.Apron.Lincons1.lincons0_array;
- 			
- 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
- 			
-  	| _->
-  		Printf.printf "attrhedge,oldreach in not Lcons process_vertex\n";
+ 			oldreach.Apron.Abstract1.env <- env0; 			
+  	| _->();
+  		Printf.printf "in not Lcons process_vertex\n";
   		Equation.print_transfer manager.print_fmt transfer;
   		Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in
@@ -641,12 +628,12 @@ let rec process_strategy
     | elt::rest ->
 	let res =
 	  begin match elt with
-	  | Ilist.Atome(strategy_vertex) ->Printf.printf "Ilist.Atome in process_strategy\n";
+	  | Ilist.Atome(strategy_vertex) ->
 	    if PHashhe.mem info.iworkvertex strategy_vertex.vertex then
 				process_vertex manager graph ~widening strategy_vertex ap_manager
 	    else
 				false
-	  | Ilist.List(strategy) ->Printf.printf "Ilist.List in process_strategy\n";
+	  | Ilist.List(strategy) ->
 	      process_strategy manager graph ~depth:(depth+1) strategy ap_manager
 	  end
 	in
