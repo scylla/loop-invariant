@@ -91,7 +91,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	);
 	
 	Translate.preprocess_bpoint maxid;
-			
+	
 	let (fgraph,bgraph) = Frontend.build_graphs Format.std_formatter cil in
 	Printf.printf "Frontend.compute_and_display begin\n";
 	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk;

@@ -357,7 +357,7 @@ module Forward = struct
     in
     let res =
       match transfer with
-      | Equation.Lcons(cons)->
+      | Equation.Lcons(cond,cons)->
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
       	apply_lcons manager abs cons dest
