@@ -141,7 +141,7 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf stmt (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
+let generate_template fmt kf loop (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
 		let env = Apron.Environment.make vars cofs in
   	Format.printf "env=%a@."
    	 (fun x -> Apron.Environment.print x) env;

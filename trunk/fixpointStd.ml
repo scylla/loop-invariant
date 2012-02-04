@@ -186,7 +186,7 @@ let accumulate_vertex
   let allpost = ref true in
   if manager.print_postpre then av_print_oldreach manager oldreach;
   List.iter(fun hedge ->
-      if not manager.accumulate || PHashhe.mem info.iworkhedge hedge then begin
+  	if not manager.accumulate || PHashhe.mem info.iworkhedge hedge then begin
 	PHashhe.remove info.iworkhedge hedge;
 	let tpredvertex = PSHGraph.predvertex graph hedge in
 	if is_tvertex graph tpredvertex then begin
@@ -360,25 +360,28 @@ let process_vertex
   PSette.iter(fun edge->
   	let transfer = (PSHGraph.attrhedge graph edge).arc in
   	match transfer with
-  	| Equation.Lcons(cons)->
+  	| Equation.Lcons(cond,cons)->
  			Printf.printf "in Lcons process_vertex\n";
-  		Equation.print_transfer manager.print_fmt transfer;
-  		Format.print_flush ();Printf.printf "\n";
+  		Equation.print_transfer manager.print_fmt transfer;Format.print_flush ();Printf.printf "\n";
+  		Apron.Tcons1.print manager.print_fmt cond;Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in(*abstract*)
  			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
  			
  			let env0 = Translate.copy_env oldreach.Apron.Abstract1.env in
  			let env = ref oldreach.Apron.Abstract1.env in
  			oldreach.Apron.Abstract1.env <- Translate.merge_env env cons.Apron.Lincons1.env;
- 			Printf.printf "is_unsat=%b\n" (Apron.Lincons1.is_unsat cons);
- 			Printf.printf "sat_lincons=%b\n" (Apron.Abstract1.sat_lincons ap_manager oldreach cons);
- 			oldreach.Apron.Abstract1.env <- env0; 			
+ 			
+ 			let ea = {Apron.Tcons1.tcons0_array = [|cond.Apron.Tcons1.tcons0|];
+ 				Apron.Tcons1.array_env = oldreach.Apron.Abstract1.env;} in
+ 			Printf.printf "sat_lincons=%b\n" (Apron.Abstract1.sat_lincons ap_manager 
+ 				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) cons);
+ 			oldreach.Apron.Abstract1.env <- env0;
   	| _->();
-  		Printf.printf "in not Lcons process_vertex\n";
+  		(*Printf.printf "in not Lcons process_vertex\n";
   		Equation.print_transfer manager.print_fmt transfer;
   		Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in
- 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
+ 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";*)
   )spredhedges;
   growing
 
@@ -502,7 +505,7 @@ let descend
 				let attr = PSHGraph.attrvertex graph vertex in
 				let transfer = (PSHGraph.attrhedge graph edge).arc in
 				match transfer with
-				| Equation.Lcons(cons)->
+				| Equation.Lcons(cond,cons)->
 				 	Printf.printf "attrhedge,oldreach in descend\n";
 					Equation.print_transfer Format.std_formatter transfer;
 					Format.print_flush ();Printf.printf "\n";

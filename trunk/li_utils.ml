@@ -15,6 +15,18 @@ let extract_varinfos_from_stmt (s:stmt) =
   in ignore (visitCilStmt (visitor :> nopCilVisitor) s) ;
     visitor#varinfos
     
+let extract_varinfos_from_exp (e:exp) =
+    let visitor = object
+    inherit nopCilVisitor
+    val mutable varinfos = Varinfo.Set.empty;
+    method varinfos = varinfos
+    method vvrbl (symb:varinfo) =
+      varinfos <- Varinfo.Set.add symb varinfos;
+      SkipChildren
+  end
+  in ignore (visitCilExpr (visitor :> nopCilVisitor) e) ;
+    visitor#varinfos
+    
 let get_constant_str (c:Cil_types.constant) =
 	match c with
   | CInt64(i, _, Some s)->Escape.escape_char (Char.chr (My_bigint.to_int i))
