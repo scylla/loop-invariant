@@ -1,8 +1,9 @@
 void phase()
 {
-	int x=0,y=0,z=10;
+	int x=0,z=10;
 	while(x<=z)
 	{
+		//if(x%2==0)
 			x=x+1;
 	}
 }

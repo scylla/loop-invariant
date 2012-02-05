@@ -540,8 +540,10 @@ module Forward = struct
       		);
       	| Loop(_,_,_,_,_)->
       		let loop = Translate.extract_loop stmt in
-      		let end_stmt = Li_utils.get_stmt_end loop.body in
-      		let b = (Translate.force_stmt2block loop.body) in
+      		let first_stmt = List.nth loop.body 0 in
+      		let ffirst_stmt = Li_utils.get_stmt_first first_stmt in
+      		let end_stmt =  Li_utils.get_stmt_end (List.nth loop.body ((List.length loop.body)-1)) in
+      		(*let b = (Translate.force_stmt2block loop.body) in*)
       		
       		let vars = Li_utils.extract_varinfos_from_stmt stmt in
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
@@ -555,16 +557,13 @@ module Forward = struct
 					done;
 					
 					let cond = force_exp2tcons loop.con env in
-					let cons = Translate.generate_template fmt procinfo.kf loop apron_vars cofs in
-					let constransfer = Equation.Lcons(cond,cons) in
-					Equation.add_equation graph [|point|] constransfer {fname=name;sid=b.Cil_types.bid};
+					let cons = Translate.generate_template fmt procinfo.kf loop env apron_vars cofs in
+					let constransfer = Equation.Lcons(cond,cons,ref true) in
+					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
+					Cil.d_stmt fmt first_stmt;Format.print_flush ();Printf.printf "\n";
+					Cil.d_stmt fmt end_stmt;Format.print_flush ();Printf.printf "\n";
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
 					
-  				let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
-					let root_code_annot_ba = Cil_types.User(code_annotation) in
-					Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
-					(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;*)
-				
       		
       		let bexpr = force_exp2bexp loop.con in
       		let cond = boolexpr_of_bexpr env bexpr in
@@ -572,12 +571,12 @@ module Forward = struct
 					let condtransfer = Equation.Condition(cond) in
 					let condnottransfer = Equation.Condition(condnot) in
 					
-					Equation.add_equation graph [|point|] condtransfer {fname=name;sid=loop.body.Cil_types.sid};
-					Equation.add_equation graph [|{fname=name;sid=loop.body.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=b.Cil_types.bid};
+					Equation.add_equation graph [|point|] condtransfer {fname=name;sid=first_stmt.Cil_types.sid};
+					Equation.add_equation graph [|{fname=name;sid=first_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=ffirst_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) point;
 					Equation.add_equation graph [|point|] condnottransfer {fname=name;sid=stmt.Cil_types.sid};
 					
-      		iter_block name procinfo b;
+      		iter_block name procinfo (Cil.mkBlock loop.body);
       	| Block(b)->
       		iter_block name procinfo b;
       	| UnspecifiedSequence(seq)->

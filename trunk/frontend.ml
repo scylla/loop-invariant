@@ -7,10 +7,10 @@ open Loop_parameters
 let build_graphs (fmt:Format.formatter) (prog:Cil_types.file):graph * graph =
   (* Converting prog into a forward equation system *)
   let (fgraph:graph) = C2equation.Forward.make prog Format.std_formatter in
-	(*fprintf fmt "print fgraph after ok 1\n";
+	fprintf fmt "print fgraph after ok 1\n";
   Equation.print_graph fmt fgraph;
 	fprintf fmt "print fgraph after ok 2\n";
-   Converting prog into a backward equation system *)
+  (*Converting prog into a backward equation system *)
   let (bgraph:graph) = C2equation.Backward.make prog in
   (*fprintf fmt "print bgraph after ok 1\n";
   Equation.print_graph fmt bgraph;

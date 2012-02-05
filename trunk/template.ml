@@ -68,7 +68,6 @@ let make_fpmanager
     :
     (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.manager
     =
-  Printf.printf "make_fpmanager\n";
   let info = PSHGraph.info graph in
   {
     (* Lattice operation *)
@@ -357,7 +356,7 @@ module Forward = struct
     in
     let res =
       match transfer with
-      | Equation.Lcons(cond,cons)->
+      | Equation.Lcons(cond,cons,sat)->
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
       	apply_lcons manager abs cons dest

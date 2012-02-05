@@ -213,6 +213,16 @@ let rec get_stmt_location (s:Cil_types.stmt) :Cil_types.location =
 		let first_stmt = List.nth block.bstmts 0 in
 		get_stmt_location first_stmt;;
 
+let get_stmt_first stmt =
+	(match stmt.skind with
+	| Block(b)->
+		if (List.length b.bstmts)>0 then
+		(List.nth b.bstmts 0)
+		else
+		(stmt);
+	| _->stmt;
+	);;
+
 let get_stmt_end stmt =
 	(match stmt.skind with
 	| Block(b)->

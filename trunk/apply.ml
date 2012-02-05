@@ -71,7 +71,7 @@ let apply_lincons1 fmt kf stmt lincons1 =
 			| Apron.Coeff.Interval(_)->();
 		);
 		term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.doubleType;
-			
+		
 		let pred = ref Ptrue in
 		(match tp with(*cannot be all zero_term*)
 		| Apron.Lincons1.EQ->
@@ -88,7 +88,7 @@ let apply_lincons1 fmt kf stmt lincons1 =
 		);
 		let pnamed = Logic_const.unamed !pred in
 		let pnamed = Logic_const.unamed (Pforall(!llvar,pnamed)) in
-		let code_annotation = Logic_const.new_code_annotation(AAssert([],pnamed)) in
+		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 		code_annotation
 		
 let apply_abstract1 fmt kf stmt abs =
@@ -101,6 +101,11 @@ let apply_abstract1 fmt kf stmt abs =
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 	)lconsarray.Apron.Lincons1.lincons0_array
 	
+let apply_cons fmt kf stmt cons =
+	let code_annotation = apply_lincons1 fmt kf stmt cons in
+	let root_code_annot_ba = Cil_types.User(code_annotation) in
+	Annotations.add kf stmt [Ast.self] root_code_annot_ba
+
 let apply_result prog fmt fp =
 	Globals.Functions.iter(fun kf ->
 		try
@@ -124,12 +129,38 @@ let apply_result prog fmt fp =
 							)b.bstmts;
 						| Loop(_,_,_,_,_)->
 							let loop = Translate.extract_loop stmt in
-							let b = (Translate.force_stmt2block loop.Equation.body) in
-							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=loop.Equation.body.Cil_types.sid} in
+      				let first_stmt = List.nth loop.Equation.body 0 in
+							let end_stmt = Li_utils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
+							(*let b = (Translate.force_stmt2block loop.Equation.body) in*)
+							let edges1 = PSHGraph.predhedge fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
+							let edges2 = PSHGraph.succhedge fp {Equation.fname=name;Equation.sid=end_stmt.Cil_types.sid} in
+							let edges = ref [] in
+							PSette.iter(fun edge->
+								edges := edge::!edges;
+							)edges1;
+							PSette.iter(fun edge->
+								if (PSette.for_all (fun e->e==edge) edges1)==true then edges := edge::!edges;
+							)edges2;
+							
+							List.iter(fun edge->
+								let transfer = PSHGraph.attrhedge fp edge in
+								match transfer with
+								| Equation.Lcons(cond,cons,sat)->
+									if !sat==true then
+									(	Printf.printf "sat==true\n";
+										Equation.print_transfer fmt transfer;Format.print_flush ();Printf.printf "\n";
+										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
+										apply_cons fmt kf s cons;
+									)
+								| _->()
+							)!edges;
+							
+							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
 							apply_abstract1 fmt kf s abs;
+									
 							List.iter(fun s->
 								apply_stmt s;
-							)b.bstmts;
+							)loop.Equation.body;
 						| Block(b)->
 							List.iter(fun s->
 								apply_stmt s;

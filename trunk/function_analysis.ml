@@ -61,7 +61,7 @@ let generate_predicate_list_from_block pre_list (block:Cil_types.block) =
 	pre_list;
 	);*)
 	
-let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list)  (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
+let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
 	
 	let lt = ref [] in
 	let total_lt = ref [] in

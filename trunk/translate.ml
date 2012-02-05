@@ -82,19 +82,22 @@ let extract_loop stmt :Equation.loop =
 	(match stmt.skind with
 	| Loop(_,b,_,_,_)->
 		let con_stmt = List.nth b.bstmts 1 in
-		let body_stmt = List.nth b.bstmts 2 in
+		let body_stmt = ref [] in
+		for i=2 to ((List.length b.bstmts)-1) do
+			body_stmt := !body_stmt@[List.nth b.bstmts i];
+		done;
 		(match con_stmt.skind with
 		| If(con,_,_,_)->
-			{Equation.con=con;Equation.body=body_stmt};
+			{Equation.con=con;Equation.body=(!body_stmt)};
 		| _->
 			let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con"))) in
 			let body_stmt = Cil.dummyStmt in
-			{Equation.con=con;Equation.body = body_stmt};
+			{Equation.con=con;Equation.body = [body_stmt]};
 		);
 	| _->
 		let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con"))) in
 		let body_stmt = Cil.dummyStmt in
-		{Equation.con=con;Equation.body = body_stmt};
+		{Equation.con=con;Equation.body = [body_stmt]};
 	);;
 
 let rec force_assert_to_annot (e:Cil_types.exp) (kf:Cil_types.kernel_function) (s:Cil_types.stmt) = 
@@ -141,23 +144,30 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf loop (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
-		let env = Apron.Environment.make vars cofs in
+let generate_template fmt kf loop env (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
+		let new_env = Apron.Environment.make vars cofs in
   	Format.printf "env=%a@."
-   	 (fun x -> Apron.Environment.print x) env;
+   	 (fun x -> Apron.Environment.print x) new_env;
     
-    let tab = Apron.Lincons1.array_make env ((Array.length vars)-1) in
-    let expr = Apron.Linexpr1.make env in
-    Apron.Linexpr1.set_array expr
-    [|
-      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(0));
-      (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(1))
-    |]
-    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 25))))(*must be a valid argument*)
+    let cofl = ref [] in
+    let len = (Array.length vars)-1 in
+    for i=0 to len do
+    	cofl := (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(i))::!cofl;
+    done;
+    let tab = Apron.Lincons1.array_make new_env len in
+    let expr = Apron.Linexpr1.make new_env in
+    Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 30))))(*must be a valid argument*)
     ;
     let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
   	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-  	(*		
+  	(*
+  	let ea = {Apron.Tcons1.tcons0_array = [|cond.Apron.Tcons1.tcons0|];
+ 				Apron.Tcons1.array_env = Translate.merge_env env new_env;} in
+ 		let	sat = Apron.Abstract1.sat_lincons ap_manager 
+ 				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) cons in
+ 		Printf.printf "sat_lincons=%b\n" sat;
+  	
 		Format.printf "tab = %a@." lincons1_array_print tab;
 
 		let abs = Apron.Abstract1.of_lincons_array man env tab in
