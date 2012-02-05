@@ -4,12 +4,11 @@ open Format
 open Lexing
 open Cil
 
-type loop = {con:Cil_types.exp;body:Cil_types.stmt }
+type loop = {con:Cil_types.exp;body:Cil_types.stmt list}
 
 let print_loop fmt loop =
-	fprintf fmt "while(%a){%a}" 
-	Cil.d_exp loop.con 
-	Cil.d_stmt loop.body
+	fprintf fmt "while(%a){}" 
+	Cil.d_exp loop.con
 	 
 (*vertex and point*)
 type point = {fname:string;sid:int}
@@ -113,8 +112,8 @@ type var = point
 
 (** Information associated to hyperedges/functions used in equations *)
 type transfer =
-	| Lcons of Apron.Tcons1.t * Apron.Lincons1.t
-		(**linear constraint.cond and cons*)
+	| Lcons of Apron.Tcons1.t * Apron.Lincons1.t * bool ref
+		(**linear constraint. cond,cons and is all true?*)
   | Lassign of Apron.Var.t * Apron.Linexpr1.t
     (** Assignement by a linear expression *)
   | Tassign of Apron.Var.t * Apron.Texpr1.t
@@ -205,7 +204,7 @@ let print_info fmt info =
 
 let print_transfer fmt transfer = 
 	match transfer with
-	| Lcons(cond,cons1)->
+	| Lcons(cond,cons1,sat)->
 		Apron.Lincons1.print fmt cons1
   | Lassign _ -> failwith ""
   | Tassign(v,e) ->

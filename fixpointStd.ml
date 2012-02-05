@@ -325,7 +325,8 @@ let process_vertex
     :
     bool
     =
-  let vertex = svertex.vertex in  
+  let vertex = svertex.vertex in
+  manager.print_vertex manager.print_fmt vertex;Format.print_flush ();Printf.printf "\n";  
   let attr = PSHGraph.attrvertex graph vertex in
   
   
@@ -359,11 +360,13 @@ let process_vertex
   let spredhedges = PSHGraph.succhedge graph vertex in
   PSette.iter(fun edge->
   	let transfer = (PSHGraph.attrhedge graph edge).arc in
+  	(*Equation.print_transfer manager.print_fmt transfer;Format.print_flush ();Printf.printf "\nedge%d\n" edge;*)
   	match transfer with
-  	| Equation.Lcons(cond,cons)->
+  	| Equation.Lcons(cond,cons,sat)->
  			Printf.printf "in Lcons process_vertex\n";
-  		Equation.print_transfer manager.print_fmt transfer;Format.print_flush ();Printf.printf "\n";
   		Apron.Tcons1.print manager.print_fmt cond;Format.print_flush ();Printf.printf "\n";
+  		if !sat==true then
+  		(
   		let oldreach = attr.reach in(*abstract*)
  			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
  			
@@ -373,15 +376,17 @@ let process_vertex
  			
  			let ea = {Apron.Tcons1.tcons0_array = [|cond.Apron.Tcons1.tcons0|];
  				Apron.Tcons1.array_env = oldreach.Apron.Abstract1.env;} in
- 			Printf.printf "sat_lincons=%b\n" (Apron.Abstract1.sat_lincons ap_manager 
- 				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) cons);
+ 			sat := Apron.Abstract1.sat_lincons ap_manager 
+ 				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) cons;
+ 			Printf.printf "sat_lincons=%b\n" !sat;
  			oldreach.Apron.Abstract1.env <- env0;
+ 			);
   	| _->();
-  		(*Printf.printf "in not Lcons process_vertex\n";
+  		Printf.printf "in not Lcons process_vertex\n";
   		Equation.print_transfer manager.print_fmt transfer;
   		Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in
- 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";*)
+ 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
   )spredhedges;
   growing
 
@@ -505,7 +510,7 @@ let descend
 				let attr = PSHGraph.attrvertex graph vertex in
 				let transfer = (PSHGraph.attrhedge graph edge).arc in
 				match transfer with
-				| Equation.Lcons(cond,cons)->
+				| Equation.Lcons(cond,cons,sat)->
 				 	Printf.printf "attrhedge,oldreach in descend\n";
 					Equation.print_transfer Format.std_formatter transfer;
 					Format.print_flush ();Printf.printf "\n";
@@ -704,10 +709,10 @@ let rec process_toplevel_strategy
 	    ggrowing := !ggrowing || growing;
 	    let reducing =
 	      if growing then
-		(* Descending *)
-		descend manager graph strategy
+					(* Descending *)
+					descend manager graph strategy
 	      else
-		false
+					false
 	    in
 	    greducing := !greducing || reducing
 	end;
