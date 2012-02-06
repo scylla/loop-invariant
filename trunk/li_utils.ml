@@ -223,16 +223,37 @@ let get_stmt_first stmt =
 	| _->stmt;
 	);;
 
-let get_stmt_end stmt =
+let rec get_stmt_end stmt =
 	(match stmt.skind with
-	| Block(b)->
+	| Block(b)|Loop(_,b,_,_,_)|Switch(_,b,_,_)->
 		if (List.length b.bstmts)>0 then
-		(List.nth b.bstmts ((List.length b.bstmts)-1))
+		(get_stmt_end (List.nth b.bstmts ((List.length b.bstmts)-1)))
+		else
+		(stmt);
+	| If(_,b1,b2,_)->
+		if (List.length b2.bstmts)==0 then
+		(
+		get_stmt_end (List.nth b1.bstmts ((List.length b1.bstmts)-1));
+		)else
+		(
+		get_stmt_end (List.nth b2.bstmts ((List.length b2.bstmts)-1));
+		);
+	| UnspecifiedSequence(seq)->
+		let b = Cil.block_from_unspecified_sequence seq in
+		if (List.length b.bstmts)>0 then
+		(get_stmt_end (List.nth b.bstmts ((List.length b.bstmts)-1)))
 		else
 		(stmt);
 	| _->stmt;
 	);;
-	
+
+let get_stmt_id stmt =
+	(match stmt.skind with
+	| Block(b)->
+		b.bid;
+	| _->stmt.sid;
+	);;
+
 let get_block_spoint (b:Cil_types.block) :Cil_types.location =
 	if (List.length b.bstmts)>0 then
 	(
