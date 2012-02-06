@@ -541,6 +541,7 @@ module Forward = struct
       	| Loop(_,_,_,_,_)->
       		let loop = Translate.extract_loop stmt in
       		let first_stmt = List.nth loop.body 0 in
+      		let first_id = Li_utils.get_stmt_id first_stmt in
       		let ffirst_stmt = Li_utils.get_stmt_first first_stmt in
       		let end_stmt =  Li_utils.get_stmt_end (List.nth loop.body ((List.length loop.body)-1)) in
       		(*let b = (Translate.force_stmt2block loop.body) in*)
@@ -572,7 +573,7 @@ module Forward = struct
 					let condnottransfer = Equation.Condition(condnot) in
 					
 					Equation.add_equation graph [|point|] condtransfer {fname=name;sid=first_stmt.Cil_types.sid};
-					Equation.add_equation graph [|{fname=name;sid=first_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=ffirst_stmt.Cil_types.sid};
+					Equation.add_equation graph [|{fname=name;sid=first_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=first_id};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) point;
 					Equation.add_equation graph [|point|] condnottransfer {fname=name;sid=stmt.Cil_types.sid};
 					
