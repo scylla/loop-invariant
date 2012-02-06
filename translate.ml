@@ -146,8 +146,6 @@ let merge_env env1 env2 =
 	
 let generate_template fmt kf loop env (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
 		let new_env = Apron.Environment.make vars cofs in
-  	Format.printf "env=%a@."
-   	 (fun x -> Apron.Environment.print x) new_env;
     
     let cofl = ref [] in
     let len = (Array.length vars)-1 in
@@ -161,29 +159,4 @@ let generate_template fmt kf loop env (vars:Apron.Var.t array) (cofs:Apron.Var.t
     ;
     let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
   	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-  	(*
-  	let ea = {Apron.Tcons1.tcons0_array = [|cond.Apron.Tcons1.tcons0|];
- 				Apron.Tcons1.array_env = Translate.merge_env env new_env;} in
- 		let	sat = Apron.Abstract1.sat_lincons ap_manager 
- 				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) cons in
- 		Printf.printf "sat_lincons=%b\n" sat;
-  	
-		Format.printf "tab = %a@." lincons1_array_print tab;
-
-		let abs = Apron.Abstract1.of_lincons_array man env tab in
-		Format.printf "abs=%a@." Apron.Abstract1.print abs;
-		let array = Apron.Abstract1.to_generator_array man abs in
-		Format.printf "gen=%a@." generator1_array_print array;
-		
-		let box = Apron.Abstract1.to_box man abs in
-	  Format.printf "box=%a@." (print_array Apron.Interval.print) box.Apron.Abstract1.interval_array;
-	  
-	  for i=0 to ((Array.length vars)-2) do
-	  	Printf.printf "i=%d\n" i;
-		  let expr = Apron.Lincons1.get_linexpr1 (Apron.Lincons1.array_get tab i) in
-		  let box = Apron.Abstract1.bound_linexpr man abs expr in
-		  Format.printf "Bound of %a = %a@."
-		    Apron.Linexpr1.print expr
-		    Apron.Interval.print box;
-		done;*)
 		cons;;
