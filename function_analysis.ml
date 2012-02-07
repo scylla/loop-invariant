@@ -126,17 +126,17 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 			let con_named = Logic_const.pands (List.rev s.predicate_list) in
 			if (List.length !alvars)!=0 then(*!llvars*)
 			begin
-				Printf.printf "alvars.len=%d\n" (List.length !alvars);
 				(*t_named := Logic_const.unamed (Pexists (!llvars,(Logic_const.unamed (Pimplies (con_named,!t_named)))));
 				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),!t_named));*)
-				t_named := Logic_const.unamed (Pexists (!lelvars,(Logic_const.unamed (Pimplies (con_named,!t_named)))));
+				(*t_named := Logic_const.unamed (Pexists (!lelvars,(Logic_const.unamed (Pimplies (con_named,!t_named)))));
 				t_named := Logic_const.unamed (Pforall (!alvars,!t_named));
-				(*t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),(Logic_const.unamed (Pimplies (con_named,!t_named)))));*)
+				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),(Logic_const.unamed (Pimplies (con_named,!t_named)))));*)
+				t_named := Logic_const.unamed (Pimplies (con_named,!t_named));
 			end
 			else
 			begin
-				Printf.printf "alvars.len==0\n";
-				t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),(Logic_const.unamed (Pimplies (con_named,!t_named)))));
+				(*t_named := Logic_const.unamed (Pforall (s.free_lv_list@(!elvars),(Logic_const.unamed (Pimplies (con_named,!t_named)))));*)
+				t_named := Logic_const.unamed (Pimplies (con_named,!t_named));
 			end;
 			
 			lt := !t_named::!lt;

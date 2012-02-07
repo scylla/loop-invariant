@@ -150,12 +150,12 @@ let generate_template fmt kf loop env (vars:Apron.Var.t array) (cofs:Apron.Var.t
     let cofl = ref [] in
     let len = (Array.length vars)-1 in
     for i=0 to len do
-    	cofl := (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int (-1))), vars.(i))::!cofl;
+    	cofl := (Apron.Coeff.s_of_int (-1), vars.(i))::!cofl;
     done;
     let tab = Apron.Lincons1.array_make new_env len in
     let expr = Apron.Linexpr1.make new_env in
     Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-    (Some (Apron.Coeff.Scalar (Apron.Scalar.Mpqf (Mpqf.of_int 30))))(*must be a valid argument*)
+    (Some (Apron.Coeff.s_of_int 30))(*must be a valid argument*)
     ;
     let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
   	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
