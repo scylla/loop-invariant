@@ -548,16 +548,22 @@ module Forward = struct
       		let vars = Li_utils.extract_varinfos_from_stmt stmt in
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
 			 		
-					let var_x = Apron.Var.of_string "x" in
-					let apron_vars = Array.make (List.length lvars) var_x in
+					let var_x = Apron.Var.of_string "t" in
+					(*let apron_vars = Array.make (List.length lvars) var_x in
 					let cofs = Array.make (List.length lvars) var_x in
 					for i=0 to (List.length lvars)-1 do
 						apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname);
 						cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
-					done;
+					done;*)
+					let apron_vars = ref [||] in
+					let cofs = ref [||] in
+					List.iter(fun lv->
+						apron_vars := Array.append !apron_vars [|Apron.Var.of_string lv.vname|];
+						cofs := Array.append !cofs [|Apron.Var.of_string ((lv.vname)^"cof")|];
+					)lvars;
 					
 					let cond = force_exp2tcons loop.con env in
-					let cons = Translate.generate_template fmt procinfo.kf loop env apron_vars cofs in
+					let cons = Translate.generate_template fmt procinfo.kf loop env !apron_vars !cofs in
 					let constransfer = Equation.Lcons(cond,cons,ref true) in
 					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
