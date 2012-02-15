@@ -110,10 +110,9 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 	
 let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
 	let flag = ref 1 in
-	let ip_list = Property.ip_of_code_annot kf stmt code_annot in
-	Printf.printf "ip_list.len=%d\n" (List.length ip_list);
-	List.iter(fun ip->
-		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
+	(*List.iter(fun ip->
+		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";*)
 		flag := Prove.prove_predicate kf [] ip;
 		(*let status = prove_predicate kf [] ip in
 		(match status with
@@ -175,8 +174,8 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 		| Inconsistent(inc)->
 			flag := 0;
 			Printf.printf "result InConsistent\n";
-		);*)
-	)ip_list;
+		);
+	)ip_list;*)
 	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
 	if !flag=0 then
 	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)else

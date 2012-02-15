@@ -1,10 +1,10 @@
 void phase()
 {
-	int x=0,y=10;
-	while(x<=y)
+	int m=0;int a=10;
+	while(m<=a)
 	{
 		//if(x%2==0)
-			x=x+1;
+			m=m+1;
 	}
 }
 void main()
