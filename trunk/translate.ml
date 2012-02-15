@@ -144,13 +144,81 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf loop env (vars:Apron.Var.t array) (cofs:Apron.Var.t array)=
-		let new_env = Apron.Environment.make vars cofs in
+let generate_template fmt kf loop lvars stmt env =
+	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
+		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
+	let term = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
+	let lterm = ref [] in
+	let zero_term = Logic_utils.mk_dummy_term tnode Cil.intType in
+	let llvar = ref [] in
+	let ltype = Cil_types.Ctype(Cil.intType) in
+	List.iter(fun v->
+		let lv = Cil.cvar_to_lvar v in
+		let tnode = TLval((TVar(lv),TNoOffset)) in
+		let tvar = Logic_const.term tnode ltype in
+		
+		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (-1)),Cil_types.IInt,None)) in
+		let tcof = Logic_const.term tnode ltype in
+		
+		let tnode = TBinOp(Mult,tcof,tvar) in
+		lterm := !lterm@[Logic_const.term tnode ltype];
+	)lvars;
+	
+	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 30),Cil_types.IInt,None)) in
+	let tcon = Logic_const.term tnode ltype in
+	lterm := !lterm@[tcon];
+	
+	List.iter(fun t->
+		Cil.d_term fmt t;Format.print_flush ();Printf.printf "\n";
+		term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
+	)!lterm;
+	
+	let pred = Prel(Rge,!term,zero_term) in
+	(*let pred = ref Ptrue in
+		(match tp with(*cannot be all zero_term*)
+		| Apron.Lincons1.EQ->
+			pred := Prel(Req,!term,zero_term);
+		| Apron.Lincons1.SUPEQ->
+			pred := Prel(Rge,!term,zero_term);
+		| Apron.Lincons1.SUP->
+			pred := Prel(Rgt,!term,zero_term);
+		| Apron.Lincons1.DISEQ->
+			pred := Prel(Rneq,!term,zero_term);
+		| Apron.Lincons1.EQMOD(_)->
+			let rterm = Logic_utils.mk_dummy_term (TBinOp(Mod,!term,zero_term)) Cil.intType in
+			pred := Prel(Req,!term,rterm);(*%=*)
+		);*)
+    
+	let pnamed = Logic_const.unamed pred in
+	let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+	Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+	Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
+	let root_code_annot_ba = Cil_types.User(code_annotation) in
+  Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+  let annots = Annotations.get_all_annotations stmt in
+  List.iter(fun r->
+  	match r with
+  	| User(code_annot)->LiAnnot.prove_code_annot kf stmt code_annotation;
+  	| AI(_,code_annot)->LiAnnot.prove_code_annot kf stmt code_annotation;
+  )annots;
+  
+          
+          
+          
+	let vars = ref [||] in
+	let cofs = ref [||] in
+	List.iter(fun v->
+		Cil.d_type fmt v.vtype;Format.print_flush ();Printf.printf "\n";
+		vars := Array.append !vars [|Apron.Var.of_string v.vname|];
+		cofs := Array.append !cofs [|Apron.Var.of_string ((v.vname)^"cof")|];
+	)lvars;
+
+		let new_env = Apron.Environment.make (!vars) (!cofs) in
     
     let cofl = ref [] in
-    let len = (Array.length vars)-1 in
+    let len = (Array.length !vars)-1 in
     for i=0 to len do
-    	cofl := (Apron.Coeff.s_of_int (-1), vars.(i))::!cofl;
+    	cofl := (Apron.Coeff.s_of_int (-1), !vars.(i))::!cofl;
     done;
     let tab = Apron.Lincons1.array_make new_env len in
     let expr = Apron.Linexpr1.make new_env in

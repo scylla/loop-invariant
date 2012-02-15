@@ -157,9 +157,11 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| Le->
 			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Eq->
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		|_->
-			(*Printf.printf "unknownBinOp\n";
-			TypePrinter.print_exp_type Format.std_formatter exp;
+			Printf.printf "unknownBinOp\n";
+			(*TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownBinOp");
 		)
@@ -181,9 +183,9 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 		| CReal(f,_,_)->
 			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
 		| _->
-			(*Printf.printf "unknownConst\n";
+			Printf.printf "unknownConst\n";
 			TypePrinter.print_exp_type Format.std_formatter exp;
-			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+			(*Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
 		)
 	| Lval((host,offset))->
@@ -548,30 +550,25 @@ module Forward = struct
       		let vars = Li_utils.extract_varinfos_from_stmt stmt in
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
 			 		
-					let var_x = Apron.Var.of_string "t" in
-					(*let apron_vars = Array.make (List.length lvars) var_x in
+					(*let var_x = Apron.Var.of_string "t" in
+					let apron_vars = Array.make (List.length lvars) var_x in
 					let cofs = Array.make (List.length lvars) var_x in
 					for i=0 to (List.length lvars)-1 do
 						apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname);
 						cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
 					done;*)
-					let apron_vars = ref [||] in
-					let cofs = ref [||] in
-					List.iter(fun lv->
-						apron_vars := Array.append !apron_vars [|Apron.Var.of_string lv.vname|];
-						cofs := Array.append !cofs [|Apron.Var.of_string ((lv.vname)^"cof")|];
-					)lvars;
+					
 					
 					let cond = force_exp2tcons loop.con env in
-					let cons = Translate.generate_template fmt procinfo.kf loop env !apron_vars !cofs in
+					let cons = Translate.generate_template fmt procinfo.kf loop lvars stmt env in
 					let constransfer = Equation.Lcons(cond,cons,ref true) in
 					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
 					
-      		let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
+      		(*let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
           let root_code_annot_ba = Cil_types.User(code_annotation) in
           Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
-          LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;
+          LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;*)
           
       		let bexpr = force_exp2bexp loop.con in
       		let cond = boolexpr_of_bexpr env bexpr in

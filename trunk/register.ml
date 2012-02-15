@@ -81,20 +81,45 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
 	
+	let fmt =  Format.std_formatter in
 	let maxid = ref 0 in
+	Printf.printf "get_block_maxid1\n";
 	Globals.Functions.iter(fun kf ->
 		match kf.fundec with
 		| Definition(dec,loc)->
+			Printf.printf "Definition\n";
+			List.iter(fun s->
+				TypePrinter.print_stmtkind fmt s.skind;Format.print_flush ();
+				match s.skind with
+				| Loop(annotl,_,_,_,_)->
+					Cil.d_stmt fmt s;Format.print_flush ();
+					Printf.printf "\nannotl=%d\n" (List.length annotl);
+					List.iter(fun r->
+						match r with
+						| User(code)->
+							Cil.d_code_annotation fmt code;Format.print_flush ();Printf.printf "\n";
+							match code.annot_content with
+							| AInvariant(sl,_,_)->
+								Printf.printf "AInvariant\n";
+								List.iter(fun s->
+									Printf.printf "bh=%s\n" s;
+								)sl;
+							| _->();
+						| _->Printf.printf "AI\n";
+					)(Annotations.get_all_annotations s);
+				| _->();
+			)dec.sbody.bstmts;
 			get_block_maxid maxid dec.sbody;
-		| Declaration(spec,v,vlo,_)->
+		| Declaration(spec,v,vlo,_)->Printf.printf "Declaration\n";
 		  ()
 	);
+	Printf.printf "get_block_maxid2\n";
 	
 	Translate.preprocess_bpoint maxid;
 	
-	let (fgraph,bgraph) = Frontend.build_graphs Format.std_formatter cil in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt cil in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	Frontend.compute_and_display Format.std_formatter cil fgraph bgraph manpk;
+	Frontend.compute_and_display fmt cil fgraph bgraph manpk;
 	Printf.printf "Frontend.compute_and_display over\n";
 	
 	

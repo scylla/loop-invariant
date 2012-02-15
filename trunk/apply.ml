@@ -1,4 +1,5 @@
 open Cil_types
+open Apron
 
 let apply_lincons1 fmt kf stmt lincons1 =
 	let tp = Apron.Lincons1.get_typ lincons1 in
@@ -6,11 +7,12 @@ let apply_lincons1 fmt kf stmt lincons1 =
 		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
 		let term = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
+		let lterm = ref [] in
 		let zero_term = Logic_utils.mk_dummy_term tnode Cil.intType in
 		let llvar = ref [] in
 		let count = ref 0 in
 		
-		Apron.Lincons1.iter(fun cof v->
+		Apron.Lincons1.iter(fun cof v->(*Printf.printf "iter\n";Coeff.print fmt cof;Var.print fmt v;Format.print_flush ();Printf.printf "\n";*)
 			let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 			let tvar = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
 			let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
@@ -18,41 +20,50 @@ let apply_lincons1 fmt kf stmt lincons1 =
 			let tpvar = Apron.Environment.typ_of_var lincons1.Apron.Lincons1.env v in
 			(match tpvar with
 			| Apron.Environment.INT->
+				Printf.printf "INT\n";
 				let ltype = Cil_types.Ctype(Cil.intType) in
 				let logic_var = Cil.make_temp_logic_var ltype in
 				logic_var.lv_name <- (Apron.Var.to_string v);
 				llvar := !llvar@[logic_var];
 				let tnode = TLval((TVar(logic_var),TNoOffset)) in
-				tvar := Logic_utils.mk_dummy_term tnode Cil.intType;
+				Cil.d_logic_type fmt logic_var.lv_type;
+				tvar := Logic_const.term tnode ltype;Format.print_flush ();Printf.printf "\n";
 			| Apron.Environment.REAL->
+				Printf.printf "REAL\n";
 				let ltype = Cil_types.Ctype(Cil.doubleType) in
 				let logic_var = Cil.make_temp_logic_var ltype in
 				logic_var.lv_name <- (Apron.Var.to_string v);
 				llvar := !llvar@[logic_var];
 				let tnode = TLval((TVar(logic_var),TNoOffset)) in
-				tvar := Logic_utils.mk_dummy_term tnode Cil.doubleType;
-			);			
+				tvar := Logic_const.term tnode ltype;
+			);
 			Cil.d_term fmt !tvar;Format.print_flush ();Printf.printf "-->";
-			TypePrinter.print_tnode_type fmt (!tvar).term_node;
+			TypePrinter.print_tnode_type fmt (!tvar).term_node;Format.print_flush ();
 			
 			(match cof with
 			| Apron.Coeff.Scalar(sca)->
 				(match sca with
 				| Apron.Scalar.Float(f)->
+					Printf.printf "f\n";
+					let ltype = Cil_types.Ctype(Cil.intType) in
 					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_float f),Cil_types.IInt,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.intType;
+					tcof := Logic_const.term tnode ltype;
 				| Apron.Scalar.Mpqf(q)->
+					Printf.printf "q\n";
+					let ltype = Cil_types.Ctype(Cil.intType) in
 					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_string (Mpqf.to_string q)),Cil_types.IInt,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.intType;
+					tcof := Logic_const.term tnode ltype;
 				| _->();
 				);
 			| Apron.Coeff.Interval(_)->();
 			);
 			Cil.d_term fmt !tcof;Format.print_flush ();Printf.printf "-->";
-			TypePrinter.print_tnode_type fmt (!tcof).term_node;
+			TypePrinter.print_tnode_type fmt (!tcof).term_node;Format.print_flush ();
 			
+			let ltype = Cil_types.Ctype(Cil.intType) in
 			let tnode = TBinOp(Mult,!tcof,!tvar) in
-			if !count == 0 then
+			lterm := !lterm@[Logic_const.term tnode ltype];
+			(*if !count == 0 then
 			(term := Logic_utils.mk_dummy_term tnode Cil.intType;count := !count+1;)
 			else
 			(
@@ -60,9 +71,10 @@ let apply_lincons1 fmt kf stmt lincons1 =
 			term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,term2)) Cil.intType;
 			);
 			Cil.d_term fmt !term;Format.print_flush ();Printf.printf "-->";
-			TypePrinter.print_tnode_type fmt (!term).term_node;
+			TypePrinter.print_tnode_type fmt (!term).term_node;Format.print_flush ();*)
 		)lincons1;
 		
+		let ltype = Cil_types.Ctype(Cil.intType) in
 		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		let cst = Apron.Lincons1.get_cst lincons1 in
 		let tcof = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
@@ -71,16 +83,20 @@ let apply_lincons1 fmt kf stmt lincons1 =
 				(match sca with
 				| Apron.Scalar.Float(f)->
 					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_float f),Cil_types.IInt,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.intType;
+					tcof := Logic_const.term tnode ltype;
 				| Apron.Scalar.Mpqf(q)->
 					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_string (Mpqf.to_string q)),Cil_types.IInt,None)) in
-					tcof := Logic_utils.mk_dummy_term tnode Cil.intType;
+					tcof :=Logic_const.term tnode ltype;
 				| _->();
 				);
 			| Apron.Coeff.Interval(_)->();
 		);
-		term := Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.intType;
+		lterm := !lterm@[!tcof];(*Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.intType;*)
 		
+		List.iter(fun t->
+			Cil.d_term fmt t;Format.print_flush ();Printf.printf "\n";
+			term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
+		)!lterm;
 		let pred = ref Ptrue in
 		(match tp with(*cannot be all zero_term*)
 		| Apron.Lincons1.EQ->
@@ -95,6 +111,10 @@ let apply_lincons1 fmt kf stmt lincons1 =
 			let rterm = Logic_utils.mk_dummy_term (TBinOp(Mod,!term,zero_term)) Cil.intType in
 			pred := Prel(Req,!term,rterm);(*%=*)
 		);
+		(*let code_annotation = Logic_const.new_code_annotation(AAssigns([],WritesAny)) in
+		let root_code_annot_ba = Cil_types.User(code_annotation) in
+    Annotations.add kf stmt [Ast.self] root_code_annot_ba;*)
+    
 		let pnamed = Logic_const.unamed !pred in
 		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
