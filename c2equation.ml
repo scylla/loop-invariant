@@ -25,21 +25,7 @@ type bexpr =
   | AND  of bexpr*bexpr
   | OR   of bexpr*bexpr
   | NOT  of bexpr (** *)
-	
-let negate_texpr (texpr:Apron.Texpr1.t) : Apron.Texpr1.t
-  =
-  let expr = Apron.Texpr1.to_expr texpr in
-  let nexpr = match expr with
-    | Apron.Texpr1.Unop(Apron.Texpr1.Neg,e,typ,round) ->
-			e
-    | _ ->
-			Apron.Texpr1.Unop(
-				Apron.Texpr1.Neg, expr,
-				Apron.Texpr1.Real, Apron.Texpr1.Rnd
-			)
-  in
-  let env = Apron.Texpr1.get_env texpr in
-  Apron.Texpr1.of_expr env nexpr
+
 	
 let negate_tcons (tcons:Apron.Tcons1.t) : Apron.Tcons1.t
   =
@@ -47,8 +33,8 @@ let negate_tcons (tcons:Apron.Tcons1.t) : Apron.Tcons1.t
   let (ntyp,ntexpr) = match Apron.Tcons1.get_typ tcons with
     | Apron.Tcons1.EQ -> (Apron.Tcons1.DISEQ,texpr)
     | Apron.Tcons1.DISEQ -> (Apron.Tcons1.EQ,texpr)
-    | Apron.Tcons1.SUPEQ -> (Apron.Tcons1.SUP, negate_texpr texpr)
-    | Apron.Tcons1.SUP -> (Apron.Tcons1.SUPEQ, negate_texpr texpr)
+    | Apron.Tcons1.SUPEQ -> (Apron.Tcons1.SUP, Translate.negate_texpr texpr)
+    | Apron.Tcons1.SUP -> (Apron.Tcons1.SUPEQ, Translate.negate_texpr texpr)
     | Apron.Tcons1.EQMOD _ -> failwith "EQMOD not supported now"
   in
   Apron.Tcons1.make ntexpr ntyp
@@ -139,75 +125,12 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
     )
     bexpr0
 
-let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
-	match exp.enode with
-	| BinOp(op,e1,e2,ty)->
-		let te1 = force_exp_to_texp e1 in
-		let te2 = force_exp_to_texp e2 in
-		(match op with
-		| PlusA->
-			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| MinusA->
-			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| Div->
-			Apron.Texpr1.Binop(Apron.Texpr1.Div,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| Mult->
-			Apron.Texpr1.Binop(Apron.Texpr1.Mul,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| Mod->
-			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| Le->
-			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| Eq->
-			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		|_->
-			Printf.printf "unknownBinOp\n";
-			(*TypePrinter.print_exp_type Format.std_formatter exp;
-			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
-			Apron.Texpr1.Var(Apron.Var.of_string "unknownBinOp");
-		)
-	| UnOp(op,e,ty)->
-		(match op with
-		| Neg->
-			let te = force_exp_to_texp e in
-			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| _->
-			(*Printf.printf "unknownUnOp\n";
-			TypePrinter.print_exp_type Format.std_formatter exp;
-			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
-			Apron.Texpr1.Var(Apron.Var.of_string "unknownUnOp");
-		)
-	| Const(cons)->
-		(match cons with
-		| CInt64(i,kind,_)->
-			Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));
-		| CReal(f,_,_)->
-			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
-		| _->
-			Printf.printf "unknownConst\n";
-			TypePrinter.print_exp_type Format.std_formatter exp;
-			(*Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
-			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
-		)
-	| Lval((host,offset))->
-		(match host with
-		| Var(v)->
-			Apron.Texpr1.Var(Apron.Var.of_string v.vname);
-		| Mem(e)->
-			force_exp_to_texp e;
-		);
-	| CastE(ty,e)->
-		force_exp_to_texp e;(*not exactly right*)
-	|_->
-		(*Printf.printf "unknownEnode\n";
-		TypePrinter.print_exp_type Format.std_formatter exp;
-		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
-		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
-		  
+
 let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 	match exp.enode with
 	| BinOp(op,e1,e2,tp)->
-		let te1 = force_exp_to_texp e1 in
-		let te2 = force_exp_to_texp e2 in
+		let te1 = Translate.force_exp_to_texp e1 in
+		let te2 = Translate.force_exp_to_texp e2 in
 		(match op with
 		| Lt->
 			CONS(te1,LT,te2)
@@ -237,48 +160,7 @@ let convert (lvar:varinfo list) : Apron.Var.t array =
   Array.of_list
   	(List.map (fun var->Apron.Var.of_string var.vname) lvar)
 
-(** Add to an environment a list of variables *)
-let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
-	let names = ref [] in
-	let (a1,a2)= Apron.Environment.vars env in
-	Array.iter(fun v->
-		names := (Apron.Var.to_string v)::!names;
-	)a1;
-	Array.iter(fun v->
-		names := (Apron.Var.to_string v)::!names;
-	)a2;
-	let lint = ref [] and lreal = ref [] in
-	List.iter(fun var->
-		if (List.for_all (fun vn->vn==var.vname;) !names)==true then
-		(
-		match var.vtype with
-		| TInt(_,_)->lint := (Apron.Var.of_string var.vname)::!lint;
-		| TFloat(_,_)->lreal := (Apron.Var.of_string var.vname)::!lreal;
-		| _->();
-		);
-	)lvar;
-  Apron.Environment.add env
-    (Array.of_list !lint)
-    (Array.of_list !lreal)
 
-let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
-	let texpr = force_exp_to_texp e in
-	let vars = Li_utils.extract_varinfos_from_exp e in
-	let lvars = Cil_datatype.Varinfo.Set.elements vars in
-	let env = add_env env lvars in
-	let texpr = Apron.Texpr1.of_expr env texpr in
-	(match e.enode with
-	| BinOp(op,_,_,_)->
-		(match op with
-		| Eq->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
-		| Ne->Apron.Tcons1.make texpr Apron.Tcons1.DISEQ;
-		| Gt->Apron.Tcons1.make texpr Apron.Tcons1.SUP;
-		| Ge->Apron.Tcons1.make texpr Apron.Tcons1.SUPEQ;
-		| Lt->Apron.Tcons1.make (negate_texpr texpr) Apron.Tcons1.SUP;
-		| Le->Apron.Tcons1.make (negate_texpr texpr) Apron.Tcons1.SUPEQ;
-		| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
-		);
-	| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;)
 (*  ---------------------------------------------------------------------- *)
 (** {3 Building preprocessed information} *)
 (*  ---------------------------------------------------------------------- *)
@@ -303,8 +185,8 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		let plocal = convert fundec.slocals in
 
 		let penv = Apron.Environment.make [||] [||] in
-		let penv = add_env penv fundec.sformals in
-		let penv = add_env penv fundec.slocals in
+		let penv = Translate.add_env penv fundec.sformals in
+		let penv = Translate.add_env penv fundec.slocals in
 
 		{
 			Equation.kf = proc;
@@ -321,7 +203,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
   	(match vlo with
   	| Some(vl)->
   		pinput := convert vl;
-  		penv := add_env !penv vl;
+  		penv := Translate.add_env !penv vl;
   	| None->();
   	);
   	{
@@ -454,7 +336,7 @@ let make_info (prog:Cil_types.file) : Equation.info =
 (*  ********************************************************************** *)
 	
 module Forward = struct
-  let make (prog:Cil_types.file) (fmt:Format.formatter): Equation.graph =
+  let make (prog:Cil_types.file) (fmt:Format.formatter) ipl: Equation.graph =
   	let info = make_info prog in
     let graph = Equation.create 3 info in
 		
@@ -479,7 +361,7 @@ module Forward = struct
       			| Var(v)->
       				let var = Apron.Var.of_string v.vname in
 		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (force_exp_to_texp e) in
+		   					let texp = (Translate.force_exp_to_texp e) in
 								Apron.Texpr1.of_expr env texp
 							in
 							let transfer = Equation.Tassign(var,texpr) in
@@ -488,7 +370,7 @@ module Forward = struct
 						| Mem(e)->
 							let var = Apron.Var.of_string (Li_utils.get_exp_name e) in
 		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (force_exp_to_texp e) in
+		   					let texp = (Translate.force_exp_to_texp e) in
 								Apron.Texpr1.of_expr env texp
 							in
       				let transfer = Equation.Tassign(var,texpr) in
@@ -559,9 +441,7 @@ module Forward = struct
 					done;*)
 					
 					
-					let cond = force_exp2tcons loop.con env in
-					let cons = Translate.generate_template fmt procinfo.kf loop lvars stmt env in
-					let constransfer = Equation.Lcons(cond,cons,ref true) in
+					let constransfer = Translate.generate_template fmt procinfo.kf loop lvars stmt env ipl in
 					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
 					
@@ -701,7 +581,7 @@ module Backward = struct
       			| Var(v)->
       				let var = Apron.Var.of_string v.vname in
 		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (force_exp_to_texp e) in
+		   					let texp = (Translate.force_exp_to_texp e) in
 								Apron.Texpr1.of_expr env texp
 							in
 							let transfer = Equation.Tassign(var,texpr) in
@@ -710,7 +590,7 @@ module Backward = struct
 						| Mem(e)->
 							let var = Apron.Var.of_string (Li_utils.get_exp_name e) in
 		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (force_exp_to_texp e) in
+		   					let texp = (Translate.force_exp_to_texp e) in
 								Apron.Texpr1.of_expr env texp
 							in
       				let transfer = Equation.Tassign(var,texpr) in

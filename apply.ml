@@ -22,8 +22,7 @@ let apply_lincons1 fmt kf stmt lincons1 =
 			| Apron.Environment.INT->
 				Printf.printf "INT\n";
 				let ltype = Cil_types.Ctype(Cil.intType) in
-				let logic_var = Cil.make_temp_logic_var ltype in
-				logic_var.lv_name <- (Apron.Var.to_string v);
+				let logic_var = Translate.avar_to_lvar v in
 				llvar := !llvar@[logic_var];
 				let tnode = TLval((TVar(logic_var),TNoOffset)) in
 				Cil.d_logic_type fmt logic_var.lv_type;
@@ -37,8 +36,8 @@ let apply_lincons1 fmt kf stmt lincons1 =
 				let tnode = TLval((TVar(logic_var),TNoOffset)) in
 				tvar := Logic_const.term tnode ltype;
 			);
-			Cil.d_term fmt !tvar;Format.print_flush ();Printf.printf "-->";
-			TypePrinter.print_tnode_type fmt (!tvar).term_node;Format.print_flush ();
+			(*Cil.d_term fmt !tvar;Format.print_flush ();Printf.printf "-->";
+			TypePrinter.print_tnode_type fmt (!tvar).term_node;Format.print_flush ();*)
 			
 			(match cof with
 			| Apron.Coeff.Scalar(sca)->
@@ -57,8 +56,8 @@ let apply_lincons1 fmt kf stmt lincons1 =
 				);
 			| Apron.Coeff.Interval(_)->();
 			);
-			Cil.d_term fmt !tcof;Format.print_flush ();Printf.printf "-->";
-			TypePrinter.print_tnode_type fmt (!tcof).term_node;Format.print_flush ();
+			(*Cil.d_term fmt !tcof;Format.print_flush ();Printf.printf "-->";
+			TypePrinter.print_tnode_type fmt (!tcof).term_node;Format.print_flush ();*)
 			
 			let ltype = Cil_types.Ctype(Cil.intType) in
 			let tnode = TBinOp(Mult,!tcof,!tvar) in
@@ -94,7 +93,6 @@ let apply_lincons1 fmt kf stmt lincons1 =
 		lterm := !lterm@[!tcof];(*Logic_utils.mk_dummy_term (TBinOp(PlusA,!term,!tcof)) Cil.intType;*)
 		
 		List.iter(fun t->
-			Cil.d_term fmt t;Format.print_flush ();Printf.printf "\n";
 			term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
 		)!lterm;
 		let pred = ref Ptrue in
@@ -120,7 +118,7 @@ let apply_lincons1 fmt kf stmt lincons1 =
 		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 		code_annotation
 		
-let apply_abstract1 fmt kf stmt abs =
+let apply_abstract1 fmt kf stmt abs ipl =
 	let man = Apron.Abstract1.manager abs in
 	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
 	Array.iter(fun cons->
@@ -128,14 +126,16 @@ let apply_abstract1 fmt kf stmt abs =
 		let code_annotation = apply_lincons1 fmt kf stmt lincons1 in
 		let root_code_annot_ba = Cil_types.User(code_annotation) in
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+		LiAnnot.prove_code_annot kf stmt code_annotation ipl;
 	)lconsarray.Apron.Lincons1.lincons0_array
 	
-let apply_cons fmt kf stmt cons =
+let apply_cons fmt kf stmt cons ipl =
 	let code_annotation = apply_lincons1 fmt kf stmt cons in
 	let root_code_annot_ba = Cil_types.User(code_annotation) in
-	Annotations.add kf stmt [Ast.self] root_code_annot_ba
+	Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+	LiAnnot.prove_code_annot kf stmt code_annotation ipl
 
-let apply_result prog fmt fp =
+let apply_result prog fmt fp ipl=
 	Globals.Functions.iter(fun kf ->
 		try
 			let name = Kernel_function.get_name kf in
@@ -160,6 +160,10 @@ let apply_result prog fmt fp =
 							let loop = Translate.extract_loop stmt in
       				let first_stmt = List.nth loop.Equation.body 0 in
 							let end_stmt = Li_utils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
+							
+							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
+							apply_abstract1 fmt kf s abs;
+							
 							(*let b = (Translate.force_stmt2block loop.Equation.body) in*)
 							let edges1 = PSHGraph.predhedge fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
 							let edges2 = PSHGraph.succhedge fp {Equation.fname=name;Equation.sid=end_stmt.Cil_types.sid} in
@@ -174,18 +178,27 @@ let apply_result prog fmt fp =
 							List.iter(fun edge->
 								let transfer = PSHGraph.attrhedge fp edge in
 								match transfer with
-								| Equation.Lcons(cond,cons,sat)->
+								| Equation.Lcons(cond,cons,code_annotation,sat)->
 									if !sat==true then
 									(	Printf.printf "sat==true\n";
 										Equation.print_transfer fmt transfer;Format.print_flush ();Printf.printf "\n";
 										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-										apply_cons fmt kf s cons;
+										(*apply_cons fmt kf s cons;*)
+										let root_code_annot_ba = Cil_types.User(code_annotation) in
+										
+										Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
+										Annotations.add kf s [Ast.self] root_code_annot_ba;
+										let annots = Annotations.get_all_annotations s in
+										Printf.printf "annots.len=%d\n" (List.length annots);
+										List.iter(fun r->
+											match r with
+											| User(code_annot)->Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";
+											| AI(_,code_annot)->Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";
+										)annots;
+										LiAnnot.prove_code_annot kf s code_annotation ipl;
 									)
 								| _->()
 							)!edges;
-							
-							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-							apply_abstract1 fmt kf s abs;
 									
 							List.iter(fun s->
 								apply_stmt s;

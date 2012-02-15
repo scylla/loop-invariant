@@ -83,13 +83,11 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	
 	let fmt =  Format.std_formatter in
 	let maxid = ref 0 in
-	Printf.printf "get_block_maxid1\n";
 	Globals.Functions.iter(fun kf ->
 		match kf.fundec with
 		| Definition(dec,loc)->
 			Printf.printf "Definition\n";
 			List.iter(fun s->
-				TypePrinter.print_stmtkind fmt s.skind;Format.print_flush ();
 				match s.skind with
 				| Loop(annotl,_,_,_,_)->
 					Cil.d_stmt fmt s;Format.print_flush ();
@@ -113,13 +111,13 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		| Declaration(spec,v,vlo,_)->Printf.printf "Declaration\n";
 		  ()
 	);
-	Printf.printf "get_block_maxid2\n";
 	
 	Translate.preprocess_bpoint maxid;
 	
-	let (fgraph,bgraph) = Frontend.build_graphs fmt cil in
+	let ipl = ref [] in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt cil ipl in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	Frontend.compute_and_display fmt cil fgraph bgraph manpk;
+	Frontend.compute_and_display fmt cil fgraph bgraph manpk ipl;
 	Printf.printf "Frontend.compute_and_display over\n";
 	
 	
@@ -184,13 +182,26 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  )!assumes;
 		  match kf.fundec with
 		  | Definition(_,_)->
-	    	analysis_kf kf manpk !linfo_list !assumes funsigs visitor;
+	    	analysis_kf kf manpk !linfo_list !assumes funsigs visitor ipl;
       		(*prove_kf kf;*)
       | Declaration(spec,v,vlo,_)->
       	();
     );
   );
-      	
+  
+  Printf.printf "ip status\n";
+  List.iter(fun ip->
+		let status = Property_status.Consolidation.get ip in
+		(match status with
+		| Property_status.Consolidation.Considered_valid|Property_status.Consolidation.Valid(_)|Property_status.Consolidation.Valid_under_hyp(_)|Property_status.Consolidation.Valid_but_dead(_)->
+			Printf.printf "Valid?\n";
+		| Property_status.Consolidation.Unknown(pend)->
+			Printf.printf "Unkonwn\n";
+		|_->
+			Printf.printf "Invalid\n";
+		);
+	)!ipl;
+	
 	!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
 		
   let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in

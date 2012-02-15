@@ -362,7 +362,7 @@ let process_vertex
   	let transfer = (PSHGraph.attrhedge graph edge).arc in
   	(*Equation.print_transfer manager.print_fmt transfer;Format.print_flush ();Printf.printf "\nedge%d\n" edge;*)
   	match transfer with
-  	| Equation.Lcons(cond,cons,sat)->
+  	| Equation.Lcons(cond,cons,code_annotation,sat)->
  			Printf.printf "in Lcons process_vertex\n";
   		Apron.Tcons1.print manager.print_fmt cond;Format.print_flush ();Printf.printf "\n";
   		if !sat==true then
@@ -382,11 +382,11 @@ let process_vertex
  			oldreach.Apron.Abstract1.env <- env0;
  			);
   	| _->();
-  		Printf.printf "in not Lcons process_vertex\n";
+  		(*Printf.printf "in not Lcons process_vertex\n";
   		Equation.print_transfer manager.print_fmt transfer;
   		Format.print_flush ();Printf.printf "\n";
   		let oldreach = attr.reach in
- 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
+ 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";*)
   )spredhedges;
   growing
 
@@ -510,7 +510,7 @@ let descend
 				let attr = PSHGraph.attrvertex graph vertex in
 				let transfer = (PSHGraph.attrhedge graph edge).arc in
 				match transfer with
-				| Equation.Lcons(cond,cons,sat)->
+				| Equation.Lcons(cond,cons,code_annotation,sat)->
 				 	Printf.printf "attrhedge,oldreach in descend\n";
 					Equation.print_transfer Format.std_formatter transfer;
 					Format.print_flush ();Printf.printf "\n";
