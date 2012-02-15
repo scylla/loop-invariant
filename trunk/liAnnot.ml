@@ -108,12 +108,13 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 			(Annotations.add kf stmt [Ast.self] rannot;)end
 	)rannot_bf_list;;
 	
-let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) =
+let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) (ipl:Property.identified_property list ref) =
 	let flag = ref 1 in
 	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
+	
 	(*List.iter(fun ip->
 		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";*)
-		flag := Prove.prove_predicate kf [] ip;
+		flag := Prove.prove_predicate kf [] ip;ipl := ip::!ipl;
 		(*let status = prove_predicate kf [] ip in
 		(match status with
 		| Considered_valid|Valid(_)|Valid_under_hyp(_)|Valid_but_dead(_)->
@@ -186,7 +187,7 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 let prove_kf (kf:Cil_types.kernel_function) = 
 	Printf.printf "prove_kf\n";
 	List.iter(fun bhv->
-	Printf.printf "%s\n" bhv;
+		Printf.printf "%s\n" bhv;
 	)(Kernel_function.all_function_behaviors kf);
 	
 	(*let fundec = Kernel_function.get_definition kf in

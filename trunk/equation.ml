@@ -112,7 +112,7 @@ type var = point
 
 (** Information associated to hyperedges/functions used in equations *)
 type transfer =
-	| Lcons of Apron.Tcons1.t * Apron.Lincons1.t * bool ref
+	| Lcons of Apron.Tcons1.t * Apron.Lincons1.t * Cil_types.code_annotation * bool ref
 		(**linear constraint. cond,cons and is all true?*)
   | Lassign of Apron.Var.t * Apron.Linexpr1.t
     (** Assignement by a linear expression *)
@@ -204,7 +204,7 @@ let print_info fmt info =
 
 let print_transfer fmt transfer = 
 	match transfer with
-	| Lcons(cond,cons1,sat)->
+	| Lcons(cond,cons1,code_annotation,sat)->
 		Apron.Lincons1.print fmt cons1
   | Lassign _ -> failwith ""
   | Tassign(v,e) ->

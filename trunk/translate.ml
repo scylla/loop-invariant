@@ -3,14 +3,148 @@ open Cil_types
 open LiVisitor
 open LiAnnot
 open Li_utils
+open Equation
 
+let avar_to_lvar va =
+	let lv =
+		{	lv_name = (Apron.Var.to_string va);
+			lv_id = -1;
+			lv_type = Cil_types.Ctype(Cil.intType);
+			lv_origin = None}
+	in
+	lv;;
+
+
+(** Add to an environment a list of variables *)
+let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
+	let names = ref [] in
+	let (a1,a2)= Apron.Environment.vars env in
+	Array.iter(fun v->
+		names := (Apron.Var.to_string v)::!names;
+	)a1;
+	Array.iter(fun v->
+		names := (Apron.Var.to_string v)::!names;
+	)a2;
+	let lint = ref [] and lreal = ref [] in
+	List.iter(fun var->
+		if (List.for_all (fun vn->vn==var.vname;) !names)==true then
+		(
+		match var.vtype with
+		| TInt(_,_)->lint := (Apron.Var.of_string var.vname)::!lint;
+		| TFloat(_,_)->lreal := (Apron.Var.of_string var.vname)::!lreal;
+		| _->();
+		);
+	)lvar;
+  Apron.Environment.add env
+    (Array.of_list !lint)
+    (Array.of_list !lreal)
+	
+let negate_texpr (texpr:Apron.Texpr1.t) : Apron.Texpr1.t
+  =
+  let expr = Apron.Texpr1.to_expr texpr in
+  let nexpr = match expr with
+    | Apron.Texpr1.Unop(Apron.Texpr1.Neg,e,typ,round) ->
+			e
+    | _ ->
+			Apron.Texpr1.Unop(
+				Apron.Texpr1.Neg, expr,
+				Apron.Texpr1.Real, Apron.Texpr1.Rnd
+			)
+  in
+  let env = Apron.Texpr1.get_env texpr in
+  Apron.Texpr1.of_expr env nexpr
+      
+let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
+	match exp.enode with
+	| BinOp(op,e1,e2,ty)->
+		let te1 = force_exp_to_texp e1 in
+		let te2 = force_exp_to_texp e2 in
+		(match op with
+		| PlusA->
+			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| MinusA->
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Div->
+			Apron.Texpr1.Binop(Apron.Texpr1.Div,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Mult->
+			Apron.Texpr1.Binop(Apron.Texpr1.Mul,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Mod->
+			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Le->
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Eq->
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		|_->
+			Printf.printf "unknownBinOp\n";
+			(*TypePrinter.print_exp_type Format.std_formatter exp;
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+			Apron.Texpr1.Var(Apron.Var.of_string "unknownBinOp");
+		)
+	| UnOp(op,e,ty)->
+		(match op with
+		| Neg->
+			let te = force_exp_to_texp e in
+			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| _->
+			(*Printf.printf "unknownUnOp\n";
+			TypePrinter.print_exp_type Format.std_formatter exp;
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+			Apron.Texpr1.Var(Apron.Var.of_string "unknownUnOp");
+		)
+	| Const(cons)->
+		(match cons with
+		| CInt64(i,kind,_)->
+			Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));
+		| CReal(f,_,_)->
+			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
+		| _->
+			Printf.printf "unknownConst\n";
+			TypePrinter.print_exp_type Format.std_formatter exp;
+			(*Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
+		)
+	| Lval((host,offset))->
+		(match host with
+		| Var(v)->
+			Apron.Texpr1.Var(Apron.Var.of_string v.vname);
+		| Mem(e)->
+			force_exp_to_texp e;
+		);
+	| CastE(ty,e)->
+		force_exp_to_texp e;(*not exactly right*)
+	|_->
+		(*Printf.printf "unknownEnode\n";
+		TypePrinter.print_exp_type Format.std_formatter exp;
+		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
+		  
+
+let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
+	let texpr = force_exp_to_texp e in
+	let vars = Li_utils.extract_varinfos_from_exp e in
+	let lvars = Cil_datatype.Varinfo.Set.elements vars in
+	let env = add_env env lvars in
+	let texpr = Apron.Texpr1.of_expr env texpr in
+	(match e.enode with
+	| BinOp(op,_,_,_)->
+		(match op with
+		| Eq->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
+		| Ne->Apron.Tcons1.make texpr Apron.Tcons1.DISEQ;
+		| Gt->Apron.Tcons1.make texpr Apron.Tcons1.SUP;
+		| Ge->Apron.Tcons1.make texpr Apron.Tcons1.SUPEQ;
+		| Lt->Apron.Tcons1.make (negate_texpr texpr) Apron.Tcons1.SUP;
+		| Le->Apron.Tcons1.make (negate_texpr texpr) Apron.Tcons1.SUPEQ;
+		| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
+		);
+	| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;)
+	
 (*get max sid in block*)
-let rec get_block_maxid id b =
+let rec get_block_maxid (id:int ref) (b:Cil_types.block) =
 	List.iter(fun s->
 		let fmt = Format.std_formatter in
-		if s.sid> !id then id := s.sid;
-		match s.skind with
-		| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
+		if s.Cil_types.sid> !id then id := s.Cil_types.sid;
+		match s.Cil_types.skind with
+		| Instr(_)|Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
 		| If(e,b1,b2,_)->
 			get_block_maxid id b1;
 			get_block_maxid id b2;
@@ -19,7 +153,7 @@ let rec get_block_maxid id b =
 			get_block_maxid id b2;
 		| Switch(_,b,sl,_)->
 			List.iter(fun s->
-				if s.sid> !id then id := s.sid;
+				if s.Cil_types.sid> !id then id := s.Cil_types.sid;
 			)sl;
 			get_block_maxid id b;
 		| Loop(_,b,_,_,_)|Block(b)->
@@ -34,13 +168,13 @@ let rec get_block_maxid id b =
 
 (*assign bpoint with name and id.id starts from max id in all stmts and increases
 step by 1 every assignment*)
-let rec generate_bpoint id name b =
+let rec generate_bpoint (id:int ref) (name:string) (b:Cil_types.block) =
 	id := !id+1;
-	b.bid <- !id;
-	b.kf_name <- name;
+	b.Cil_types.bid <- !id;
+	b.Cil_types.kf_name <- name;
 	List.iter(fun s->
 		match s.skind with
-		| Instr(_)|Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
+		| Instr(_)|Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
 		| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
 			generate_bpoint id name b1;
 			generate_bpoint id name b2;
@@ -144,7 +278,7 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf loop lvars stmt env =
+let generate_template fmt kf loop lvars stmt env ipl =
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
 	let term = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
@@ -198,12 +332,13 @@ let generate_template fmt kf loop lvars stmt env =
   let annots = Annotations.get_all_annotations stmt in
   List.iter(fun r->
   	match r with
-  	| User(code_annot)->LiAnnot.prove_code_annot kf stmt code_annotation;
-  	| AI(_,code_annot)->LiAnnot.prove_code_annot kf stmt code_annotation;
+  	| User(code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl;
+  	| AI(_,code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl;
   )annots;
+ 
+          
   
-          
-          
+	let cond = force_exp2tcons loop.con env in  
           
 	let vars = ref [||] in
 	let cofs = ref [||] in
@@ -227,4 +362,4 @@ let generate_template fmt kf loop lvars stmt env =
     ;
     let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
   	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-		cons;;
+		Lcons(cond,cons,code_annotation,ref true);;

@@ -4,7 +4,9 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip :int =
 	wp_run ();1;
 	
 	Dynamic.Parameter.String.set "-wp-proof" "cvc3";*)(*alt-ergocvc3*)
-	(*Dynamic.Parameter.String.set "-wp-model" "Store";(*Runtime*)
+	(*
+	Dynamic.Parameter.Bool.on "-wp" ();
+	Dynamic.Parameter.String.set "-wp-model" "Store";(*Runtime*)
 	Dynamic.Parameter.Int.set "-wp-timeout" 15;
 	Dynamic.Parameter.String.set "-wp-out" "/home/lzh/why-out";
 	Dynamic.Parameter.Int.set "-wp-par" 1;*)
@@ -14,8 +16,8 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip :int =
 	let module OP = Datatype.Option(Property) in
 	Dynamic.Parameter.Int.set "-wp-timeout" 205;
 	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
-	wp_compute (Some(kf)) bhv (Some(ip));
-	let status = Property_status.Feedback.get ip in
+	wp_compute (Some(kf)) bhv (Some(ip));(*(Some(kf))*)
+	(*let status = Property_status.Feedback.get ip in
 	(match status with
 	| Property_status.Feedback.Unknown->
 		Printf.printf "Unknown\n";0;
@@ -23,7 +25,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip :int =
 		Printf.printf "Valid\n";1;
 	| _->1;
 	);
-	(*	
+	*)	
 	let status = Property_status.Consolidation.get ip in
 	(match status with
 	| Property_status.Consolidation.Considered_valid|Property_status.Consolidation.Valid(_)|Property_status.Consolidation.Valid_under_hyp(_)|Property_status.Consolidation.Valid_but_dead(_)->
@@ -33,7 +35,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip :int =
 	|_->
 		Printf.printf "Invalid\n";0;
 	);
-	*)
+	
 	with Exit->Printf.printf "Exit\n";0;
 	(*1;with Exit->0;
 	let status = Property_status.get ip in
