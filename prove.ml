@@ -1,5 +1,5 @@
 
-let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip :int =
+let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip wp_compute :int =
 	(*let wp_run = Dynamic.get ~plugin:"Wp" "run" (Datatype.func Datatype.unit Datatype.unit) in
 	wp_run ();1;
 	
@@ -10,12 +10,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip :int =
 	Dynamic.Parameter.Int.set "-wp-timeout" 15;
 	Dynamic.Parameter.String.set "-wp-out" "/home/lzh/why-out";
 	Dynamic.Parameter.Int.set "-wp-par" 1;*)
-	try
-	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
-	let module OKF = Datatype.Option(Kernel_function) in
-	let module OP = Datatype.Option(Property) in
-	Dynamic.Parameter.Int.set "-wp-timeout" 205;
-	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
+	try	
 	wp_compute (Some(kf)) bhv (Some(ip));(*(Some(kf))*)
 	(*let status = Property_status.Feedback.get ip in
 	(match status with

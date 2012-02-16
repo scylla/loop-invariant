@@ -115,9 +115,16 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Translate.preprocess_bpoint maxid;
 	
 	let ipl = ref [] in
-	let (fgraph,bgraph) = Frontend.build_graphs fmt cil ipl in
+	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
+	let module OKF = Datatype.Option(Kernel_function) in
+	let module OP = Datatype.Option(Property) in
+	Dynamic.Parameter.Int.set "-wp-timeout" 205;
+	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
+	
+	let info = C2equation.make_info cil in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt info ipl wp_compute in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	Frontend.compute_and_display fmt cil fgraph bgraph manpk ipl;
+	Frontend.compute_and_display fmt info fgraph bgraph manpk ipl wp_compute;
 	Printf.printf "Frontend.compute_and_display over\n";
 	
 	
@@ -182,7 +189,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  )!assumes;
 		  match kf.fundec with
 		  | Definition(_,_)->
-	    	analysis_kf kf manpk !linfo_list !assumes funsigs visitor ipl;
+	    	analysis_kf kf manpk !linfo_list !assumes funsigs visitor ipl wp_compute;
       		(*prove_kf kf;*)
       | Declaration(spec,v,vlo,_)->
       	();

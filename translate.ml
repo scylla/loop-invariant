@@ -10,13 +10,14 @@ let avar_to_lvar va =
 		{	lv_name = (Apron.Var.to_string va);
 			lv_id = -1;
 			lv_type = Cil_types.Ctype(Cil.intType);
-			lv_origin = None}
+			lv_origin = None
+		}
 	in
 	lv;;
 
 
 (** Add to an environment a list of variables *)
-let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
+let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Environment.t =
 	let names = ref [] in
 	let (a1,a2)= Apron.Environment.vars env in
 	Array.iter(fun v->
@@ -30,8 +31,14 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) :Apron.Environment.t =
 		if (List.for_all (fun vn->vn==var.vname;) !names)==true then
 		(
 		match var.vtype with
-		| TInt(_,_)->lint := (Apron.Var.of_string var.vname)::!lint;
-		| TFloat(_,_)->lreal := (Apron.Var.of_string var.vname)::!lreal;
+		| TInt(_,_)->
+			let avar = (Apron.Var.of_string var.vname) in
+			lint := avar::!lint;
+			Hashhe.add avar2cvar avar var;
+		| TFloat(_,_)->
+			let avar = (Apron.Var.of_string var.vname) in
+			lreal := avar::!lreal;
+			Hashhe.add avar2cvar avar var;
 		| _->();
 		);
 	)lvar;
@@ -123,7 +130,7 @@ let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 	let texpr = force_exp_to_texp e in
 	let vars = Li_utils.extract_varinfos_from_exp e in
 	let lvars = Cil_datatype.Varinfo.Set.elements vars in
-	let env = add_env env lvars in
+	(*let env = add_env env lvars in*)
 	let texpr = Apron.Texpr1.of_expr env texpr in
 	(match e.enode with
 	| BinOp(op,_,_,_)->
@@ -278,7 +285,7 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf loop lvars stmt env ipl =
+let generate_template fmt kf loop lvars stmt env ipl wp_compute =
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
 	let term = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
@@ -332,8 +339,8 @@ let generate_template fmt kf loop lvars stmt env ipl =
   let annots = Annotations.get_all_annotations stmt in
   List.iter(fun r->
   	match r with
-  	| User(code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl;
-  	| AI(_,code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl;
+  	| User(code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl wp_compute;
+  	| AI(_,code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl wp_compute;
   )annots;
  
           

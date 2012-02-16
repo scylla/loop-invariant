@@ -592,7 +592,7 @@ module Backward = struct
 
   let compute
       ~(fmt : Format.formatter)
-      (prog:Cil_types.file)
+      (prog:Equation.info)
       (graph:Equation.graph)
       ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
       (manager:'a Apron.Manager.t)
