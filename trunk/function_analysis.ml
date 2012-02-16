@@ -314,7 +314,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 	generate_block_predicate loop_block;
 	total_lt
 	
-let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor) (ipl:Property.identified_property list ref)=
+let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor) (ipl:Property.identified_property list ref) wp_compute=
 	let fmt = Format.std_formatter in
 	try
 	let fundec = Kernel_function.get_definition kf in
@@ -421,7 +421,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 						let root_code_annot_ba = Cil_types.User(annot) in
 						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 						Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-						LiAnnot.prove_code_annot kf stmt annot;();
+						LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;();
 					);
 				)!total_lt;
 			 	Printf.printf "Analysis loop body over.\n";
@@ -429,7 +429,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 					let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					LiAnnot.prove_code_annot kf stmt annot ipl;
+					LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;
 				)assumes;
 			 	Printf.printf "Leave Loop Now.\n";
 		 | Block(_) ->

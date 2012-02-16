@@ -69,6 +69,7 @@ type procinfo = {
   pinput: Apron.Var.t array;  (** Array of input variables *)
   plocal: Apron.Var.t array;  (** Array of other variables *)
   penv: Apron.Environment.t;  (** Environment of the procedure *)
+  avar2cvar: (Apron.Var.t,Cil_types.varinfo) Hashhe.t;
 }
 
 let dummy_procinfo =
@@ -80,6 +81,7 @@ let dummy_procinfo =
 		pinput = [||];
 		plocal = [||];
 		penv = Apron.Environment.make [||] [||];
+		avar2cvar = Hashhe.create 1;
 	}
 (** Useful information for the program *)
 type info = {

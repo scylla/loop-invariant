@@ -185,8 +185,9 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		let plocal = convert fundec.slocals in
 
 		let penv = Apron.Environment.make [||] [||] in
-		let penv = Translate.add_env penv fundec.sformals in
-		let penv = Translate.add_env penv fundec.slocals in
+		let avar2cvar = Hashhe.create 3 in
+		let penv = Translate.add_env penv fundec.sformals avar2cvar in
+		let penv = Translate.add_env penv fundec.slocals avar2cvar in
 
 		{
 			Equation.kf = proc;
@@ -196,14 +197,16 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		  Equation.pinput = pinput;
 		  Equation.plocal = plocal;
 		  Equation.penv = penv;
+		  Equation.avar2cvar = avar2cvar;
  	 }
   | Declaration(spec,v,vlo,loc)->
   	let pinput = ref [||] in
   	let penv = ref (Apron.Environment.make [||] [||]) in
+		let avar2cvar = Hashhe.create 3 in
   	(match vlo with
   	| Some(vl)->
   		pinput := convert vl;
-  		penv := Translate.add_env !penv vl;
+  		penv := Translate.add_env !penv vl avar2cvar;
   	| None->();
   	);
   	{
@@ -214,6 +217,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		  Equation.pinput = !pinput;
 		  Equation.plocal = [||];
 		  Equation.penv = !penv;
+		  Equation.avar2cvar = avar2cvar;
   	}
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
@@ -336,8 +340,8 @@ let make_info (prog:Cil_types.file) : Equation.info =
 (*  ********************************************************************** *)
 	
 module Forward = struct
-  let make (prog:Cil_types.file) (fmt:Format.formatter) ipl: Equation.graph =
-  	let info = make_info prog in
+  let make (info:Equation.info) (fmt:Format.formatter) ipl wp_compute: Equation.graph =
+  	
     let graph = Equation.create 3 info in
 		
     let rec iter_block (name:string) (procinfo:Equation.procinfo) (block:block) : unit =
@@ -431,17 +435,9 @@ module Forward = struct
       		
       		let vars = Li_utils.extract_varinfos_from_stmt stmt in
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
-			 		
-					(*let var_x = Apron.Var.of_string "t" in
-					let apron_vars = Array.make (List.length lvars) var_x in
-					let cofs = Array.make (List.length lvars) var_x in
-					for i=0 to (List.length lvars)-1 do
-						apron_vars.(i) <- Apron.Var.of_string ((List.nth lvars i).vname);
-						cofs.(i) <- Apron.Var.of_string ((List.nth lvars i).vname^"cof");
-					done;*)
 					
 					
-					let constransfer = Translate.generate_template fmt procinfo.kf loop lvars stmt env ipl in
+					let constransfer = Translate.generate_template fmt procinfo.kf loop lvars stmt env ipl wp_compute in
 					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
 					
@@ -555,8 +551,8 @@ end
 (*  ********************************************************************** *)
 
 module Backward = struct
-  let make (prog:Cil_types.file) : Equation.graph =
-  	let info = make_info prog in
+  let make (info:Equation.info) : Equation.graph =
+  	
     let graph = Equation.create 3 info in
 
 		let rec iter_block (name:string) (procinfo:Equation.procinfo) (block:block) : unit =
