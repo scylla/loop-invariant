@@ -84,9 +84,10 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let fmt =  Format.std_formatter in
 	let maxid = ref 0 in
 	Globals.Functions.iter(fun kf ->
+		let name = Kernel_function.get_name kf in
 		match kf.fundec with
 		| Definition(dec,loc)->
-			Printf.printf "Definition\n";
+			Printf.printf "Definition:%s\n" name;
 			List.iter(fun s->
 				match s.skind with
 				| Loop(annotl,_,_,_,_)->

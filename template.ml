@@ -160,14 +160,12 @@ let make_emptyoutput
 				Fixpoint.stable = false;
       }
     )
-    
+
 let environment_of_tvar
-  (typ_of_var : Apron.Var.t -> Apron.Environment.typvar)
-  (tvar : Apron.Var.t array)
-  :
-  Apron.Environment.t
-  =
-  let (lint,lreal) =
+	(typ_of_var:Apron.Var.t->Apron.Environment.typvar)
+	(tvar:Apron.Var.t array)
+	=
+	let (lint,lreal) =
     Array.fold_right(begin fun var (lint,lreal) ->
     	Apron.Var.print Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
 			begin match typ_of_var var with
@@ -178,6 +176,18 @@ let environment_of_tvar
   in
   let tint = Array.of_list lint and treal = Array.of_list lreal in
   Apron.Environment.make tint treal;;
+      
+let environment_of_texpr
+  (texpr : Apron.Texpr1.t array)
+  :
+  Apron.Environment.t
+  =
+  let env = ref (Apron.Environment.make [||] [||]) in
+  Array.iter(fun e->
+  	let (i,r) = Apron.Environment.vars (Apron.Texpr1.get_env e) in
+  	env := Apron.Environment.add !env i r;
+  )texpr;
+  !env;;
   
 (*  ********************************************************************** *)
 (** {2 Forward semantics} *)
@@ -246,14 +256,26 @@ module Forward = struct
     (manager:'a Apron.Manager.t)
     (abstract:'a Apron.Abstract1.t)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Var.t array)
+    (inargs:Apron.Texpr1.t array)
     (dest:'a Apron.Abstract1.t option)
     =
     (* current environment *)
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
-    let tenv = environment_of_tvar (Apron.Environment.typ_of_var env) inargs in
+    let tenv = environment_of_texpr inargs in
+    let (i,r) = Apron.Environment.vars tenv in
+    
+    let fmt =  Format.std_formatter in
+    Printf.printf "var in ac inargs\n";
+    Array.iter(fun v->
+    	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
+    )(Array.append i r);
+    Printf.printf "var in fo inargs\n";
+    Array.iter(fun v->
+    	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
+    )calleeinfo.Equation.pinput;
+    
     let abstract2 =
       Apron.Abstract1.change_environment manager abstract tenv false
     in
@@ -261,7 +283,7 @@ module Forward = struct
     (* 2. We now rename actual parameters in formal ones *)
     Apron.Abstract1.rename_array_with
       manager abstract2
-      inargs calleeinfo.Equation.pinput
+      (Array.append i r) calleeinfo.Equation.pinput
     ;
     (* 3. Last, we embed in callee environment *)
     Apron.Abstract1.change_environment_with
@@ -280,7 +302,7 @@ module Forward = struct
     (manager:'a Apron.Manager.t)
     (abscaller:'a Apron.Abstract1.t) (abscallee:'a Apron.Abstract1.t)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
+    (inargs:Apron.Texpr1.t array) (outargs:Apron.Texpr1.t array)
     (dest:'a Apron.Abstract1.t option)
     =
      (* 0. We forget local variables in abscallee *)
@@ -293,9 +315,11 @@ module Forward = struct
     (* 1. We rename in modified abscallee
        - formal in parameters by actual inparameters
        - formal out parameters by special names (to avoid name conflicts)
-    *)
+    *) 
+    let tenv = environment_of_texpr inargs in
+    let (i,r) = Apron.Environment.vars tenv in
     Apron.Abstract1.rename_array_with
-      manager res calleeinfo.Equation.pinput inargs;
+      manager res calleeinfo.Equation.pinput (Array.append i r);
     (* 2. We unify the renamed callee value and the caller value *)
     Apron.Abstract1.unify_with manager res abscaller;
     (* 3. We assign the actual out parameters *)
@@ -499,7 +523,7 @@ module Backward = struct
     (abstract:'a Apron.Abstract1.t)
     (callerinfo:Equation.procinfo)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Var.t array)
+    (inargs:Apron.Texpr1.t array)
     (dest:'a Apron.Abstract1.t option)
     =
     (* current environment *)
@@ -507,18 +531,18 @@ module Backward = struct
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
     let tenv =
-      environment_of_tvar
-				(Apron.Environment.typ_of_var env)
-				calleeinfo.Equation.pinput
+      environment_of_tvar (Apron.Environment.typ_of_var env) calleeinfo.Equation.pinput
     in
     let abstract2 =
       Apron.Abstract1.change_environment manager abstract tenv false
     in
     (* From now on, we work by side-effect *)
     (* 2. We now rename formal parameters into actual ones *)
+    let tenv = environment_of_texpr inargs in
+    let (i,r) = Apron.Environment.vars tenv in
     Apron.Abstract1.rename_array_with
       manager abstract2
-      calleeinfo.Equation.pinput inargs
+      calleeinfo.Equation.pinput (Array.append i r)
     ;
     (* 3. Last, we embed in caller environment *)
     Apron.Abstract1.change_environment_with
@@ -538,7 +562,7 @@ module Backward = struct
     (abstract:'a Apron.Abstract1.t)
     (callerinfo:Equation.procinfo)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Var.t array) (outargs:Apron.Var.t array)
+    (inargs:Apron.Texpr1.t array) (outargs:Apron.Texpr1.t array)
     (dest:'a Apron.Abstract1.t option)
     =
     let env =

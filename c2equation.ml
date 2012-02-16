@@ -392,9 +392,9 @@ module Forward = struct
 								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
 								let pin = ref [] in
 								List.iter(fun e->
-									pin := !pin@[Apron.Var.of_string (Li_utils.get_exp_name e)];
+									pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
 								)el;
-								let pout = [|Apron.Var.of_string v.vname|] in
+								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname)))|] in
 								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some(pout)) in
 								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),pout) in
 								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
@@ -403,24 +403,42 @@ module Forward = struct
 								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
 								let pin = ref [] in
 								List.iter(fun e->
-									pin := !pin@[Apron.Var.of_string (Li_utils.get_exp_name e)];
+									pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
 								)el;
-								let pout = [|Apron.Var.of_string (Li_utils.get_exp_name e)|] in
+								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (Li_utils.get_exp_name e))))|] in
 								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some(pout)) in
 								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),pout) in
 								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
 							);
 						| None->
-							let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
+      				Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
+      				let fname = Li_utils.get_exp_name e in
+      				Printf.printf "fname:%s\n" fname;
+      				if (String.compare fname "__assert_fail")==0 then
+      				((*assert()*)
+		    				let last = List.nth stmt.preds ((List.length stmt.preds)-1) in
+		    				Cil.d_stmt fmt last;Format.print_flush ();Printf.printf "\n";
+		    				match last.skind with
+		    				| If(e,b1,b2,_)->
+		    					Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
+		    				| _->();
+      				)else
+      				(
+							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = ref [] in
 								List.iter(fun e->
-									pin := !pin@[Apron.Var.of_string (Li_utils.get_exp_name e)];
+									pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
 							)el;
+							Printf.printf "texpr in call inargs\n";
+							List.iter(fun e->
+								Apron.Texpr1.print fmt e;Format.print_flush ();Printf.printf "\n";
+							)!pin;
 							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),None) in
 							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[||]) in
 							Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 							Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+							);
       		| _->
       			Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
       			let transfer = Equation.Condition(Boolexpr.make_cst true) in
@@ -476,6 +494,8 @@ module Forward = struct
 							[|point|] condtransfer {fname=b1.kf_name;sid=b1.bid};
 						
 						let last_stmt = List.nth b1.bstmts ((List.length b1.bstmts)-1) in
+						if (List.length last_stmt.succs)>0 then
+						(
 						let first_stmt = List.nth last_stmt.succs 0 in
 						
 						if (Equation.compare_point {fname=name;sid=first_stmt.Cil_types.sid} Equation.vertex_dummy)!=0 then(
@@ -484,6 +504,7 @@ module Forward = struct
 								[|{fname=name;sid=last_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=first_stmt.Cil_types.sid};
 						);
 						(*the edge should link to the first succed-stmt of the last stmt of b1?bpoint or spoint?not sure*)
+						);
 					);
 					
 					if (List.length b2.bstmts)>0 then(
@@ -493,12 +514,15 @@ module Forward = struct
 							[|point|] condnottransfer {fname=b2.kf_name;sid=b2.bid};
 							
 						let last_stmt = List.nth b2.bstmts ((List.length b2.bstmts)-1) in
+						if (List.length last_stmt.succs)>0 then
+						(
 						let first_stmt = List.nth last_stmt.succs 0 in
 						
 						if (Equation.compare_point {fname=name;sid=first_stmt.Cil_types.sid} Equation.vertex_dummy)!=0 then(
 							let last_stmt = List.nth b2.bstmts ((List.length b2.bstmts)-1) in
 							Equation.add_equation graph
 								[|{fname=name;sid=last_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=first_stmt.Cil_types.sid};
+						);
 						);
 					)else
 					(
@@ -603,25 +627,40 @@ module Backward = struct
 							| Var(v)->
 								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
 								let pin = callee.pinput in
-								let pout = [|Apron.Var.of_string v.vname|] in
-								let calltransfer = Equation.Calle(procinfo,callee,pin,Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,pin,pout) in
+								let ain = ref [] in
+								Array.iter(fun v->
+									ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
+								)pin;
+								
+								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname)))|] in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),Some(pout)) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),pout) in
 								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
 							| Mem(e)->
 								let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
 								let pin = callee.pinput in
-								let pout = [|Apron.Var.of_string (Li_utils.get_exp_name e)|] in
-								let calltransfer = Equation.Calle(procinfo,callee,pin,Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,pin,pout) in
+								let ain = ref [] in
+								Array.iter(fun v->
+									ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
+								)pin;
+								
+								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (Li_utils.get_exp_name e))))|] in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),Some(pout)) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),pout) in
 								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
 							);
 						| None->
 							let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
 							let pin = callee.pinput in
-							let calltransfer = Equation.Calle(procinfo,callee,pin,None) in
-							let returntransfer = Equation.Return(procinfo,callee,pin,[||]) in
+							let ain = ref [] in
+							Array.iter(fun v->
+								ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
+							)pin;
+								
+							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),None) in
+							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),[||]) in
 							Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 							Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;(*no return transfer*)
       		| _->
