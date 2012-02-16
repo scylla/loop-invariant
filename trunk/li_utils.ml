@@ -138,7 +138,7 @@ let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo
 let get_exp_name (e:Cil_types.exp) =
 	match e.enode with
 	| Const(_)->Printf.printf "Const\n";assert false
-	| Lval(l)->Printf.printf "Lval:";
+	| Lval(l)->
 		let (host,off) = l in
 		(match host with
 		| Var(v)->Printf.printf "var:";

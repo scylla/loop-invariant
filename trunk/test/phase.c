@@ -1,3 +1,5 @@
+#include <assert.h>
+
 void phase()
 {
 	int m=0;int a=10;
@@ -6,6 +8,7 @@ void phase()
 		//if(x%2==0)
 			m=m+1;
 	}
+	assert(m==11);
 }
 void main()
 {

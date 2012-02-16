@@ -107,7 +107,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 		| _->
 			Printf.printf "unknownConst\n";
 			TypePrinter.print_exp_type Format.std_formatter exp;
-			(*Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
 		)
 	| Lval((host,offset))->
@@ -310,7 +310,6 @@ let generate_template fmt kf loop lvars stmt env ipl wp_compute =
 	lterm := !lterm@[tcon];
 	
 	List.iter(fun t->
-		Cil.d_term fmt t;Format.print_flush ();Printf.printf "\n";
 		term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
 	)!lterm;
 	
@@ -332,18 +331,6 @@ let generate_template fmt kf loop lvars stmt env ipl wp_compute =
     
 	let pnamed = Logic_const.unamed pred in
 	let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-	Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-	Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
-	let root_code_annot_ba = Cil_types.User(code_annotation) in
-  Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-  let annots = Annotations.get_all_annotations stmt in
-  List.iter(fun r->
-  	match r with
-  	| User(code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl wp_compute;
-  	| AI(_,code_annot)->LiAnnot.prove_code_annot kf stmt code_annot ipl wp_compute;
-  )annots;
- 
-          
   
 	let cond = force_exp2tcons loop.con env in  
           
