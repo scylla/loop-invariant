@@ -1,3 +1,7 @@
+2012.02.17
+CIL-1.4.0可以在11.10上编译成功，1.3.7不行，找不到lstr。
+如何处理assert？收集到的循环后条件如何提示模板的生成过程？
+
 2012.01.09
 equation system对简单的程序没有问题，可以得到类似interproc的结果。
 如何加入模板
@@ -49,7 +53,7 @@ endif
 ###############
 # Ocaml stuff #
 ###############
-部分改为如下，即去掉opt
+部分改为如下，即去掉opt，或者安装native编译器
 
 # compilers and others executables
 OCAMLC  	?=ocamlc
@@ -174,72 +178,6 @@ It is also possible to visit annotations by using a Frama-C visitor.
 工作过程：jessie插件可以将带ACSL注释的C程序转换成jessie文件，然后调用why来证明里面的属性。因此，工作是增加进自己分析得到的式子，用ACSL表达出来，加入文件，得到修改后的C程序，调用命令frama-c -jessie file.c即可完成证明过程。由于加入了分析的结果，将对证明过程起到帮助，获得更好的证明效果。
 
 
------------------------------一点修改
-给stmt增加一个域predicate_list，来记录嵌套的if条件。free_lv_list保存语句s的约束条件的约束逻辑变量。这是不优雅的做法。
-cil/src/cil_types.mli", line 937
-stmt = {
-    mutable labels: label list;
-    (** Whether the statement starts with some labels, case statements or
-     * default statements. *)
-
-    mutable skind: stmtkind;
-    (** The kind of statement *)
-
-    mutable sid: int;
-    (** A number (>= 0) that is unique in a function. Filled in only after
-     * the CFG is computed. *)
-    mutable succs: stmt list;
-    (** The successor statements. They can always be computed from the skind
-     * and the context in which this statement appears. Filled in only after
-     * the CFG is computed. *)
-    mutable preds: stmt list;
-    (** The inverse of the succs function. *)
-
-    mutable ghost : bool;
-    
-    mutable predicate_list : (predicate named) list;
-    
-    mutable free_lv_list : logic_var list;
-  }
-
-cil/src/cil_datatype.ml", line 216
-[ { labels = [];
-	    skind = UnspecifiedSequence [];
-	    sid = -1;
-	    succs = [];
-	    preds = [];
-	    ghost  = false;
-	    predicate_list = [];
-	    free_lv_list = [] } ]
-	    
-
-cil/src/cil.ml", line 1220
- let mkStmt ?(ghost=false) ?(valid_sid=false) (sk: stmtkind) : stmt =
-   { skind = sk;
-     labels = [];
-     (* It is better to create statements with a valid sid, so that they can
-	be safely be used in tables. I only do it when performing Jessie
-	analysis, as other plugins rely on specific sid values for their tests
-	(e.g. slicing). *)
-     sid = if valid_sid then Sid.next () else -1;
-     succs = []; preds = [];
-     ghost = ghost; predicate_list = []; free_lv_list = [] }
-     
- let mkStmtCfg ~before ~(new_stmtkind:stmtkind) ~(ref_stmt:stmt) : stmt =
-   let new_ = { skind = new_stmtkind;
-		labels = [];
-		sid = -1; succs = []; preds = []; ghost = false; predicate_list = []; free_lv_list = [] }
-		
-		
-"src/kernel/unroll_loops.ml", line 83
-let rec copy_stmt
-    fundec break_continue_must_change label_table calls_tbl stmt
- =
-  let result =
-    { labels=[]; sid=0; succs=[]; preds=[]; free_lv_list = []; skind=stmt.skind; ghost=stmt.ghost; predicate_list = []}
-    
-    
------------------------------修改结束
 
 logic_utils
 val named_of_identified_predicate: identified_predicate -> predicate named

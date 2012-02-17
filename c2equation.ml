@@ -412,17 +412,11 @@ module Forward = struct
 								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
 							);
 						| None->
-      				Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
       				let fname = Li_utils.get_exp_name e in
-      				Printf.printf "fname:%s\n" fname;
       				if (String.compare fname "__assert_fail")==0 then
       				((*assert()*)
 		    				let last = List.nth stmt.preds ((List.length stmt.preds)-1) in
 		    				Cil.d_stmt fmt last;Format.print_flush ();Printf.printf "\n";
-		    				match last.skind with
-		    				| If(e,b1,b2,_)->
-		    					Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
-		    				| _->();
       				)else
       				(
 							let callee = Hashhe.find info.Equation.procinfo fname in
@@ -446,6 +440,72 @@ module Forward = struct
       		);
       	| Loop(_,_,_,_,_)->
       		let loop = Translate.extract_loop stmt in
+      		let rec find_assert s conl =
+      			match s.skind with
+      			| Instr(ins)->
+      				begin match ins with
+		    			| Call(lvo,e,el,l)->
+		    				let fname = Li_utils.get_exp_name e in
+		    				if (String.compare fname "__assert_fail")==0 then
+		    				(
+		    					let last = List.nth stmt.preds ((List.length stmt.preds)-1) in
+				  				match last.skind with
+				  				| If(e,b1,b2,_)->
+				  					if (List.exists(fun e1->e1==e) !conl)==false then
+				  					begin conl := e::!conl; end;
+				  				| _->();
+		    				);
+		    			| Skip(_)->		    				
+				  			List.iter(fun su->
+				  				find_assert su conl;
+				  			)s.succs;
+		    			| _->(); 
+		    			end;
+      			| If(e,b1,b2,_)->
+      				if (List.exists(fun e1->e1==e) !conl)==false then
+      				begin conl := e::!conl; end;
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b1.bstmts;
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b2.bstmts;
+      			|TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b1.bstmts;
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b2.bstmts;
+      			| Switch(e,b,_,_)->
+      				if (List.exists(fun e1->e1==e) !conl)==false then
+      				begin conl := e::!conl; end;
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b.bstmts;
+      			|Loop(_,b,_,_,_)|Block(b)->
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b.bstmts;
+      			| UnspecifiedSequence(l)->
+      				let b = Cil.block_from_unspecified_sequence l in
+      				List.iter(fun s->
+      					find_assert s conl;
+      				)b.bstmts;
+      			| Goto(s,_)->
+      				find_assert !s conl;
+      			| _->();
+      		in
+      		
+      		let conl = ref [] in
+      		find_assert stmt conl;
+      		Printf.printf "cons after loop1\n";
+      		List.iter(fun e->
+      			Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
+      		)!conl;
+      		Printf.printf "cons after loop2\n";
+      		
+      		
       		let first_stmt = List.nth loop.body 0 in
       		let first_id = Li_utils.get_stmt_id first_stmt in
       		let ffirst_stmt = Li_utils.get_stmt_first first_stmt in
@@ -455,7 +515,7 @@ module Forward = struct
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
 					
 					
-					let constransfer = Translate.generate_template fmt procinfo.kf loop lvars stmt env ipl wp_compute in
+					let constransfer = Translate.generate_template fmt procinfo.kf loop lvars !conl stmt env ipl wp_compute in
 					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
 					
@@ -652,7 +712,14 @@ module Backward = struct
 								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
 							);
 						| None->
-							let callee = Hashhe.find info.Equation.procinfo (Li_utils.get_exp_name e) in
+							let fname = Li_utils.get_exp_name e in
+							if (String.compare fname "__assert_fail")==0 then
+      				((*assert()*)
+		    				let last = List.nth stmt.preds ((List.length stmt.preds)-1) in
+		    				Cil.d_stmt fmt last;Format.print_flush ();Printf.printf "\n";
+      				)else
+      				(
+							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = callee.pinput in
 							let ain = ref [] in
 							Array.iter(fun v->
@@ -663,6 +730,7 @@ module Backward = struct
 							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),[||]) in
 							Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 							Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;(*no return transfer*)
+							);
       		| _->
       			Printf.printf "c2equation Forward make Instr not Set,Skip,Call\n";
       			Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";

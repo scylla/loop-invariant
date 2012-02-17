@@ -1,3 +1,3 @@
 sudo rm -fr /home/lzh/doc/why-out/*
 sudo rm -fr /tmp/*
-sudo ./bin/toplevel.opt -print -main phase -loop-invariant src/loop_invariant/test/phase.c -ocode b.c > log
+./bin/toplevel.opt -print -main main -loop-invariant src/loop_invariant/test/phase.c -ocode b.c > log
