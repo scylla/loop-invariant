@@ -87,29 +87,9 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		let name = Kernel_function.get_name kf in
 		match kf.fundec with
 		| Definition(dec,loc)->
-			Printf.printf "Definition:%s\n" name;
-			List.iter(fun s->
-				match s.skind with
-				| Loop(annotl,_,_,_,_)->
-					Cil.d_stmt fmt s;Format.print_flush ();
-					Printf.printf "\nannotl=%d\n" (List.length annotl);
-					List.iter(fun r->
-						match r with
-						| User(code)->
-							Cil.d_code_annotation fmt code;Format.print_flush ();Printf.printf "\n";
-							match code.annot_content with
-							| AInvariant(sl,_,_)->
-								Printf.printf "AInvariant\n";
-								List.iter(fun s->
-									Printf.printf "bh=%s\n" s;
-								)sl;
-							| _->();
-						| _->Printf.printf "AI\n";
-					)(Annotations.get_all_annotations s);
-				| _->();
-			)dec.sbody.bstmts;
+			Cfg.printCfgFilename "/home/lzh/phase.dot" dec;
 			get_block_maxid maxid dec.sbody;
-		| Declaration(spec,v,vlo,_)->Printf.printf "Declaration\n";
+		| Declaration(spec,v,vlo,_)->
 		  ()
 	);
 	
@@ -197,18 +177,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
     );
   );
   
-  Printf.printf "ip status\n";
-  List.iter(fun ip->
-		let status = Property_status.Consolidation.get ip in
-		(match status with
-		| Property_status.Consolidation.Considered_valid|Property_status.Consolidation.Valid(_)|Property_status.Consolidation.Valid_under_hyp(_)|Property_status.Consolidation.Valid_but_dead(_)->
-			Printf.printf "Valid?\n";
-		| Property_status.Consolidation.Unknown(pend)->
-			Printf.printf "Unkonwn\n";
-		|_->
-			Printf.printf "Invalid\n";
-		);
-	)!ipl;
 	
 	!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
 		

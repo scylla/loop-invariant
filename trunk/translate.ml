@@ -285,14 +285,39 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf loop lvars stmt env ipl wp_compute =
+let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types.exp list) stmt env (ipl:Property.identified_property list ref) wp_compute =
+	
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
 	let term = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
 	let lterm = ref [] in
 	let zero_term = Logic_utils.mk_dummy_term tnode Cil.intType in
-	let llvar = ref [] in
 	let ltype = Cil_types.Ctype(Cil.intType) in
+	
+	List.iter(fun e->
+		let t = Logic_utils.expr_to_term false e in
+		let pred = match t.term_node with
+			| TBinOp(op,t1,t2)->
+				begin match op with
+				| Eq->Prel(Req,t1,t2);
+				| Le->Prel(Rle,t1,t2);
+				| Lt->Prel(Rlt,t1,t2);
+				| Ge->Prel(Rge,t1,t2);
+				| Gt->Prel(Rgt,t1,t2);
+				| Ne->Prel(Rneq,t1,t2);
+				| _->Ptrue;
+				end
+			| _->Ptrue;
+		in
+		
+		let pnamed = Logic_const.unamed pred in
+		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+		let root_code_annot_ba = Cil_types.User(code_annotation) in
+		();Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+		LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute;
+	)conl;
+	
 	List.iter(fun v->
 		let lv = Cil.cvar_to_lvar v in
 		let tnode = TLval((TVar(lv),TNoOffset)) in
@@ -349,6 +374,7 @@ let generate_template fmt kf loop lvars stmt env ipl wp_compute =
     for i=0 to len do
     	cofl := (Apron.Coeff.s_of_int (-1), !vars.(i))::!cofl;
     done;
+    
     let tab = Apron.Lincons1.array_make new_env len in
     let expr = Apron.Linexpr1.make new_env in
     Apron.Linexpr1.set_array expr (Array.of_list !cofl)
