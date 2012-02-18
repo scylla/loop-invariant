@@ -429,7 +429,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 					let annot = Logic_const.new_code_annotation(AInvariant([],true,pn)) in
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;
+					LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;();
 				)assumes;
 			 	Printf.printf "Leave Loop Now.\n";
 		 | Block(_) ->

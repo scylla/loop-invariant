@@ -99,7 +99,7 @@ let apply_abstract1 fmt procinfo stmt abs ipl wp_compute =
 		let code_annotation = apply_lincons1 fmt procinfo stmt lincons1 in
 		let root_code_annot_ba = Cil_types.User(code_annotation) in
 		Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
-		LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;
+		(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;*)
 	)lconsarray.Apron.Lincons1.lincons0_array
 	
 
@@ -153,7 +153,6 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 										let root_code_annot_ba = Cil_types.User(code_annotation) in
 										
 										Annotations.add kf s [Ast.self] root_code_annot_ba;
-										LiAnnot.prove_code_annot kf s code_annotation ipl wp_compute;
 									)
 								| Equation.Tcons(cond,tcons,code_annotation,sat)->
 									if !sat==true then
