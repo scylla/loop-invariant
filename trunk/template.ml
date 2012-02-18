@@ -217,7 +217,14 @@ module Forward = struct
     
     (*Apron.Abstract1.assign_linexpr_array manager abstract varray earray dest;*)
     !abs
-		
+	
+	let apply_tcons (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (cons:Apron.Tcons1.t)  (dest:'a Apron.Abstract1.t option):'a Apron.Abstract1.t =
+		let fmt = Format.std_formatter in
+    let env = Apron.Abstract1.env abstract in
+    let abs = ref (Apron.Abstract1.copy manager abstract) in
+    !abs
+    
+    
   let apply_condition (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (expr:Apron.Tcons1.earray Boolexpr.t) (dest:'a Apron.Abstract1.t option) :'a Apron.Abstract1.t =
   	let fmt = Format.std_formatter in
     let labstract =
@@ -384,6 +391,10 @@ module Forward = struct
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
       	apply_lcons manager abs cons dest
+      | Equation.Tcons(cond,tcons,code_annotation,sat)->
+      	let pvertexs = PSHGraph.predvertex graph hedge in
+      	let svertexs = PSHGraph.succvertex graph hedge in
+      	apply_tcons manager abs tcons dest
       | Equation.Tassign(var,expr) ->
 	 			apply_tassign manager abs var expr dest
       | Equation.Lassign _ ->
