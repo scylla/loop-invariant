@@ -515,9 +515,11 @@ module Forward = struct
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
 					
 					
-					let constransfer = Translate.generate_template fmt procinfo.kf loop lvars !conl stmt env ipl wp_compute in
-					Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
-					Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
+					let transfers = Translate.generate_template fmt procinfo.kf loop lvars !conl stmt env ipl wp_compute in
+					List.iter(fun constransfer->
+						Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
+						Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
+					)transfers;
 					
       		(*let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
           let root_code_annot_ba = Cil_types.User(code_annotation) in

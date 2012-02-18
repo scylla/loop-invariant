@@ -285,16 +285,25 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 	
-let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types.exp list) stmt env (ipl:Property.identified_property list ref) wp_compute =
-	
+let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types.exp list) stmt env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
+	let cond = force_exp2tcons loop.con env in  
+	let transfers = ref [] in
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
-	let term = ref (Logic_utils.mk_dummy_term tnode Cil.intType) in
+	let term = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
 	let lterm = ref [] in
-	let zero_term = Logic_utils.mk_dummy_term tnode Cil.intType in
+	let zero_term = Cil.lzero () in(*Logic_utils.mk_dummy_term tnode Cil.intType in*)
 	let ltype = Cil_types.Ctype(Cil.intType) in
 	
 	List.iter(fun e->
+		(*let t = match e.enode with
+			| Const(c)->
+			| BinOp(op,e1,e2)->
+			| _->
+		in*)
+		let tcons = force_exp2tcons e env in
+		Printf.printf "tcons:\n";Apron.Tcons1.print fmt tcons;Format.print_flush ();Printf.printf "\n";
+		
 		let t = Logic_utils.expr_to_term false e in
 		let pred = match t.term_node with
 			| TBinOp(op,t1,t2)->
@@ -313,8 +322,9 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 		let pnamed = Logic_const.unamed pred in
 		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+		transfers := Tcons(cond,tcons,code_annotation,ref true)::!transfers;
 		let root_code_annot_ba = Cil_types.User(code_annotation) in
-		();Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 		LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute;
 	)conl;
 	
@@ -357,7 +367,6 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 	let pnamed = Logic_const.unamed pred in
 	let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
   
-	let cond = force_exp2tcons loop.con env in  
           
 	let vars = ref [||] in
 	let cofs = ref [||] in
@@ -382,4 +391,5 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
     ;
     let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
   	Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-		Lcons(cond,cons,code_annotation,ref true);;
+		transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+		!transfers;;

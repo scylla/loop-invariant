@@ -116,6 +116,7 @@ type var = point
 type transfer =
 	| Lcons of Apron.Tcons1.t * Apron.Lincons1.t * Cil_types.code_annotation * bool ref
 		(**linear constraint. cond,cons and is all true?*)
+	| Tcons of Apron.Tcons1.t * Apron.Tcons1.t * Cil_types.code_annotation * bool ref
   | Lassign of Apron.Var.t * Apron.Linexpr1.t
     (** Assignement by a linear expression *)
   | Tassign of Apron.Var.t * Apron.Texpr1.t
@@ -214,6 +215,8 @@ let print_transfer fmt transfer =
 	match transfer with
 	| Lcons(cond,cons1,code_annotation,sat)->
 		Apron.Lincons1.print fmt cons1
+	| Tcons(cond,tcons,code_annotation,sat)->
+		Apron.Tcons1.print fmt tcons
   | Lassign _ -> failwith ""
   | Tassign(v,e) ->
     fprintf fmt "%a = %a"

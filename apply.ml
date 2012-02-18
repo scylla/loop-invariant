@@ -8,7 +8,7 @@ let apply_lincons1 fmt (procinfo:Equation.procinfo) stmt lincons1 =
 		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		let term = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
 		let lterm = ref [] in
-		let zero_term = Logic_const.term tnode (Cil_types.Ctype(Cil.intType)) in
+		let zero_term = Cil.lzero () in(*Logic_const.term tnode (Cil_types.Ctype(Cil.intType)) in*)
 		let llvar = ref [] in
 		let count = ref 0 in
 		
@@ -84,7 +84,13 @@ let apply_lincons1 fmt (procinfo:Equation.procinfo) stmt lincons1 =
 		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 		code_annotation
-		
+(*
+let apply_cons fmt procinfo stmt cons ipl wp_compute =
+	let code_annotation = apply_lincons1 fmt procinfo stmt cons in
+	let root_code_annot_ba = Cil_types.User(code_annotation) in
+	Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
+	LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute
+*)	
 let apply_abstract1 fmt procinfo stmt abs ipl wp_compute =
 	let man = Apron.Abstract1.manager abs in
 	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
@@ -96,11 +102,6 @@ let apply_abstract1 fmt procinfo stmt abs ipl wp_compute =
 		LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;
 	)lconsarray.Apron.Lincons1.lincons0_array
 	
-let apply_cons fmt procinfo stmt cons ipl wp_compute =
-	let code_annotation = apply_lincons1 fmt procinfo stmt cons in
-	let root_code_annot_ba = Cil_types.User(code_annotation) in
-	Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
-	LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute
 
 let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 	Globals.Functions.iter(fun kf ->
@@ -147,15 +148,21 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 								match transfer with
 								| Equation.Lcons(cond,cons,code_annotation,sat)->
 									if !sat==true then
-									(	Printf.printf "sat==true\n";
-										Equation.print_transfer fmt transfer;Format.print_flush ();Printf.printf "\n";
+									(
 										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-										(*apply_cons fmt kf s cons;*)
 										let root_code_annot_ba = Cil_types.User(code_annotation) in
 										
 										Annotations.add kf s [Ast.self] root_code_annot_ba;
 										LiAnnot.prove_code_annot kf s code_annotation ipl wp_compute;
 									)
+								| Equation.Tcons(cond,tcons,code_annotation,sat)->
+									if !sat==true then
+									(
+										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
+										let root_code_annot_ba = Cil_types.User(code_annotation) in
+										
+										Annotations.add kf s [Ast.self] root_code_annot_ba;
+									);
 								| _->()
 							)!edges;
 									
