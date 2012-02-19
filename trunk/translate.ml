@@ -60,7 +60,16 @@ let negate_texpr (texpr:Apron.Texpr1.t) : Apron.Texpr1.t
   in
   let env = Apron.Texpr1.get_env texpr in
   Apron.Texpr1.of_expr env nexpr
-      
+
+let negate_linexpr (lexpr:Apron.Linexpr1.t) : Apron.Linexpr1.t
+	=
+	let copy = Apron.Linexpr1.copy lexpr in
+	Apron.Linexpr1.iter(fun c v->
+		Apron.Linexpr1.set_coeff copy v (Apron.Coeff.neg c);
+	)copy;
+	Apron.Linexpr1.set_cst copy (Apron.Coeff.neg (Apron.Linexpr1.get_cst copy));
+	copy
+
 let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 	match exp.enode with
 	| BinOp(op,e1,e2,ty)->
@@ -369,7 +378,9 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 		let root_code_annot_ba = Cil_types.User(code_annotation) in
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 		if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-		begin transfers := Tcons(cond,tcons,code_annotation,ref true)::!transfers; end;
+		begin(*wp cannot prove*)
+			transfers := Tcons(cond,tcons,code_annotation,ref true)::!transfers; 
+		end;
 	)conl;
 	
 	List.iter2(fun cof const->
@@ -393,54 +404,74 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 		List.iter(fun t->
 			term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
 		)!lterm;
-	
-		let pred = Prel(Rge,!term,zero_term) in
-	(*let pred = ref Ptrue in
-		(match tp with(*cannot be all zero_term*)
-		| Apron.Lincons1.EQ->
-			pred := Prel(Req,!term,zero_term);
-		| Apron.Lincons1.SUPEQ->
-			pred := Prel(Rge,!term,zero_term);
-		| Apron.Lincons1.SUP->
-			pred := Prel(Rgt,!term,zero_term);
-		| Apron.Lincons1.DISEQ->
-			pred := Prel(Rneq,!term,zero_term);
-		| Apron.Lincons1.EQMOD(_)->
-			let rterm = Logic_utils.mk_dummy_term (TBinOp(Mod,!term,zero_term)) Cil.intType in
-			pred := Prel(Req,!term,rterm);(*%=*)
-		);*)
-    
-		let pnamed = Logic_const.unamed pred in
-		let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-		let root_code_annot_ba = Cil_types.User(code_annotation) in
-		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-		if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-		begin
-			let vars = ref [||] in
-			let cofs = ref [||] in
-			List.iter(fun v->
-				Cil.d_type fmt v.vtype;Format.print_flush ();Printf.printf "\n";
-				vars := Array.append !vars [|Apron.Var.of_string v.vname|];
-				cofs := Array.append !cofs [|Apron.Var.of_string ((v.vname)^"cof")|];
-			)lvars;
+		
+		let vars = ref [||] in
+		let cofs = ref [||] in
+		List.iter(fun v->
+			vars := Array.append !vars [|Apron.Var.of_string v.vname|];
+			cofs := Array.append !cofs [|Apron.Var.of_string ((v.vname)^"cof")|];
+		)lvars;
 
-			let new_env = Apron.Environment.make (!vars) (!cofs) in
+		let new_env = Apron.Environment.make (!vars) (!cofs) in
 		  
-		  let cofl = ref [] in
-		  let len = (Array.length !vars)-1 in
-		  for i=0 to len do
-		  	cofl := (Apron.Coeff.s_of_int (-1), !vars.(i))::!cofl;
-		  done;
-		  
-		  let tab = Apron.Lincons1.array_make new_env len in
-		  let expr = Apron.Linexpr1.make new_env in
-		  Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-		  (Some cof)(*must be a valid argument*)
-		  ;
-		  let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
-			Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-			transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-		end;
+		let cofl = ref [] in
+		let len = (Array.length !vars)-1 in
+		for i=0 to len do
+		 	cofl := (Apron.Coeff.s_of_int (-1), !vars.(i))::!cofl;
+		done;
+		
+		let tab = Apron.Lincons1.array_make new_env len in
+		let expr = Apron.Linexpr1.make new_env in
+		Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+		(Some cof)(*must be a valid argument*)
+		;
+		
+		let mk_lincons typ =
+			begin match typ with
+			| Req->
+				let pred = Prel(Req,!term,zero_term) in
+				let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
+			| Rge->
+				let pred = Prel(Rge,!term,zero_term) in
+				let cons = Apron.Lincons1.make expr Apron.Lincons1.SUPEQ in
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
+			| Rgt->
+				let pred = Prel(Rgt,!term,zero_term) in
+				let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
+			| Rneq->
+				let pred = Prel(Rneq,!term,zero_term) in
+				let cons = Apron.Lincons1.make expr Apron.Lincons1.DISEQ in
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
+			| Rle->
+				let pred = Prel(Rle,!term,zero_term) in
+				let cons = Apron.Lincons1.make (negate_linexpr expr) Apron.Lincons1.SUPEQ in
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
+			| Rlt->
+				let pred = Prel(Rlt,!term,zero_term) in
+				let cons = Apron.Lincons1.make (negate_linexpr expr) Apron.Lincons1.SUP in
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
+			(*| Apron.Lincons1.EQMOD(_)->
+				let rterm = Logic_const.term (TBinOp(Mod,!term,zero_term)) (Cil_types.Ctype(Cil.intType)) in
+				let pred = Prel(Req,!term,rterm) in(*%=*)
+				let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in(*EQMOD*)
+				Apron.Lincons1.array_set tab 0 cons;(pred,cons);*)
+			end
+		in
+				
+    List.iter(fun typ->
+    	let (pred,cons) = mk_lincons typ in
+			let pnamed = Logic_const.unamed pred in
+			let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+			Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+			let root_code_annot_ba = Cil_types.User(code_annotation) in
+			Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+			if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+			begin(*wp cannot prove*)
+				Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+				transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+			end;
+		)[Req;Rge;Rgt;Rneq;Rle;Rlt];
 	)!coeffs !consts;
 	!transfers;;
