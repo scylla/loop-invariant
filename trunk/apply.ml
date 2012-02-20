@@ -128,7 +128,7 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 						| Loop(_,_,_,_,_)->
 							let loop = Translate.extract_loop s in
       				let first_stmt = List.nth loop.Equation.body 0 in
-							let end_stmt = Li_utils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
+							let end_stmt = LiUtils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
 							
 							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
 							apply_abstract1 fmt procinfo s abs ipl wp_compute;

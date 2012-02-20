@@ -32,7 +32,7 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 		(
 			let tl = ref [] in
 			List.iter(fun v->
-				tl := (Li_utils.mk_term_from_vi v)::!tl;
+				tl := (LiUtils.mk_term_from_vi v)::!tl;
 			)result;
 			List.rev !tl;
 			Printf.printf "tl.len=%d\n" (List.length !tl);
@@ -113,7 +113,7 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 		for i=len to (List.length vars)-1 do
 			let li = List.nth vars i in
 			let new_result = li::result in
-			let nvars = (Li_utils.swap vars i len) in
+			let nvars = (LiUtils.swap vars i len) in
 			get_all_combine kf linfo s nvars new_result (len+1) tlen;
 		done;
 	)

@@ -1,8 +1,9 @@
 open Cil
 open Cil_types
+open Cil_datatype
 open LiVisitor
 open LiAnnot
-open Li_utils
+open LiUtils
 open Equation
 
 let avar_to_lvar va =
@@ -137,7 +138,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 
 let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 	let texpr = force_exp_to_texp e in
-	let vars = Li_utils.extract_varinfos_from_exp e in
+	let vars = LiUtils.extract_varinfos_from_exp e in
 	let lvars = Cil_datatype.Varinfo.Set.elements vars in
 	(*let env = add_env env lvars in*)
 	let texpr = Apron.Texpr1.of_expr env texpr in
@@ -309,7 +310,39 @@ let rec extract_const e =
 		extract_const e1;
 	| _->[];
 	end;;
-		
+
+let rec extract_step kf vars stmt =
+	let fmt =  Format.std_formatter in
+	let dec = Kernel_function.get_definition kf in
+	let fname = Kernel_function.get_name kf in
+	
+	(*let vars = dec.sformals@dec.slocals in*)
+	let pdg = (!Db.Pdg.get) kf in
+	(!Db.Pdg.extract) pdg ("/home/lzh/pdg_"^fname^".dot");
+			
+	let vlist = LiPdg.find_vnodes vars pdg in
+	let blist = LiPdg.find_bnodes dec.sbody pdg in
+			
+		begin match stmt.skind with
+		| Loop(_,b,_,_,_)->
+			let llist = LiPdg.find_bnodes b pdg in
+			
+			List.iter(fun node->
+				(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
+				let nodes = (!Db.Pdg.all_uses) pdg [node] in
+				List.iter(fun n->
+					if (List.exists (fun n1->n1==n;) llist)==true then
+					begin
+						(!Db.Pdg.pretty_node) false fmt n;Format.print_flush ();Printf.printf "\n";
+					end;
+				)nodes;
+			)vlist;
+			List.iter(fun s->
+				Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
+			)stmt.succs;
+		| _->();
+		end;;
+
 let rec extract_coeff e =
 	let ltype = Cil_types.Ctype(Cil.intType) in(*temporary*)
 	begin match e.enode with
@@ -352,6 +385,9 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 	
 	let coeffs = ref [] and consts = ref [] in
 	List.iter(fun e->
+		let vars = LiUtils.extract_varinfos_from_exp e in
+		extract_step kf (Varinfo.Set.elements vars) stmt;
+		
 		coeffs := (extract_coeff e)@(!coeffs);
 		consts := (extract_const e)@(!consts);
 		

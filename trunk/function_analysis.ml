@@ -146,7 +146,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		(*Set End*)
 		| Call(lo,e1,el,loc)->
 			Printf.printf "Call in loop\n";
-			let name = Li_utils.get_exp_name e1 in
+			let name = LiUtils.get_exp_name e1 in
 			(try
 				let (fsig:Loop_parameters.procsignature) = Hashtbl.find funsigs name in
 								
@@ -157,7 +157,7 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 						List.iter(fun (tkind,p)->
 							let copy_visitor = new Visitor.frama_c_copy (Project.current ()) in
 							let np = Copy.copy_predicate p.ip_content in
-							Li_utils.replace_predicate_var np fvars el;
+							LiUtils.replace_predicate_var np fvars el;
 							
 							let np = Logic_const.unamed np in
 							(*total_lt := [np]::!total_lt;*)
@@ -402,7 +402,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 		  	Format.print_flush ();
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->
 		 		Printf.printf "Enter Loop Now.\n";
-		 		let vars = Li_utils.extract_varinfos_from_stmt stmt in
+		 		let vars = LiUtils.extract_varinfos_from_stmt stmt in
 		 		let lvars = Varinfo.Set.elements vars in
 		
 		 		List.iter(fun linfo->
