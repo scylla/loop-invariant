@@ -58,6 +58,8 @@ end
 	
 	 
 let loopInvariantAnalysis (cil: Cil_types.file) =
+	let fmt =  Format.std_formatter in
+	
 	let manpk = Polka.manager_alloc_strict() in
 	let manbox = Box.manager_alloc() in
 	(*Template.ex1 manpk;*)
@@ -81,7 +83,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
 	
-	let fmt =  Format.std_formatter in
 	let maxid = ref 0 in
 	Globals.Functions.iter(fun kf ->
 		let name = Kernel_function.get_name kf in
