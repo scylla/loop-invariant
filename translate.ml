@@ -295,24 +295,69 @@ let merge_env env1 env2 =
 	)va2;
 	!env1;;
 
-let rec extract_const e =
+let rec extract_const_from_exp (lv:lval option) e =
 	begin match e.enode with
 	| Const(c)->
 		begin match c with
 		| CInt64(big,_,_)->
-			[My_bigint.to_int big];
-		| CReal(f,_,_)->[int_of_float f];
+			[(lv,My_bigint.to_int big)];
+		| CReal(f,_,_)->[(lv,int_of_float f)];
 		| _->[];
 		end;
 	| BinOp(op,e1,e2,_)->
-		(extract_const e1)@(extract_const e2);
+		(extract_const_from_exp lv e1)@(extract_const_from_exp lv e2);
 	| UnOp(op,e1,_)->
-		extract_const e1;
+		extract_const_from_exp lv e1;
 	| _->[];
 	end;;
 
-let rec extract_step kf vars stmt =
+let extract_const_from_stmt cons s =
+	let rec extract s =
+		begin match s.skind with
+		| Instr(ins)->
+			begin match ins with
+			| Set(lv,e,_)->
+				let l = extract_const_from_exp (Some(lv)) e in
+				List.iter(fun (lv,c)->
+					if (List.exists(fun (lv1,c1)->
+							match (lv1,lv) with
+							| ((Some(v1)),(Some(v2)))->
+								((Cil.compareLval v1 v2) && (c1==c));
+							| _->true;
+							) (!cons)
+						)==false then
+					begin cons := [(lv,c)]@(!cons); end;
+				)l;
+			| _->();
+			end;
+		| If(_,b1,b2,_)|TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
+			List.iter(fun s1->
+				extract s1;
+			)b1.bstmts;
+			List.iter(fun s1->
+				extract s1;
+			)b2.bstmts;
+		| Switch(_,b,sl,_)->
+			List.iter(fun s1->
+				extract s1;
+			)b.bstmts;
+		| Loop(_,b,_,_,_)|Block(b)->
+			List.iter(fun s1->
+				extract s1;
+			)b.bstmts;
+		| UnspecifiedSequence(seq)->
+			let b = Cil.block_from_unspecified_sequence seq in
+			List.iter(fun s1->
+				extract s1;
+			)b.bstmts;
+		| _->();
+		end;
+	in
+	extract s;;
+	
+let extract_step kf vars stmt =
 	let fmt =  Format.std_formatter in
+	let steps = ref [] in
 	let dec = Kernel_function.get_definition kf in
 	let fname = Kernel_function.get_name kf in
 	
@@ -323,27 +368,30 @@ let rec extract_step kf vars stmt =
 	let vlist = LiPdg.find_vnodes vars pdg in
 	let blist = LiPdg.find_bnodes dec.sbody pdg in
 			
-		begin match stmt.skind with
-		| Loop(_,b,_,_,_)->
-			let llist = LiPdg.find_bnodes b pdg in
+	begin match stmt.skind with
+	| Loop(_,b,_,_,_)->
+		let llist = LiPdg.find_bnodes b pdg in
 			
-			List.iter(fun node->
-				(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
-				let nodes = (!Db.Pdg.all_uses) pdg [node] in
-				List.iter(fun n->
-					if (List.exists (fun n1->n1==n;) llist)==true then
-					begin
-						(!Db.Pdg.pretty_node) false fmt n;Format.print_flush ();Printf.printf "\n";
+		List.iter(fun node->
+			(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
+			let nodes = (!Db.Pdg.all_uses) pdg [node] in
+			List.iter(fun n->
+				if (List.exists (fun n1->n1==n;) llist)==true then
+				begin
+					let s = PdgTypes.Node.stmt n in
+					begin match s with
+					| Some(s1)->
+						extract_const_from_stmt steps s1;
+					| None->();
 					end;
-				)nodes;
-			)vlist;
-			List.iter(fun s->
-				Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
-			)stmt.succs;
-		| _->();
-		end;;
+				end;
+			)nodes;
+		)vlist;
+	| _->();
+	end;
+	!steps;;
 
-let rec extract_coeff e =
+let rec extract_coeff_from_exp e =
 	let ltype = Cil_types.Ctype(Cil.intType) in(*temporary*)
 	begin match e.enode with
 	| Const(c)->
@@ -366,9 +414,9 @@ let rec extract_coeff e =
 			extract_term e1;
 		end;*)
 	| BinOp(op,e1,e2,_)->
-		(extract_coeff e1)@(extract_coeff e2);
+		(extract_coeff_from_exp e1)@(extract_coeff_from_exp e2);
 	| UnOp(op,e1,_)->
-		extract_coeff e1;
+		extract_coeff_from_exp e1;
 	| _->[];
 		(*let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		Logic_const.term tnode ltype;*)
@@ -383,13 +431,21 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 	let zero_term = Cil.lzero () in(*Logic_utils.mk_dummy_term tnode Cil.intType in*)
 	let ltype = Cil_types.Ctype(Cil.intType) in
 	
-	let coeffs = ref [] and consts = ref [] in
+	let vars = ref [] in
 	List.iter(fun e->
-		let vars = LiUtils.extract_varinfos_from_exp e in
-		extract_step kf (Varinfo.Set.elements vars) stmt;
-		
-		coeffs := (extract_coeff e)@(!coeffs);
-		consts := (extract_const e)@(!consts);
+		let evars = Varinfo.Set.elements (LiUtils.extract_varinfos_from_exp e) in
+		List.iter(fun v->
+			if (List.exists(fun v1->v1==v) !vars)==false then
+			begin vars := v::!vars; end;
+		)evars;
+	)conl;
+	
+	let steps = extract_step kf !vars stmt in	
+	let coeffs = ref [] and consts = ref [] in
+	
+	List.iter(fun e->
+		coeffs := (extract_coeff_from_exp e)@(!coeffs);
+		consts := (extract_const_from_exp None e)@(!consts);
 		
 		let tcons = force_exp2tcons e env in
 		
@@ -419,28 +475,47 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 		end;
 	)conl;
 	
-	List.iter2(fun cof const->
+	List.iter2(fun cof (lvo,const)->(*here lvo is None*)
 		let lterm = ref [] in
+		let const_r = ref const in
+		(*the form is sum(cof*var)+const?0,? represents >,<,>=,<=,!=,== etc*)
+		(*var and cof part*)
 		List.iter(fun v->
 			let lv = Cil.cvar_to_lvar v in
 			let tnode = TLval((TVar(lv),TNoOffset)) in
 			let tvar = Logic_const.term tnode ltype in
 		
+			(*now the cofs are all -1*)
 			let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (-1)),Cil_types.IInt,None)) in
 			let tcof = Logic_const.term tnode ltype in
 		
 			let tnode = TBinOp(Mult,tcof,tvar) in
 			lterm := !lterm@[Logic_const.term tnode ltype];
+			
+			let lval = Cil.var v in
+			let step = List.find_all (fun (lv,c)->
+				begin match lv with
+				| Some(lv1)->Cil.compareLval lval lv1;
+				| _->false;
+				end;
+				) steps
+			in
+			List.iter(fun (_,c)->
+				const_r := !const_r+c;
+			)step;
 		)lvars;
 	
-		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int const),Cil_types.IInt,None)) in
+		(*constant part*)
+		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (!const_r)),Cil_types.IInt,None)) in
 		let tcon = Logic_const.term tnode ltype in
 		lterm := !lterm@[tcon];
 	
+		(*make sum to get the last term being the form above.we can create [code_annotation] with this term*)
 		List.iter(fun t->
 			term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
 		)!lterm;
 		
+		(*make cons*)
 		let vars = ref [||] in
 		let cofs = ref [||] in
 		List.iter(fun v->
@@ -452,6 +527,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 		  
 		let cofl = ref [] in
 		let len = (Array.length !vars)-1 in
+		(*now the cofs are all -1*)
 		for i=0 to len do
 		 	cofl := (Apron.Coeff.s_of_int (-1), !vars.(i))::!cofl;
 		done;
@@ -459,7 +535,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 		let tab = Apron.Lincons1.array_make new_env len in
 		let expr = Apron.Linexpr1.make new_env in
 		Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-		(Some cof)(*must be a valid argument*)
+		(Some cof)(*some cof here is the constant, whose value is equal to [const]*)
 		;
 		
 		let mk_lincons typ =

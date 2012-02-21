@@ -122,7 +122,6 @@ let print_stmtkind fmt (s:Cil_types.stmtkind) =
 	match s with
 	| Instr (ins)->
 		fprintf fmt "Instr\n";
-		print_instrkind fmt ins
 	| Return _->fprintf fmt "Return\n"
 	| Goto _->fprintf fmt "Goto\n"
 	| Break _->fprintf fmt "Break\n"
