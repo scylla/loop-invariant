@@ -440,7 +440,7 @@ module Forward = struct
       		);
       	| Loop(_,_,_,_,_)->
       		let loop = Translate.extract_loop stmt in
-      		let rec find_assert s conl =
+      		let rec find_con s conl =
       			match s.skind with
       			| Instr(ins)->
       				begin match ins with
@@ -451,56 +451,56 @@ module Forward = struct
 		    					let last = List.nth stmt.preds ((List.length stmt.preds)-1) in
 				  				match last.skind with
 				  				| If(e,b1,b2,_)->
-				  					if (List.exists(fun e1->e1==e) !conl)==false then
-				  					begin conl := e::!conl; end;
+				  					if (List.exists(fun (s,e1)->e1==e) !conl)==false then
+				  					begin conl := (last,e)::(!conl); end;
 				  				| _->();
 		    				);
-		    			| Skip(_)->		    				
+		    			| Skip(_)->
 				  			List.iter(fun su->
-				  				find_assert su conl;
+				  				find_con su conl;
 				  			)s.succs;
 		    			| _->(); 
 		    			end;
       			| If(e,b1,b2,_)->
-      				if (List.exists(fun e1->e1==e) !conl)==false then
-      				begin conl := e::!conl; end;
+      				if (List.exists(fun (s,e1)->e1==e) !conl)==false then
+      				begin conl := (s,e)::!conl; end;
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b1.bstmts;
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b2.bstmts;
       			|TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b1.bstmts;
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b2.bstmts;
       			| Switch(e,b,_,_)->
-      				if (List.exists(fun e1->e1==e) !conl)==false then
-      				begin conl := e::!conl; end;
+      				if (List.exists(fun (s,e1)->e1==e) !conl)==false then
+      				begin conl := (s,e)::!conl; end;
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b.bstmts;
       			|Loop(_,b,_,_,_)|Block(b)->
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b.bstmts;
       			| UnspecifiedSequence(l)->
       				let b = Cil.block_from_unspecified_sequence l in
       				List.iter(fun s->
-      					find_assert s conl;
+      					find_con s conl;
       				)b.bstmts;
       			| Goto(s,_)->
-      				find_assert !s conl;
+      				find_con !s conl;
       			| _->();
       		in
       		
       		let conl = ref [] in
-      		find_assert stmt conl;
+      		find_con stmt conl;
       		Printf.printf "cons after loop1\n";
-      		List.iter(fun e->
+      		List.iter(fun (_,e)->
       			Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
       		)!conl;
       		Printf.printf "cons after loop2\n";
