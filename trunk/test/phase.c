@@ -6,7 +6,7 @@ void phase()
 	while(m<=a)
 	{
 		//if(x%2==0)
-			m=a+1;
+			//m=a+1;
 			m=m+1;
 	}
 	assert(m==11);

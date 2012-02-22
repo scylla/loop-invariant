@@ -422,7 +422,7 @@ let rec extract_coeff_from_exp e =
 		Logic_const.term tnode ltype;*)
 	end;;
 	
-let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types.exp list) stmt env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
+let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_types.stmt * Cil_types.exp) list) stmt env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
 	let cond = force_exp2tcons loop.con env in  
 	let transfers = ref [] in
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
@@ -432,18 +432,60 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 	let ltype = Cil_types.Ctype(Cil.intType) in
 	
 	let vars = ref [] in
-	List.iter(fun e->
+	List.iter(fun (s,e)->
 		let evars = Varinfo.Set.elements (LiUtils.extract_varinfos_from_exp e) in
 		List.iter(fun v->
 			if (List.exists(fun v1->v1==v) !vars)==false then
-			begin vars := v::!vars; end;
+			begin				
+				vars := v::!vars;
+			end;
 		)evars;
 	)conl;
+	
+	(*get min and max value of vars after the loop stmt*)
+	let most = ref [] in
+	let mini = My_bigint.to_int My_bigint.min_int64 and maxi = My_bigint.to_int My_bigint.max_int64 in
+	List.iter(fun v->
+		let value = !Db.Value.access_after (Kstmt(stmt)) (Cil.var v) in
+		begin match value with
+		| Cvalue.V.Top(_,_)->
+			Printf.printf "Top\n";
+		| Cvalue.V.Map(m)->
+			Printf.printf "Map\n";
+			let iv = Cvalue.V.project_ival value in(*Ival.t*)
+			begin match iv with
+			| Ival.Set(set)->Printf.printf "Set\n";
+				let min = ref mini and max = ref maxi in
+				Array.iter(fun i->
+					let j = My_bigint.to_int i in
+					if j<(!min) then min := j;
+					if j>(!max) then max := j;
+					Printf.printf "%d," j;
+				)set;
+				Printf.printf "\n";
+				most := (v,!min,!max)::!most;
+			| Ival.Float(f)->Printf.printf "Float\n";
+			| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)
+				begin match to1,to2 with
+				| Some(i1),Some(i2)->Printf.printf "to1=%d,to2=%d\n" (My_bigint.to_int i1) (My_bigint.to_int i2);
+					most := (v,(My_bigint.to_int i1),(My_bigint.to_int i2))::!most;
+				| Some(i1),None->
+					most := (v,(My_bigint.to_int i1),maxi)::!most;
+				| None,Some(i2)->
+					most := (v,mini,(My_bigint.to_int i2))::!most;
+				| None,None->Printf.printf "to1 None\n";
+					most := (v,mini,maxi)::!most;
+				end;
+				Printf.printf "%d," (My_bigint.to_int t1);Printf.printf "%d" (My_bigint.to_int t2);
+				Printf.printf "\n";
+			end;
+		end;
+	)!vars;
 	
 	let steps = extract_step kf !vars stmt in	
 	let coeffs = ref [] and consts = ref [] in
 	
-	List.iter(fun e->
+	List.iter(fun (_,e)->
 		coeffs := (extract_coeff_from_exp e)@(!coeffs);
 		consts := (extract_const_from_exp None e)@(!consts);
 		
@@ -495,7 +537,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:Cil_types
 			let lval = Cil.var v in
 			let step = List.find_all (fun (lv,c)->
 				begin match lv with
-				| Some(lv1)->Cil.compareLval lval lv1;
+				| Some(lv1)->
+					Cil.compareLval lval lv1;
 				| _->false;
 				end;
 				) steps
