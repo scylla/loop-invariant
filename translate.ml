@@ -427,10 +427,12 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	let transfers = ref [] in
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
-	let term = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
+	let term_min = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
+	let term_max = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
 	let zero_term = Cil.lzero () in(*Logic_utils.mk_dummy_term tnode Cil.intType in*)
 	let ltype = Cil_types.Ctype(Cil.intType) in
 	
+	(*get all vars in conl*)
 	let vars = ref [] in
 	List.iter(fun (s,e)->
 		let evars = Varinfo.Set.elements (LiUtils.extract_varinfos_from_exp e) in
@@ -441,10 +443,11 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			end;
 		)evars;
 	)conl;
-	
+
 	(*get min and max value of vars after the loop stmt*)
 	let most = ref [] in
-	let mini = My_bigint.to_int My_bigint.min_int64 and maxi = My_bigint.to_int My_bigint.max_int64 in
+	let mini = min_int and maxi = max_int in
+	Printf.printf "mini=%d,maxi=%d\n" mini maxi;
 	List.iter(fun v->
 		let value = !Db.Value.access_after (Kstmt(stmt)) (Cil.var v) in
 		begin match value with
@@ -455,7 +458,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			let iv = Cvalue.V.project_ival value in(*Ival.t*)
 			begin match iv with
 			| Ival.Set(set)->Printf.printf "Set\n";
-				let min = ref mini and max = ref maxi in
+				let min = ref (My_bigint.to_int (Array.get set 0)) and max = ref (My_bigint.to_int (Array.get set 0)) in
 				Array.iter(fun i->
 					let j = My_bigint.to_int i in
 					if j<(!min) then min := j;
@@ -482,6 +485,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		end;
 	)!vars;
 	
+	(*get step of potential step vars*)
 	let steps = extract_step kf !vars stmt in	
 	let coeffs = ref [] and consts = ref [] in
 	
@@ -519,7 +523,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	
 	List.iter2(fun cof (lvo,const)->(*here lvo is None*)
 		let lterm = ref [] in
-		let const_r = ref const in
+		let const_min = ref 0 and const_max = ref 0 in
 		(*the form is sum(cof*var)+const?0,? represents >,<,>=,<=,!=,== etc*)
 		(*var and cof part*)
 		List.iter(fun v->
@@ -528,7 +532,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			let tvar = Logic_const.term tnode ltype in
 		
 			(*now the cofs are all -1*)
-			let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (-1)),Cil_types.IInt,None)) in
+			let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (1)),Cil_types.IInt,None)) in
 			let tcof = Logic_const.term tnode ltype in
 		
 			let tnode = TBinOp(Mult,tcof,tvar) in
@@ -543,20 +547,34 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				end;
 				) steps
 			in
+			let mostv = List.find_all (fun (v1,min,max)->v1==v
+			) !most
+			in
+			
 			List.iter(fun (_,c)->
-				const_r := !const_r+c;
+				const_min := !const_min+c;
+				const_max := !const_max+c;
 			)step;
+			List.iter(fun (v,min,max)->
+				const_min := !const_min+min;
+				const_max := !const_max+max;
+				Printf.printf ",min=%d,max=%d\n" min max;
+			)mostv;
 		)lvars;
 	
 		(*constant part*)
-		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (!const_r)),Cil_types.IInt,None)) in
-		let tcon = Logic_const.term tnode ltype in
-		lterm := !lterm@[tcon];
+		let tnode_min = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (!const_min)),Cil_types.IInt,None)) in
+		let tnode_max = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (!const_max)),Cil_types.IInt,None)) in
+		let tcon_min = Logic_const.term tnode_min ltype in
+		let tcon_max = Logic_const.term tnode_max ltype in
 	
 		(*make sum to get the last term being the form above.we can create [code_annotation] with this term*)
 		List.iter(fun t->
-			term := Logic_const.term (TBinOp(PlusA,!term,t)) ltype;
-		)!lterm;
+			term_min := Logic_const.term (TBinOp(PlusA,!term_min,t)) ltype;
+		)(!lterm@[tcon_min]);
+		List.iter(fun t->
+			term_max := Logic_const.term (TBinOp(PlusA,!term_max,t)) ltype;
+		)(!lterm@[tcon_max]);
 		
 		(*make cons*)
 		let vars = ref [||] in
@@ -572,39 +590,55 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		let len = (Array.length !vars)-1 in
 		(*now the cofs are all -1*)
 		for i=0 to len do
-		 	cofl := (Apron.Coeff.s_of_int (-1), !vars.(i))::!cofl;
+		 	cofl := (Apron.Coeff.s_of_int (1), !vars.(i))::!cofl;
 		done;
 		
 		let tab = Apron.Lincons1.array_make new_env len in
 		let expr = Apron.Linexpr1.make new_env in
-		Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-		(Some cof)(*some cof here is the constant, whose value is equal to [const]*)
-		;
+		
 		
 		let mk_lincons typ =
 			begin match typ with
-			| Req->
-				let pred = Prel(Req,!term,zero_term) in
+			| Req->(*all two?*)
+				let pred = Prel(Req,!term_max,zero_term) in
+				Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+				(Some (Apron.Coeff.s_of_int (!const_max)))(*constant part*)
+				;
 				let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
 				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
 			| Rge->
-				let pred = Prel(Rge,!term,zero_term) in
+				let pred = Prel(Rge,!term_max,zero_term) in
+				Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+				(Some (Apron.Coeff.s_of_int (!const_max)))(*constant part*)
+				;
 				let cons = Apron.Lincons1.make expr Apron.Lincons1.SUPEQ in
 				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
 			| Rgt->
-				let pred = Prel(Rgt,!term,zero_term) in
+				let pred = Prel(Rgt,!term_max,zero_term) in
+				Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+				(Some (Apron.Coeff.s_of_int (!const_max)))(*constant part*)
+				;
 				let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
 				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
-			| Rneq->
-				let pred = Prel(Rneq,!term,zero_term) in
+			| Rneq->(*all two?*)
+				let pred = Prel(Rneq,!term_max,zero_term) in
+				Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+				(Some (Apron.Coeff.s_of_int (!const_max)))(*constant part*)
+				;
 				let cons = Apron.Lincons1.make expr Apron.Lincons1.DISEQ in
 				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
-			| Rle->
-				let pred = Prel(Rle,!term,zero_term) in
+			| Rle->(*neg term*)
+				let pred = Prel(Rle,!term_max,zero_term) in
+				Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+				(Some (Apron.Coeff.s_of_int (-(!const_max))))(*constant part*)
+				;
 				let cons = Apron.Lincons1.make (negate_linexpr expr) Apron.Lincons1.SUPEQ in
 				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
 			| Rlt->
-				let pred = Prel(Rlt,!term,zero_term) in
+				let pred = Prel(Rlt,!term_max,zero_term) in
+				Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+				(Some (Apron.Coeff.s_of_int (-(!const_max))))(*constant part*)
+				;
 				let cons = Apron.Lincons1.make (negate_linexpr expr) Apron.Lincons1.SUP in
 				Apron.Lincons1.array_set tab 0 cons;(pred,cons);
 			(*| Apron.Lincons1.EQMOD(_)->

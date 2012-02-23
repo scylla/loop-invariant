@@ -150,7 +150,8 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 									if !sat==true then
 									(
 										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-										let root_code_annot_ba = Cil_types.User(code_annotation) in
+										let code_annot = apply_lincons1 fmt procinfo stmt cons in
+										let root_code_annot_ba = Cil_types.User(code_annot) in
 										
 										Annotations.add kf s [Ast.self] root_code_annot_ba;
 									)
