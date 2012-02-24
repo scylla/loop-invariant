@@ -1,3 +1,35 @@
+/*@
+	@predicate is_dense_increase(int x) = 
+	@	x == x+1;
+	@
+	@predicate is_positive(int x) = 
+	@	0<x;
+	@	
+	@predicate is_negative(int x) =
+	@	x<0;
+	@
+	@predicate is_valid_index(int *arr,int i,int n) =
+	@	(0 <= i) && (i < n);
+	@
+	@predicate is_valid_index (int arr[],int i,int n) =
+	@	(0<=i) && (i < n);
+	@
+	@predicate elements_dec(int *a,int len) = 
+	@	\forall integer i,j; 0 <= i <= j < len ==> a[i] > a[j];
+	@
+	@predicate elements_eq(int *a,int len) = 
+	@	\forall integer i; 0 <= i < len ==> a[i] == a[0];
+	@
+	@predicate elements_inc(int *a,int len) = 
+	@	\forall integer i,j; 0 <= i <= j < len ==> a[i] < a[j];
+	@
+	@predicate elements_part_eq(int *a,int *b,int i) =
+	@	\forall int k; 0 <= k < i ==> a[k] == b[k];
+	@
+*/
+
+
+
 /*@ lemma mean: \forall integer x, y; x <= y ==> x <= (x+y)/2 <= y;
   @*/
 /*@ predicate sorted{L}(long *t, integer a, integer b) =

@@ -51,7 +51,8 @@ let apply_lincons1 fmt (procinfo:Equation.procinfo) stmt lincons1 =
 			| Apron.Coeff.Scalar(sca)->
 				(match sca with
 				| Apron.Scalar.Float(f)->
-					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_float f),Cil_types.IInt,None)) in
+					Printf.printf "apply_lincons1:%f\n" f;
+					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (int_of_float f)),Cil_types.IInt,None)) in
 					tcof := Logic_const.term tnode ltype;
 				| Apron.Scalar.Mpqf(q)->
 					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_string (Mpqf.to_string q)),Cil_types.IInt,None)) in
@@ -93,14 +94,17 @@ let apply_cons fmt procinfo stmt cons ipl wp_compute =
 *)	
 let apply_abstract1 fmt procinfo stmt abs ipl wp_compute =
 	let man = Apron.Abstract1.manager abs in
-	let lconsarray = Apron.Abstract1.to_lincons_array man abs in
-	Array.iter(fun cons->
-		let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
-		let code_annotation = apply_lincons1 fmt procinfo stmt lincons1 in
-		let root_code_annot_ba = Cil_types.User(code_annotation) in
-		Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
-		(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;*)
-	)lconsarray.Apron.Lincons1.lincons0_array
+	if (Apron.Abstract1.is_bottom man abs)==false then
+	begin
+		let lconsarray = Apron.Abstract1.to_lincons_array man abs in
+		Array.iter(fun cons->
+			let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
+			let code_annotation = apply_lincons1 fmt procinfo stmt lincons1 in
+			let root_code_annot_ba = Cil_types.User(code_annotation) in
+			Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
+			(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;*)
+		)lconsarray.Apron.Lincons1.lincons0_array;
+	end
 	
 
 let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
@@ -150,8 +154,7 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 									if !sat==true then
 									(
 										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-										let code_annot = apply_lincons1 fmt procinfo stmt cons in
-										let root_code_annot_ba = Cil_types.User(code_annot) in
+										let root_code_annot_ba = Cil_types.User(code_annotation) in
 										
 										Annotations.add kf s [Ast.self] root_code_annot_ba;
 									)
