@@ -27,6 +27,14 @@ let extract_varinfos_from_exp (e:exp) =
   in ignore (visitCilExpr (visitor :> nopCilVisitor) e) ;
     visitor#varinfos
     
+let extract_valEle_from_exp (e:exp) =
+	 let result = ref [] in
+	 begin match e.enode with
+	 | Cil_types.Lval(lv)->result := LiType.Lval(lv)::(!result);
+	 | _->();
+	 end;
+	 result
+
 let get_constant_str (c:Cil_types.constant) =
 	match c with
   | CInt64(i, _, Some s)->Escape.escape_char (Char.chr (My_bigint.to_int i))
