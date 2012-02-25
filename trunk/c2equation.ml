@@ -127,8 +127,14 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
 
 
 let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
+	Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+	TypePrinter.print_exp_type Format.std_formatter exp;
 	match exp.enode with
 	| BinOp(op,e1,e2,tp)->
+		Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
+		TypePrinter.print_exp_type Format.std_formatter e1;
+		Cil.d_exp Format.std_formatter e2;Format.print_flush ();Printf.printf "\n";
+		TypePrinter.print_exp_type Format.std_formatter e2;
 		let te1 = Translate.force_exp_to_texp e1 in
 		let te2 = Translate.force_exp_to_texp e2 in
 		(match op with
@@ -188,7 +194,6 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		let avar2cvar = Hashhe.create 3 in
 		let penv = Translate.add_env penv fundec.sformals avar2cvar in
 		let penv = Translate.add_env penv fundec.slocals avar2cvar in
-
 		{
 			Equation.kf = proc;
 		  Equation.pname = Kernel_function.get_name proc;

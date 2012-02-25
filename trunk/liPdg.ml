@@ -4,8 +4,12 @@ open Db
 let find_vnodes vars pdg =	
 	let l = ref [] in
 	List.iter(fun v->
-		let node = (!Db.Pdg.find_decl_var_node) pdg v in
-		l := !l@[node];
+		begin match v with
+		| LiType.Lval(li)->();
+		| LiType.Var(v)->
+			let node = (!Db.Pdg.find_decl_var_node) pdg v in
+			l := !l@[node];
+		end;
 	)vars;
 	!l
 	
@@ -17,9 +21,11 @@ let find_bnodes b pdg =
 		| Instr(ins)->
 			begin match ins with
 			| Call _->();
-			| _->
+			| _->Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
+				try
 				let node = (!Db.Pdg.find_stmt_node) pdg s in
 				l := !l@[node];
+				with Not_found->Printf.printf "the stmt is unreachable.\n";
 			end;
 		| Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->		
 			let node = (!Db.Pdg.find_stmt_node) pdg s in

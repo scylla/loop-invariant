@@ -9,7 +9,8 @@ type 'conj t =
   | DISJ of 'conj list
 
 (** Printing function, parametrized by a printing function for conjunctions *)
-let print print_elt fmt = function
+let print print_elt fmt b =
+	match b with
   | TRUE -> pp_print_string fmt "true"
   | DISJ([]) -> pp_print_string fmt "false"
   | DISJ(l) ->

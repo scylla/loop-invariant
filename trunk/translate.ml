@@ -29,7 +29,7 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 	)a2;
 	let lint = ref [] and lreal = ref [] in
 	List.iter(fun var->
-		if (List.for_all (fun vn->vn==var.vname;) !names)==true then
+		if (List.for_all (fun vn->vn!=var.vname;) !names)==true then
 		(
 		match var.vtype with
 		| TInt(_,_)->
@@ -39,6 +39,11 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 		| TFloat(_,_)->
 			let avar = (Apron.Var.of_string var.vname) in
 			lreal := avar::!lreal;
+			Hashhe.add avar2cvar avar var;
+		| TPtr(tp,attr)->(*pointer,how to?*)
+			Cil.d_var Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
+			let avar = (Apron.Var.of_string var.vname) in
+			lint := avar::!lint;
 			Hashhe.add avar2cvar avar var;
 		| _->();
 		);
@@ -87,11 +92,19 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Apron.Texpr1.Binop(Apron.Texpr1.Mul,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| Mod->
 			Apron.Texpr1.Binop(Apron.Texpr1.Mod,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
-		| Le->
+		| Le->(*<=*)
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Lt->(*<*)
 			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| Eq->
 			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| PlusPI->(*pointer + interger*)
+			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| IndexPI->
+			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		|_->
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+			Cil.d_binop Format.std_formatter op;Format.print_flush ();Printf.printf "\n";
 			Printf.printf "unknownBinOp\n";
 			(*TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
@@ -103,9 +116,9 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			let te = force_exp_to_texp e in
 			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| _->
-			(*Printf.printf "unknownUnOp\n";
+			Printf.printf "unknownUnOp\n";
 			TypePrinter.print_exp_type Format.std_formatter exp;
-			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownUnOp");
 		)
 	| Const(cons)->
@@ -130,9 +143,9 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 	| CastE(ty,e)->
 		force_exp_to_texp e;(*not exactly right*)
 	|_->
-		(*Printf.printf "unknownEnode\n";
+		Printf.printf "unknownEnode\n";
 		TypePrinter.print_exp_type Format.std_formatter exp;
-		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
+		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 		  
 
@@ -435,7 +448,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	(*get all vars in conl*)
 	let vars = ref [] in
 	List.iter(fun (s,e)->
-		let evars = Varinfo.Set.elements (LiUtils.extract_varinfos_from_exp e) in
+		let evars = !(LiUtils.extract_valEle_from_exp e) in
 		List.iter(fun v->
 			if (List.exists(fun v1->v1==v) !vars)==false then
 			begin				
@@ -449,12 +462,21 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	let mini = min_int and maxi = max_int in
 	Printf.printf "mini=%d,maxi=%d\n" mini maxi;
 	List.iter(fun v->
-		let value = !Db.Value.access_after (Kstmt(stmt)) (Cil.var v) in
+		let lv =
+			begin match v with
+			| LiType.Var(vi)->
+				Cil.var vi;
+			| LiType.Lval(li)->li;
+			end;
+		in
+		
+		let value = !Db.Value.access_after (Kstmt(stmt)) lv in
 		begin match value with
 		| Cvalue.V.Top(_,_)->
 			Printf.printf "Top\n";
 		| Cvalue.V.Map(m)->
 			Printf.printf "Map\n";
+			Cvalue.V.pretty fmt value;Format.print_flush ();Printf.printf "\n";
 			let iv = Cvalue.V.project_ival value in(*Ival.t*)
 			begin match iv with
 			| Ival.Set(set)->Printf.printf "Set\n";
@@ -547,8 +569,12 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				end;
 				) steps
 			in
-			let mostv = List.find_all (fun (v1,min,max)->v1==v
-			) !most
+			let mostv = 
+				List.find_all (fun (v1,min,max)->
+				begin match v1 with
+				| LiType.Var(v2)->v2==v
+				| LiType.Lval(_)->false
+				end;) !most
 			in
 			
 			List.iter(fun (_,c)->
