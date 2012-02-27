@@ -191,9 +191,82 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		let plocal = convert fundec.slocals in
 
 		let penv = Apron.Environment.make [||] [||] in
+		let penv = Apron.Environment.add penv [|(Apron.Var.of_string "unknownEnode");Apron.Var.of_string "unknownConst";Apron.Var.of_string "unknownUnOp";Apron.Var.of_string "unknownBinOp"|] [||] in
 		let avar2cvar = Hashhe.create 3 in
 		let penv = Translate.add_env penv fundec.sformals avar2cvar in
 		let penv = Translate.add_env penv fundec.slocals avar2cvar in
+		(*convert and add lval to env*)
+		let lvals = ref [] in
+		let strfmt = Format.str_formatter in
+		let fmt = Format.std_formatter in
+		List.iter(fun v->
+			Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+		)fundec.slocals;
+		
+		let add_lval lv =
+			Cil.d_lval strfmt lv;
+			let name = Format.flush_str_formatter () in
+			if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
+			begin lvals := (Apron.Var.of_string name)::(!lvals);end;
+		in
+		let rec add_env_exp e =
+			begin match e.enode with
+			| Const(_)|SizeOfStr(_)|AlignOf(_)|SizeOf(_)->();
+			| Lval(l)|AddrOf(l)|StartOf(l)->add_lval l;
+			| SizeOfE(e1)|AlignOfE(e1)|UnOp(_,e1,_)|CastE(_,e1)|Info(e1,_)->add_env_exp e1;
+			| BinOp(_,e1,e2,_)->add_env_exp e1;add_env_exp e2;
+			end;
+		in
+		let rec add_env_block b =
+			List.iter(fun s->
+				begin match s.skind with
+				| Instr (ins)->
+					begin match ins with
+					| Set(lv,e,_)->
+						add_lval lv;
+						add_env_exp e;
+					| Call(lvo,e,el,_)->
+						begin match lvo with
+						| Some(lv)->
+							add_lval lv;
+						| None->();
+						end;
+						add_env_exp e;
+						List.iter(fun e1->
+							add_env_exp e1;
+						)el;
+					| Asm _|Skip _|Code_annot _->();
+					end;
+				| Cil_types.Return(eo,_)->
+					begin match eo with
+					| Some(e1)->
+						add_env_exp e1;
+					| None->();
+					end;
+				| Goto _|Break _|Continue _->();
+				| If(e,b1,b2,_)->
+					add_env_exp e;
+					add_env_block b1;
+					add_env_block b2;
+				| Switch(e,b1,_,_)->
+					add_env_exp e;
+					add_env_block b1;
+				| Loop(_,b1,_,_,_)|Block(b1)->
+					add_env_block b1;
+				| UnspecifiedSequence(seq)->
+					let b1 = Cil.block_from_unspecified_sequence seq in
+					add_env_block b1;
+				| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
+					add_env_block b1;
+					add_env_block b2;
+				end
+			)b.bstmts;
+		in
+		
+		add_env_block fundec.sbody;
+		Printf.printf "env of fun %s is:\n" name;
+		Apron.Environment.print fmt penv;Format.print_flush ();Printf.printf "\n";
+		let penv = Translate.add_vars penv !lvals avar2cvar in
 		{
 			Equation.kf = proc;
 		  Equation.pname = Kernel_function.get_name proc;
@@ -426,8 +499,11 @@ module Forward = struct
       				(
 							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = ref [] in
-								List.iter(fun e->
-									pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
+							List.iter(fun e->
+								Printf.printf "pin=\n";
+								Apron.Texpr1.print_expr fmt (Translate.force_exp_to_texp e);Format.print_flush ();Printf.printf "\n";
+								Apron.Environment.print fmt env;Format.print_flush ();Printf.printf "\n";
+								pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
 							)el;
 							Printf.printf "texpr in call inargs\n";
 							List.iter(fun e->
@@ -729,9 +805,18 @@ module Backward = struct
 							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = callee.pinput in
 							let ain = ref [] in
-							Array.iter(fun v->
+							
+							List.iter(fun e->
+								ain := !ain@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
+							)el;
+							Printf.printf "Call Back\n";Apron.Environment.print fmt env;Format.print_flush ();Printf.printf "\n";
+							List.iter(fun e->
+								Apron.Texpr1.print fmt e;Format.print_flush ();Printf.printf "\n";
+							)!ain;
+							(*Array.iter(fun v->
+								Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
 								ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
-							)pin;
+							)pin;*)
 								
 							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),None) in
 							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),[||]) in

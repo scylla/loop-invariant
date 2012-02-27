@@ -100,7 +100,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
 	let module OKF = Datatype.Option(Kernel_function) in
 	let module OP = Datatype.Option(Property) in
-	Dynamic.Parameter.Int.set "-wp-timeout" 205;
+	Dynamic.Parameter.Int.set "-wp-timeout" 10;
 	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
 	
 	let info = C2equation.make_info cil in

@@ -29,12 +29,13 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 	)a2;
 	let lint = ref [] and lreal = ref [] in
 	List.iter(fun var->
-		if (List.for_all (fun vn->vn!=var.vname;) !names)==true then
+		if (List.for_all (fun vn->(String.compare vn var.vname)!=0) !names)==true then
 		(
 		match var.vtype with
 		| TInt(_,_)->
 			let avar = (Apron.Var.of_string var.vname) in
 			lint := avar::!lint;
+			(*update [names]??*)
 			Hashhe.add avar2cvar avar var;
 		| TFloat(_,_)->
 			let avar = (Apron.Var.of_string var.vname) in
@@ -45,13 +46,41 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 			let avar = (Apron.Var.of_string var.vname) in
 			lint := avar::!lint;
 			Hashhe.add avar2cvar avar var;
-		| _->();
+		| TArray(tp,eo,size,attr)->
+			begin match eo with
+			| Some(e)->
+				let avar = (Apron.Var.of_string var.vname) in
+				lint := avar::!lint;
+				Hashhe.add avar2cvar avar var;
+			| None->();
+			end;
+		| _->Cil.d_type Format.std_formatter var.vtype;Format.print_flush ();Printf.printf "\n";
 		);
 	)lvar;
   Apron.Environment.add env
     (Array.of_list !lint)
     (Array.of_list !lreal)
-	
+
+let add_vars (env:Apron.Environment.t) (lvar:Apron.Var.t list) avar2cvar :Apron.Environment.t =
+	let names = ref [] in
+	let (a1,a2)= Apron.Environment.vars env in
+	Array.iter(fun v->
+		names := (Apron.Var.to_string v)::!names;
+	)a1;
+	Array.iter(fun v->
+		names := (Apron.Var.to_string v)::!names;
+	)a2;
+	let lint = ref [] and lreal = ref [] in
+	List.iter(fun av->
+		if (List.for_all (fun vn->(String.compare (Apron.Var.to_string av) vn)!=0) !names)==true then
+		(
+			lint := av::!lint;
+		);
+	)lvar;
+  Apron.Environment.add env
+    (Array.of_list !lint)
+    (Array.of_list !lreal)
+    
 let negate_texpr (texpr:Apron.Texpr1.t) : Apron.Texpr1.t
   =
   let expr = Apron.Texpr1.to_expr texpr in
@@ -97,6 +126,8 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 		| Lt->(*<*)
 			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| Eq->
+			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
+		| Ne->(*!=*)
 			Apron.Texpr1.Binop(Apron.Texpr1.Sub,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| PlusPI->(*pointer + interger*)
 			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
@@ -147,7 +178,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 		TypePrinter.print_exp_type Format.std_formatter exp;
 		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
-		  
+
 
 let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 	let texpr = force_exp_to_texp e in
