@@ -185,7 +185,18 @@ let environment_of_texpr
   let env = ref (Apron.Environment.make [||] [||]) in
   Array.iter(fun e->
   	let (i,r) = Apron.Environment.vars (Apron.Texpr1.get_env e) in
+  	Printf.printf "environment_of_texpr\n";
+  	Apron.Texpr1.print Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
+  	
+  	Array.iter(fun v->
+  		Apron.Var.print Format.std_formatter v;Format.print_flush ();Printf.printf "\n";)i;
+  	Array.iter(fun v->
+  		Apron.Var.print Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
+  	)r;
+  	
+  	try
   	env := Apron.Environment.add !env i r;
+  	with Failure(s)->Printf.printf "failure because of %s in environment_of_texpr\n" s;
   )texpr;
   !env;;
   
@@ -270,7 +281,11 @@ module Forward = struct
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
-    let tenv = environment_of_texpr inargs in
+     Printf.printf "apply_call\n";
+     Array.iter(fun e->
+     	Apron.Texpr1.print Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
+     )inargs;
+    let tenv = environment_of_texpr inargs in(*too many?*)
     let (i,r) = Apron.Environment.vars tenv in
     
     let fmt =  Format.std_formatter in
@@ -325,6 +340,12 @@ module Forward = struct
     *) 
     let tenv = environment_of_texpr inargs in
     let (i,r) = Apron.Environment.vars tenv in
+    let fmt =  Format.std_formatter in
+    Printf.printf "var in ac inargs apply_return\n";
+    Array.iter(fun v->
+    	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
+    )(Array.append i r);
+    
     Apron.Abstract1.rename_array_with
       manager res calleeinfo.Equation.pinput (Array.append i r);
     (* 2. We unify the renamed callee value and the caller value *)
