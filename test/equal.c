@@ -26,5 +26,6 @@ int equal(int* a, int n, int* b)
 void main()
 {
 	int a[]={1,2,3},b[]={1,2,4};
-	equal(a,3,b);
+	int n=3;
+	equal(a,n,b);
 }

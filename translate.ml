@@ -105,8 +105,8 @@ let negate_linexpr (lexpr:Apron.Linexpr1.t) : Apron.Linexpr1.t
 	Apron.Linexpr1.set_cst copy (Apron.Coeff.neg (Apron.Linexpr1.get_cst copy));
 	copy
 
-let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
-	match exp.enode with
+let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
+	begin match exp.enode with
 	| BinOp(op,e1,e2,ty)->
 		let te1 = force_exp_to_texp e1 in
 		let te2 = force_exp_to_texp e2 in
@@ -164,20 +164,35 @@ let rec force_exp_to_texp (exp:Cil_types.exp) :Apron.Texpr1.expr =
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
 		)
-	| Lval((host,offset))->
-		(match host with
-		| Var(v)->
-			Apron.Texpr1.Var(Apron.Var.of_string v.vname);
-		| Mem(e)->
-			force_exp_to_texp e;
-		);
 	| CastE(ty,e)->
 		force_exp_to_texp e;(*not exactly right*)
+	| Lval((host,offset))->
+		Printf.printf "Lval in force_exp_to_texp:\n";
+		begin match host with
+		| Mem(m)->
+			Cil.d_exp Format.std_formatter m;Format.print_flush ();Printf.printf "\n";
+			TypePrinter.print_exp_type Format.std_formatter m;Format.print_flush ();Printf.printf "\nEnd mem\n";
+		| Var(v)->();
+		end;
+		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 	|_->
 		Printf.printf "unknownEnode\n";
 		TypePrinter.print_exp_type Format.std_formatter exp;
 		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
+	end
+	
+let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.arg =
+	begin match exp.enode with
+	| StartOf(lv)|AddrOf(lv)|Lval(lv)->
+		let strfmt = Format.str_formatter in
+		Cil.d_lval strfmt lv;	
+		let name = Format.flush_str_formatter () in
+		LiType.APVar((Apron.Var.of_string name))
+	| _->
+		let expr = force_exp_to_texp exp in
+		LiType.APTexpr(Apron.Texpr1.of_expr env expr)
+	end
 
 
 let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
@@ -408,7 +423,7 @@ let extract_step kf vars stmt =
 	(*let vars = dec.sformals@dec.slocals in*)
 	let pdg = (!Db.Pdg.get) kf in
 	(!Db.Pdg.extract) pdg ("/home/lzh/pdg_"^fname^".dot");
-			
+	
 	let vlist = LiPdg.find_vnodes vars pdg in
 	let blist = LiPdg.find_bnodes dec.sbody pdg in
 			
@@ -417,7 +432,7 @@ let extract_step kf vars stmt =
 		let llist = LiPdg.find_bnodes b pdg in
 			
 		List.iter(fun node->
-			(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
+			Printf.printf "pretty_node:";(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
 			let nodes = (!Db.Pdg.all_uses) pdg [node] in
 			List.iter(fun n->
 				if (List.exists (fun n1->n1==n;) llist)==true then
@@ -492,6 +507,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	let most = ref [] in
 	let mini = min_int and maxi = max_int in
 	Printf.printf "mini=%d,maxi=%d\n" mini maxi;
+	Printf.printf "value node len=%d\n" (List.length !vars);
 	List.iter(fun v->
 		let lv =
 			begin match v with
@@ -539,14 +555,15 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	)!vars;
 	
 	(*get step of potential step vars*)
-	let steps = extract_step kf !vars stmt in	
+	let steps = extract_step kf !vars stmt in	Printf.printf "after extract_step\n";
 	let coeffs = ref [] and consts = ref [] in
 	
 	List.iter(fun (_,e)->
-		coeffs := (extract_coeff_from_exp e)@(!coeffs);
+		coeffs := (extract_coeff_from_exp e)@(!coeffs);Printf.printf "after extract_coeff_from_exp\n";
 		consts := (extract_const_from_exp None e)@(!consts);
-		
+		Printf.printf "after extract_const_from_exp\n";
 		let tcons = force_exp2tcons e env in
+		Printf.printf "after force_exp2tcons to get tcons\n";
 		
 		let t = Logic_utils.expr_to_term false e in
 		let pred = match t.term_node with
@@ -579,6 +596,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		let const_min = ref 0 and const_max = ref 0 in
 		(*the form is sum(cof*var)+const?0,? represents >,<,>=,<=,!=,== etc*)
 		(*var and cof part*)
+		Printf.printf "lvar.len=%d\n" (List.length lvars);
 		List.iter(fun v->
 			let lv = Cil.cvar_to_lvar v in
 			let tnode = TLval((TVar(lv),TNoOffset)) in
@@ -797,4 +815,5 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			)result;
 		)[Req;Rge;Rgt;Rneq;Rle;Rlt];
 	)!coeffs !consts;
+	Printf.printf "generate over\n";
 	!transfers;;

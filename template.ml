@@ -176,7 +176,7 @@ let environment_of_tvar
   in
   let tint = Array.of_list lint and treal = Array.of_list lreal in
   Apron.Environment.make tint treal;;
-      
+  
 let environment_of_texpr
   (texpr : Apron.Texpr1.t array)
   :
@@ -196,10 +196,51 @@ let environment_of_texpr
   	
   	try
   	env := Apron.Environment.add !env i r;
-  	with Failure(s)->Printf.printf "failure because of %s in environment_of_texpr\n" s;
+  	with Failure(msg)->Printf.printf "failure because of %s in environment_of_texpr\n" msg;
   )texpr;
   !env;;
-  
+ 
+let environment_of_args (args:LiType.arg array) =
+	let env = ref (Apron.Environment.make [||] [||]) in
+	Array.iter(fun arg->
+		begin match arg with
+		| LiType.APTexpr(exp)->
+			let env0 = Apron.Texpr1.get_env exp and i = ref [] and r = ref [] in
+			let rec extract exp =
+				Printf.printf "envofargs:";Apron.Texpr1.print_expr Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+				begin match exp with
+				| Apron.Texpr1.Var(v)->
+					let tp = Apron.Environment.typ_of_var env0 v in
+					begin match tp with
+					| Apron.Environment.INT->i := v::(!i);
+					| Apron.Environment.REAL->r := v::(!r);
+					end;
+				| Apron.Texpr1.Unop(_,e,_,_)->
+					extract e;
+				| Apron.Texpr1.Binop(_,e1,e2,_,_)->
+					extract e1;
+					extract e2;
+				| Apron.Texpr1.Cst(cons)->();
+				end;
+			in
+			
+			extract (Apron.Texpr1.to_expr exp);
+			begin
+			try
+			env := Apron.Environment.add !env (Array.of_list !i) (Array.of_list !r);
+			with Failure(msg)->Printf.printf "failure because of %s in environment_of_args\n" msg;
+			end;
+		| LiType.APVar(v)->
+			begin
+			try
+			env := Apron.Environment.add !env [|v|] [||];(*how to get type?*)
+			with Failure(msg)->Printf.printf "failure because of %s in environment_of_args\n" msg;
+			end;
+		end;
+	)args;
+	
+	!env;;
+	
 (*  ********************************************************************** *)
 (** {2 Forward semantics} *)
 (*  ********************************************************************** *)
@@ -274,18 +315,25 @@ module Forward = struct
     (manager:'a Apron.Manager.t)
     (abstract:'a Apron.Abstract1.t)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Texpr1.t array)
+    (inargs:LiType.arg array)
     (dest:'a Apron.Abstract1.t option)
     =
     (* current environment *)
     let env = Apron.Abstract1.env abstract in
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
-     Printf.printf "apply_call\n";
-     Array.iter(fun e->
-     	Apron.Texpr1.print Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
-     )inargs;
-    let tenv = environment_of_texpr inargs in(*too many?*)
+    Printf.printf "apply_call\n";
+    Array.iter(fun arg->
+		  begin match arg with
+		  | LiType.APTexpr(a)->
+		  	Printf.printf "inargs:";Apron.Texpr1.print Format.std_formatter a;Format.print_flush ();Printf.printf "\n";
+		  | LiType.APVar(a)->
+				Printf.printf "inargs:";Apron.Var.print Format.std_formatter a;Format.print_flush ();Printf.printf "\n";
+		  end;
+    )inargs;
+    
+    let tenv = environment_of_args inargs in(*too many?*)
+    Printf.printf "tenv:";Apron.Environment.print Format.std_formatter tenv;Format.print_flush ();Printf.printf "\n";
     let (i,r) = Apron.Environment.vars tenv in
     
     let fmt =  Format.std_formatter in
@@ -324,7 +372,7 @@ module Forward = struct
     (manager:'a Apron.Manager.t)
     (abscaller:'a Apron.Abstract1.t) (abscallee:'a Apron.Abstract1.t)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Texpr1.t array) (outargs:Apron.Texpr1.t array)
+    (inargs:LiType.arg array) (outargs:LiType.arg array)
     (dest:'a Apron.Abstract1.t option)
     =
      (* 0. We forget local variables in abscallee *)
@@ -338,7 +386,7 @@ module Forward = struct
        - formal in parameters by actual inparameters
        - formal out parameters by special names (to avoid name conflicts)
     *) 
-    let tenv = environment_of_texpr inargs in
+    let tenv = environment_of_args inargs in
     let (i,r) = Apron.Environment.vars tenv in
     let fmt =  Format.std_formatter in
     Printf.printf "var in ac inargs apply_return\n";
@@ -555,7 +603,7 @@ module Backward = struct
     (abstract:'a Apron.Abstract1.t)
     (callerinfo:Equation.procinfo)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Texpr1.t array)
+    (inargs:LiType.arg array)
     (dest:'a Apron.Abstract1.t option)
     =
     (* current environment *)
@@ -570,7 +618,7 @@ module Backward = struct
     in
     (* From now on, we work by side-effect *)
     (* 2. We now rename formal parameters into actual ones *)
-    let tenv = environment_of_texpr inargs in
+    let tenv = environment_of_args inargs in
     let (i,r) = Apron.Environment.vars tenv in
     Apron.Abstract1.rename_array_with
       manager abstract2
@@ -594,7 +642,7 @@ module Backward = struct
     (abstract:'a Apron.Abstract1.t)
     (callerinfo:Equation.procinfo)
     (calleeinfo:Equation.procinfo)
-    (inargs:Apron.Texpr1.t array) (outargs:Apron.Texpr1.t array)
+    (inargs:LiType.arg array) (outargs:LiType.arg array)
     (dest:'a Apron.Abstract1.t option)
     =
     let env =

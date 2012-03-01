@@ -127,13 +127,14 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
 
 
 let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
-	Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
+	Printf.printf "force_exp2bexp:";Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 	TypePrinter.print_exp_type Format.std_formatter exp;
 	match exp.enode with
 	| BinOp(op,e1,e2,tp)->
-		Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
+		Printf.printf "e1:";Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
 		TypePrinter.print_exp_type Format.std_formatter e1;
-		Cil.d_exp Format.std_formatter e2;Format.print_flush ();Printf.printf "\n";
+		Cil.d_binop Format.std_formatter op;Format.print_flush ();Printf.printf "\n";
+		Printf.printf "e2:";Cil.d_exp Format.std_formatter e2;Format.print_flush ();Printf.printf "\n";
 		TypePrinter.print_exp_type Format.std_formatter e2;
 		let te1 = Translate.force_exp_to_texp e1 in
 		let te2 = Translate.force_exp_to_texp e2 in
@@ -199,15 +200,23 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		let lvals = ref [] in
 		let strfmt = Format.str_formatter in
 		let fmt = Format.std_formatter in
-		List.iter(fun v->
-			Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
-		)fundec.slocals;
 		
 		let add_lval lv =
-			Cil.d_lval strfmt lv;
-			let name = Format.flush_str_formatter () in
-			if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
-			begin lvals := (Apron.Var.of_string name)::(!lvals);end;
+			let (host,offset) = lv in
+			begin match host with
+			| Var(v)->
+				begin match v.vtype with
+				| TArray(_)->
+					Printf.printf "TArray:";Cil.d_type fmt v.vtype;Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+				| _->
+					Cil.d_lval strfmt lv;
+					let name = Format.flush_str_formatter () in
+					Printf.printf "not TArray:%s\n" name;
+					if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
+					begin lvals := (Apron.Var.of_string name)::(!lvals);end;
+				end;
+			| Mem(m)->();
+			end;
 		in
 		let rec add_env_exp e =
 			begin match e.enode with
@@ -264,9 +273,8 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		in
 		
 		add_env_block fundec.sbody;
-		Printf.printf "env of fun %s is:\n" name;
-		Apron.Environment.print fmt penv;Format.print_flush ();Printf.printf "\n";
 		let penv = Translate.add_vars penv !lvals avar2cvar in
+		Printf.printf "env of %s\n" name;Apron.Environment.print fmt penv;Format.print_flush ();Printf.printf "\n";
 		{
 			Equation.kf = proc;
 		  Equation.pname = Kernel_function.get_name proc;
@@ -470,22 +478,22 @@ module Forward = struct
 								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
 								let pin = ref [] in
 								List.iter(fun e->
-									pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
+									pin := !pin@[Translate.force_exp_to_arg env e];
 								)el;
-								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname)))|] in
-								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),pout) in
+								let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname))) in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some([|LiType.APTexpr(pout)|])) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
 								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
 							| Mem(e)->
 								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
 								let pin = ref [] in
 								List.iter(fun e->
-									pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
+									pin := !pin@[Translate.force_exp_to_arg env e];
 								)el;
-								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (LiUtils.get_exp_name e))))|] in
-								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),pout) in
+								let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (LiUtils.get_exp_name e)))) in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some([|LiType.APTexpr(pout)|])) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
 								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
 							);
@@ -501,14 +509,10 @@ module Forward = struct
 							let pin = ref [] in
 							List.iter(fun e->
 								Printf.printf "pin=\n";
-								Apron.Texpr1.print_expr fmt (Translate.force_exp_to_texp e);Format.print_flush ();Printf.printf "\n";
-								Apron.Environment.print fmt env;Format.print_flush ();Printf.printf "\n";
-								pin := !pin@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
+								let arg = Translate.force_exp_to_arg env e in
+								LiType.print_arg fmt arg;Printf.printf "\n";
+								pin := !pin@[arg];
 							)el;
-							Printf.printf "texpr in call inargs\n";
-							List.iter(fun e->
-								Apron.Texpr1.print fmt e;Format.print_flush ();Printf.printf "\n";
-							)!pin;
 							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),None) in
 							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[||]) in
 							Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
@@ -772,12 +776,12 @@ module Backward = struct
 								let pin = callee.pinput in
 								let ain = ref [] in
 								Array.iter(fun v->
-									ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
+									ain := !ain@[LiType.APTexpr(Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v)))];
 								)pin;
 								
-								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname)))|] in
-								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),pout) in
+								let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var(Apron.Var.of_string v.vname)) in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),Some([|LiType.APTexpr(pout)|])) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),[|LiType.APTexpr(pout)|]) in
 								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
 							| Mem(e)->
@@ -785,12 +789,12 @@ module Backward = struct
 								let pin = callee.pinput in
 								let ain = ref [] in
 								Array.iter(fun v->
-									ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
+									ain := !ain@[LiType.APTexpr(Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v)))];
 								)pin;
 								
-								let pout = [|Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (LiUtils.get_exp_name e))))|] in
-								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),Some(pout)) in
-								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),pout) in
+								let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (LiUtils.get_exp_name e)))) in
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !ain),Some([|LiType.APTexpr(pout)|])) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !ain),[|LiType.APTexpr(pout)|]) in
 								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
 							);
@@ -807,12 +811,8 @@ module Backward = struct
 							let ain = ref [] in
 							
 							List.iter(fun e->
-								ain := !ain@[Apron.Texpr1.of_expr env (Translate.force_exp_to_texp e)];
+								ain := !ain@[Translate.force_exp_to_arg env e];
 							)el;
-							Printf.printf "Call Back\n";Apron.Environment.print fmt env;Format.print_flush ();Printf.printf "\n";
-							List.iter(fun e->
-								Apron.Texpr1.print fmt e;Format.print_flush ();Printf.printf "\n";
-							)!ain;
 							(*Array.iter(fun v->
 								Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
 								ain := !ain@[Apron.Texpr1.of_expr env (Apron.Texpr1.Var(v))];
