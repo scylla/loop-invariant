@@ -21,7 +21,7 @@ let find_bnodes b pdg =
 		| Instr(ins)->
 			begin match ins with
 			| Call _->();
-			| _->Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
+			| _->Printf.printf "find_bnodes:";Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
 				try
 				let node = (!Db.Pdg.find_stmt_node) pdg s in
 				l := !l@[node];

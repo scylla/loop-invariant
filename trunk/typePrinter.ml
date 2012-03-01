@@ -90,7 +90,7 @@ let print_exp_type fmt (e:Cil_types.exp) =
 		let (host,off) = l in
 		(match host with
 		| Var(v)->fprintf fmt "var:";
-			Cil.d_type Format.std_formatter v.vtype;
+			Cil.d_type fmt v.vtype;
 		| Mem(_)->fprintf fmt "Mem:";
 		);
 		(match off with

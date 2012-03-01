@@ -123,11 +123,11 @@ type transfer =
     (** Assignement by a tree expression *)
   | Condition of Apron.Tcons1.earray Boolexpr.t
     (** Filtering of a predicate by a Boolean expression *)
-  | Calle of procinfo * procinfo * (Apron.Texpr1.t array) * (Apron.Texpr1.t array) option
+  | Calle of procinfo * procinfo * LiType.arg array * LiType.arg array option
     (** Procedure call, of the form
 	  [Call(callerinfo,calleeinfo,actual input parameters,actual
 	  output parameters)] *)
-  | Return of procinfo * procinfo * (Apron.Texpr1.t array) * (Apron.Texpr1.t array)
+  | Return of procinfo * procinfo * LiType.arg array * LiType.arg array
     (** Procedure return, of the form
 	  [Call(callerinfo,calleeinfo,actual input parameters,actual
 	  output parameters)] *)
@@ -190,11 +190,17 @@ let print_tvar fmt (tvar:Apron.Var.t array) =
     Apron.Var.print
     fmt (Array.to_list tvar)
 
-let print_texpr fmt (texpr:Apron.Texpr1.t array) =
+let print_aptexpr fmt (texpr:Apron.Texpr1.expr array) =
 	print_list
     ~first:"[|@[<hov>" ~sep:";@ " ~last:"@]|]"
-    Apron.Texpr1.print
+    Apron.Texpr1.print_expr
     fmt (Array.to_list texpr)
+
+let print_apvar fmt (var:Apron.Var.t array) =
+	print_list
+    ~first:"[|@[<hov>" ~sep:";@ " ~last:"@]|]"
+    Apron.Var.print
+    fmt (Array.to_list var)
 
 let print_procinfo fmt procinfo =
   fprintf fmt "{ @[<v>pstart = %a;@ pexit = %a;@ pinput = %a;@ plocal = %a;@ penv = %a;@] }"
@@ -228,25 +234,70 @@ let print_transfer fmt transfer =
   | Calle(callerinfo,calleeinfo,pin,pout) ->
   	(match pout with
   	| Some(out)->
-      fprintf fmt "CALL %a = %s(%a)"
-      print_texpr out
-      calleeinfo.pname
-      print_texpr pin
+      fprintf fmt "CALL %s:" calleeinfo.pname;
+      Array.iter(fun arg->
+		    begin match arg with
+		    | LiType.APTexpr(dest)->
+			    Apron.Texpr1.print fmt dest
+			  | LiType.APVar(dest)->
+			  	Apron.Var.print fmt dest
+			  end;
+	   	)out;
+	   	Array.iter(fun arg->
+      begin match arg with
+		    | LiType.APTexpr(source)->
+			    Apron.Texpr1.print fmt source
+			  | LiType.APVar(source)->
+			  	Apron.Var.print fmt source
+	    end;
+	    )pin;
     | None->
-    	fprintf fmt "CALL %s(%a)"
-      calleeinfo.pname
-      print_texpr pin
+    	fprintf fmt "CALL %s:" calleeinfo.pname;
+      Array.iter(fun arg->
+     		begin match arg with
+		    | LiType.APTexpr(source)->
+			    Apron.Texpr1.print fmt source
+			  | LiType.APVar(source)->
+			  	Apron.Var.print fmt source
+	    	end;
+	  	)pin;
     )
   | Return(callerinfo,calleeinfo,pin,pout) ->
-  	if (Array.length pout)>0 then
-      fprintf fmt "RETURN %a = %s(%a)"
-      print_texpr pout
-      calleeinfo.pname
-      print_texpr pin
-     else
-      fprintf fmt "RETURN %s(%a)"
-      calleeinfo.pname
-      print_texpr pin
+  	let length =
+  		Array.length pout
+  	in
+  	if length>0 then
+    begin  
+    	fprintf fmt "RETURN %s:" calleeinfo.pname;
+      Array.iter(fun arg->
+		    begin match arg with
+		    | LiType.APTexpr(dest)->
+			    Apron.Texpr1.print fmt dest
+			  | LiType.APVar(dest)->
+			  	Apron.Var.print fmt dest
+			  end;
+	   	)pout;
+      Array.iter(fun arg->
+     		begin match arg with
+		    | LiType.APTexpr(source)->
+			    Apron.Texpr1.print fmt source
+			  | LiType.APVar(source)->
+			  	Apron.Var.print fmt source
+	    	end;
+	  	)pin;
+		end
+		else
+    begin
+      fprintf fmt "RETURN %s:" calleeinfo.pname;
+      Array.iter(fun arg->
+     		begin match arg with
+		    | LiType.APTexpr(source)->
+			    Apron.Texpr1.print fmt source
+			  | LiType.APVar(source)->
+			  	Apron.Var.print fmt source
+	    	end;
+	  	)pin;
+    end
       
 let print_unit fmt ()=
 	fprintf fmt ""
