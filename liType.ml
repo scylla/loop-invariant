@@ -18,3 +18,10 @@ let print_arg fmt arg =
 		Apron.Var.print fmt v;
 	end;
 	Format.print_flush ()
+
+type array_info =
+	{
+		v:varinfo;
+		typ:typ;
+		size:bitsSizeofTypCache;
+	}

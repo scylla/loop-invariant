@@ -1,4 +1,5 @@
 open Cil_types
+open Cil_datatype
 open Cil
 open LiVisitor
 open Translate
@@ -83,19 +84,113 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
 	
-	let maxid = ref 0 in
+	(*get array vars in every function*)
+	let arrayvars = Hashtbl.create 2 in
 	Globals.Functions.iter(fun kf ->
 		let name = Kernel_function.get_name kf in
 		match kf.fundec with
 		| Definition(dec,loc)->
 			Cfg.printCfgFilename "/home/lzh/phase.dot" dec;
-			get_block_maxid maxid dec.sbody;
+			let get_array_vars =
+				let vars = ref [] in
+				(*get from vars directly*)
+				List.iter(fun v->
+					begin match v.vtype with
+					| TArray(tp,_,size,_)->
+						let v = {LiType.v=v;typ=tp;size=size;} in
+						vars := v::!vars;
+					| _->();
+					end;
+				)(dec.slocals@dec.sformals);
+				(*get from stmts indirectly, sometimes maybe wrong*)
+				let rec analysis_exp fmt e =
+					begin match e.enode with
+					| Lval((host,offset))->
+						begin match (host,offset) with
+						| (Mem(e1),NoOffset)->
+							begin match e1.enode with
+							| BinOp(op,e2,e3,_)->
+								let vl = Varinfo.Set.elements (LiUtils.extract_varinfos_from_exp e2) in
+								List.iter(fun v1->
+									if (List.for_all (fun v2->(String.compare v1.vname v2.LiType.v.vname)!=0) !vars)==true then
+									begin
+										let v = {LiType.v=v1;typ=v1.vtype;size={scache = Not_Computed;}} in
+										vars := v::!vars;
+									end;
+								)vl;
+							| _->();
+							end;
+						| _->();
+						end;
+					| BinOp(op,e1,e2,ty)->
+						analysis_exp fmt e1;analysis_exp fmt e2;
+					| UnOp(op,e,ty)->
+						analysis_exp fmt e;
+					| CastE(ty,e)->
+						analysis_exp fmt e;
+					| _->();
+					end
+				in
+				let rec analysis_stmt s =
+					begin match s.skind with
+					| Instr(ins)->
+						begin match ins with
+						| Set(lo,e,_)->
+							analysis_exp fmt e;
+						| _->();
+						end;
+					| Loop(_,_,_,_,_)->
+						let loop = extract_loop s in
+						analysis_exp fmt loop.Equation.con;
+						List.iter(fun s1->
+							analysis_stmt s1;
+						)loop.Equation.body;
+					| Block(b)->
+						List.iter(fun s1->
+							analysis_stmt s1;
+						)b.bstmts;
+					| UnspecifiedSequence(seq)->
+						let b = Cil.block_from_unspecified_sequence seq in
+						List.iter(fun s1->
+							analysis_stmt s1;
+						)b.bstmts;
+					| If(exp,b1,b2,l)->
+						analysis_exp fmt exp;
+						List.iter(fun s1->
+							analysis_stmt s1;
+						)b1.bstmts;
+						List.iter(fun s1->
+							analysis_stmt s1;
+						)b2.bstmts;
+					| _->();
+					end;
+				in
+				
+				List.iter(fun s->
+					analysis_stmt s;
+				)dec.sbody.bstmts;
+				(*get from spec*)
+				!vars
+			in
+			
+			Hashtbl.add arrayvars (Kernel_function.get_id kf) get_array_vars;(*fundec-->arrayvars*)
 		| Declaration(spec,v,vlo,_)->
-		  ()
+		  ();
 	);
 	
+	(*assign bid to [block] in program*)
+	let maxid = ref 0 in
+	Globals.Functions.iter(fun kf ->
+		let name = Kernel_function.get_name kf in
+		match kf.fundec with
+		| Definition(dec,loc)->
+			Translate.get_block_maxid maxid dec.sbody;
+		| Declaration(spec,v,vlo,_)->
+		  ();
+	);
 	Translate.preprocess_bpoint maxid;
 	
+	(*instance of wp plugin*)
 	let ipl = ref [] in
 	let module OLS = Datatype.List(Datatype.String) in(*Datatype.Option*)
 	let module OKF = Datatype.Option(Kernel_function) in
@@ -104,7 +199,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
 	
 	let info = C2equation.make_info cil in
-	let (fgraph,bgraph) = Frontend.build_graphs fmt info ipl wp_compute in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute in
 	Printf.printf "Frontend.compute_and_display begin\n";
 	Frontend.compute_and_display fmt info fgraph bgraph manpk ipl wp_compute;
 	Printf.printf "Frontend.compute_and_display over\n";
@@ -277,7 +372,6 @@ let compute_loop_invariant () =
   Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" (Ast.get ());
 	flush out_file;
 	close_out out_file;
-	let newfile = File.from_filename fpath in
 	ignore (Visitor.visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	

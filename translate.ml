@@ -201,7 +201,7 @@ let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 	let lvars = Cil_datatype.Varinfo.Set.elements vars in
 	(*let env = add_env env lvars in*)
 	let texpr = Apron.Texpr1.of_expr env texpr in
-	(match e.enode with
+	begin match e.enode with
 	| BinOp(op,_,_,_)->
 		(match op with
 		| Eq->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
@@ -212,8 +212,9 @@ let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 		| Le->Apron.Tcons1.make (negate_texpr texpr) Apron.Tcons1.SUPEQ;
 		| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
 		);
-	| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;)
-	
+	| _->Apron.Tcons1.make texpr Apron.Tcons1.EQ;
+	end
+
 (*get max sid in block*)
 let rec get_block_maxid (id:int ref) (b:Cil_types.block) =
 	List.iter(fun s->
@@ -480,7 +481,97 @@ let rec extract_coeff_from_exp e =
 		(*let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		Logic_const.term tnode ltype;*)
 	end;;
+
+(*stmt is a [loop] stmt. this deals with array access operations in loop body*)
+let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
+	let exps = ref [] in
 	
+	let rec analysis_exp fmt e =
+		(*when access an array element,these should be held*)
+		let apply_index fmt base index =
+			Printf.printf "arrayvars.len=%d\n" (List.length arrayvars);
+			List.iter(fun info->
+				Cil.d_var fmt info.LiType.v;Format.print_flush ();Printf.printf "\n";
+			)arrayvars;
+			Printf.printf "base.name=%s\n" (LiUtils.get_exp_name base);
+			try
+				let info = List.find (fun info->(String.compare info.LiType.v.vname (LiUtils.get_exp_name base))==0) arrayvars in
+				if (List.for_all (fun e->(Cil.compareExp e index)==false) !exps)==true then
+				begin
+					begin match info.LiType.size.scache with
+					| Not_Computed->Printf.printf "Not_Computed\n";
+					| Not_Computable(exn)->Printf.printf "Not_Computable\n";
+					| Computed(i)->Printf.printf "Computed\n";
+					end;
+					exps := index::(!exps);
+					let zero_term = Cil.lzero () in
+					let t = !Db.Properties.Interp.force_exp_to_term index in
+					let pnamed = Logic_const.unamed (Prel(Rge,t,zero_term)) in
+					let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+					Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+					let root_code_annot_ba = Cil_types.User(code_annotation) in
+					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+				end;
+			with Not_found->();
+		in
+		
+		begin match e.enode with
+		| Lval((host,offset))->
+			begin match (host,offset) with
+			| (Mem(e1),NoOffset)->
+				begin match e1.enode with
+				| BinOp(op,e2,e3,_)->
+					apply_index fmt e2 e3;
+				| _->();
+				end;
+			| _->();
+			end;
+		| BinOp(op,e1,e2,ty)->
+			analysis_exp fmt e1;analysis_exp fmt e2;
+		| UnOp(op,e,ty)->
+			analysis_exp fmt e;
+		| CastE(ty,e)->
+			analysis_exp fmt e;
+		| _->();
+		end
+	in
+
+	let rec analysis_stmt s=
+		begin match s.skind with
+		| Instr(instr)->
+			begin match instr with
+			| Set(lval,e,_)->
+				analysis_exp fmt e;
+			| _->();
+			end;
+		| Loop(_,_,_,_,_)->
+			let loop = extract_loop s in
+			analysis_exp fmt loop.con;
+			List.iter(fun s1->
+				analysis_stmt s1;
+			)loop.body;
+		| Block(b)->
+			List.iter(fun s1->
+				analysis_stmt s1;
+			)b.bstmts;
+		| UnspecifiedSequence(seq)->
+			let b = Cil.block_from_unspecified_sequence seq in
+			List.iter(fun s1->
+				analysis_stmt s1;
+			)b.bstmts;
+		| If(exp,b1,b2,l)->
+			analysis_exp fmt exp;
+			List.iter(fun s1->
+				analysis_stmt s1;
+			)b1.bstmts;
+			List.iter(fun s1->
+				analysis_stmt s1;
+			)b2.bstmts;
+		| _->();
+		end
+	in
+	analysis_stmt stmt;;
+
 let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_types.stmt * Cil_types.exp) list) stmt env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
 	let cond = force_exp2tcons loop.con env in  
 	let transfers = ref [] in
@@ -497,7 +588,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		let evars = !(LiUtils.extract_valEle_from_exp e) in
 		List.iter(fun v->
 			if (List.exists(fun v1->v1==v) !vars)==false then
-			begin				
+			begin
 				vars := v::!vars;
 			end;
 		)evars;
