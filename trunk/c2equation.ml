@@ -127,15 +127,8 @@ let boolexpr_of_bexpr env (bexpr:bexpr) : Apron.Tcons1.earray Boolexpr.t =
 
 
 let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
-	Printf.printf "force_exp2bexp:";Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
-	TypePrinter.print_exp_type Format.std_formatter exp;
-	match exp.enode with
+	begin match exp.enode with
 	| BinOp(op,e1,e2,tp)->
-		Printf.printf "e1:";Cil.d_exp Format.std_formatter e1;Format.print_flush ();Printf.printf "\n";
-		TypePrinter.print_exp_type Format.std_formatter e1;
-		Cil.d_binop Format.std_formatter op;Format.print_flush ();Printf.printf "\n";
-		Printf.printf "e2:";Cil.d_exp Format.std_formatter e2;Format.print_flush ();Printf.printf "\n";
-		TypePrinter.print_exp_type Format.std_formatter e2;
 		let te1 = Translate.force_exp_to_texp e1 in
 		let te2 = Translate.force_exp_to_texp e2 in
 		(match op with
@@ -161,6 +154,7 @@ let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 		| BNot->assert false;
 		)
 	| _->assert false
+	end
 
 (** Extract an array of variables from variable declaration list *)
 let convert (lvar:varinfo list) : Apron.Var.t array =
@@ -206,12 +200,10 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 			begin match host with
 			| Var(v)->
 				begin match v.vtype with
-				| TArray(_)->
-					Printf.printf "TArray:";Cil.d_type fmt v.vtype;Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+				| TArray(_)->();
 				| _->
 					Cil.d_lval strfmt lv;
 					let name = Format.flush_str_formatter () in
-					Printf.printf "not TArray:%s\n" name;
 					if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
 					begin lvals := (Apron.Var.of_string name)::(!lvals);end;
 				end;
@@ -426,7 +418,7 @@ let make_info (prog:Cil_types.file) : Equation.info =
 (*  ********************************************************************** *)
 	
 module Forward = struct
-  let make (info:Equation.info) (fmt:Format.formatter) ipl wp_compute: Equation.graph =
+  let make (info:Equation.info) arrayvars (fmt:Format.formatter) ipl wp_compute: Equation.graph =
   	
     let graph = Equation.create 3 info in
 		
@@ -524,6 +516,7 @@ module Forward = struct
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
       	| Loop(_,_,_,_,_)->
+      		Translate.generate_array fmt procinfo.kf (Hashtbl.find arrayvars (Kernel_function.get_id procinfo.kf)) stmt;
       		let loop = Translate.extract_loop stmt in
       		let rec find_con s conl =
       			match s.skind with
@@ -704,13 +697,14 @@ module Forward = struct
 
 		Globals.Functions.iter(fun kf ->
 			let name = Kernel_function.get_name kf in
-			match kf.fundec with
+			begin match kf.fundec with
 			| Definition(_,(p1,p2))->
 				let fundec = Kernel_function.get_definition kf in
 				let procinfo = Hashhe.find info.Equation.procinfo name in
 				let transfer = Equation.Condition(Boolexpr.make_cst true) in
 				iter_block name procinfo fundec.sbody;
-			| Declaration(spec,v,vlo,loc)->()
+			| Declaration(spec,v,vlo,loc)->();
+			end;
 		);
 
     graph
