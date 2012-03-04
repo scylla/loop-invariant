@@ -9,6 +9,7 @@ type valEle =
 type arg =
 	| APTexpr of Apron.Texpr1.t
 	| APVar of Apron.Var.t
+	| APScalar of Apron.Scalar.t(*const-->Scalar?*)
 
 let print_arg fmt arg =
 	begin match arg with
@@ -16,12 +17,18 @@ let print_arg fmt arg =
 		Apron.Texpr1.print fmt exp;
 	| APVar(v)->
 		Apron.Var.print fmt v;
+	| APScalar(s)->
+		Apron.Scalar.print fmt s;
 	end;
 	Format.print_flush ()
+
+type array_size =
+	| CSize of Cil_types.bitsSizeofTypCache
+	| CTerm of Cil_types.term
 
 type array_info =
 	{
 		v:varinfo;
 		typ:typ;
-		size:bitsSizeofTypCache;
+		size:array_size;
 	}

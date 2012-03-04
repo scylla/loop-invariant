@@ -93,11 +93,40 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 			Cfg.printCfgFilename "/home/lzh/phase.dot" dec;
 			let get_array_vars =
 				let vars = ref [] in
+				(*get from function specification*)
+				let funspec = Kernel_function.get_spec kf in
+				List.iter(fun b->
+					List.iter(fun ip->
+						begin match ip.ip_content with
+						| Pvalid_range(t1,t2,t3)->
+							Printf.printf "Pvalid_range\n";
+							begin match t1.term_node with
+							| TLval((thost,toffset))->
+								begin match thost with
+								| TMem(tm)->Printf.printf "TMem\n";TypePrinter.print_tnode_type fmt tm.term_node;
+								| TVar(lv)->Printf.printf "TVar\n";
+									begin match lv.lv_origin with
+									| Some(v1)->
+										let v = {LiType.v=v1;typ=v1.vtype;size=LiType.CTerm(t3);} in
+										vars := v::!vars;
+									| None->();
+									end;
+								| TResult(_)->();
+								end;
+							| _->();
+							end;
+							TypePrinter.print_tnode_type fmt t1.term_node;
+							TypePrinter.print_tnode_type fmt t2.term_node;
+							TypePrinter.print_tnode_type fmt t3.term_node;
+						| _->();
+						end;
+					)b.b_requires;
+				)funspec.spec_behavior;
 				(*get from vars directly*)
 				List.iter(fun v->
 					begin match v.vtype with
 					| TArray(tp,_,size,_)->
-						let v = {LiType.v=v;typ=tp;size=size;} in
+						let v = {LiType.v=v;typ=tp;size=LiType.CSize(size);} in
 						vars := v::!vars;
 					| _->();
 					end;
@@ -114,7 +143,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 								List.iter(fun v1->
 									if (List.for_all (fun v2->(String.compare v1.vname v2.LiType.v.vname)!=0) !vars)==true then
 									begin
-										let v = {LiType.v=v1;typ=v1.vtype;size={scache = Not_Computed;}} in
+										let v = {LiType.v=v1;typ=v1.vtype;size=LiType.CSize({scache = Not_Computed});} in
 										vars := v::!vars;
 									end;
 								)vl;
@@ -247,22 +276,27 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  	let al = ref [] in
 		  	List.iter(fun ip->
 		  		al := (Logic_const.unamed ip.ip_content)::!al;
-		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
 		  	)b.b_assumes;
 		  	assumes := (Logic_const.pands !al)::!assumes;
 		  	Printf.printf "requires\n";
 		  	List.iter(fun ip->
-		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  		begin match ip.ip_content with
+		  		| Pvalid_range(t1,t2,t3)->
+		  			Printf.printf "Pvalid_range";
+		  		| _->();
+		  		end;
+		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
 		  	)b.b_requires;
 		  	Printf.printf "post_cond\n";
 		  	List.iter(fun (_,ip)->
-		  		Cil.d_identified_predicate Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";
+		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
 		  	)b.b_post_cond;
 		  	Printf.printf "b_name end\n";
 		  )funspec.spec_behavior;
 		  Printf.printf "assumes named\n";
 		  List.iter(fun pn->
-		  	Cil.d_predicate_named Format.std_formatter pn;Format.print_flush ();Printf.printf "\n";
+		  	Cil.d_predicate_named fmt pn;Format.print_flush ();Printf.printf "\n";
 		  )!assumes;
 		  match kf.fundec with
 		  | Definition(_,_)->

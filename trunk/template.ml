@@ -236,6 +236,7 @@ let environment_of_args (args:LiType.arg array) =
 			env := Apron.Environment.add !env [|v|] [||];(*how to get type?*)
 			with Failure(msg)->Printf.printf "failure because of %s in environment_of_args\n" msg;
 			end;
+		| LiType.APScalar(_)->();
 		end;
 	)args;
 	
@@ -326,9 +327,11 @@ module Forward = struct
     Array.iter(fun arg->
 		  begin match arg with
 		  | LiType.APTexpr(a)->
-		  	Printf.printf "inargs:";Apron.Texpr1.print Format.std_formatter a;Format.print_flush ();Printf.printf "\n";
+		  	Printf.printf "inargs:";LiType.print_arg Format.std_formatter arg;Format.print_flush ();Printf.printf "\n";
 		  | LiType.APVar(a)->
-				Printf.printf "inargs:";Apron.Var.print Format.std_formatter a;Format.print_flush ();Printf.printf "\n";
+				Printf.printf "inargs:";LiType.print_arg Format.std_formatter arg;Format.print_flush ();Printf.printf "\n";
+			| LiType.APScalar(s)->
+				Printf.printf "inargs:";LiType.print_arg Format.std_formatter arg;Format.print_flush ();Printf.printf "\n";
 		  end;
     )inargs;
     

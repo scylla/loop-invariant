@@ -1,65 +1,6 @@
 open Cil
 open Cil_types
 open Cil_datatype
-
-(*
-let locUnknown = ({Lexing.position.pos_fname="";},{Lexing.position.pos_fname="";})
-	*)
-(**统计函数中有多少个循环*)
-(*let loop_number = ref 0;
-let count_loop_number (funDec:Cil_types.fundec) = 
-    List.iter (fun stmt ->
-		match stmt.skind with
-		| Loop(code_annotation , block , location , stmt1 , stmt2) -> 
-			loop_number := !loop_number + 1;
-		| _ -> loop_number := !loop_number;
-	)funDec.sallstmts;
-	!loop_number;
-*)
-
-	
-let generate_predicate_list_from_block pre_list (block:Cil_types.block) =
-	()(*if (List.length block.bstmts)=0 then pre_list
-	else
-	(
-	List.iter(fun stmt ->
-		(
-		match stmt.skind with
-		| Instr(instr)->
-			(
-			match instr with
-			| Set(lval,exp,location)->(*An assignment*)
-				let lexpr = constFold true (stripCasts exp) in
-				(
-				match lexpr.enode with
-				| UnOp(unop,exp,typ)->
-					();
-				| BinOp(binop,exp1,exp2,typ)->
-				
-					let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
-					let tr = !Db.Properties.Interp.force_exp_to_term exp in
-					let tnode = TLval(tlval) in
-					let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
-					let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
-					let p_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-					let pre_list = p_named::pre_list in
-					Printf.printf "pre_list.length1=%d\n" (List.length pre_list);
-				| _->
-					();
-				);(*match lexpr.enode End*)
-			| _->
-				();
-			);(*match instr End*)
-		(*Instr End*)
-		| Break(location)->
-			();(*Break End*)
-		| _->
-			();(*match stmt.skind End*)
-		);
-	)block.bstmts;(*List.iter End*)
-	Printf.printf "pre_list.length2=%d\n" (List.length pre_list);
-	pre_list;
-	);*)
 	
 let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
 	
@@ -78,14 +19,6 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 			let tr = !Db.Properties.Interp.force_exp_to_term exp in
 			let tnode = TLval(tlval) in
 			
-			let is_in_lv_list (lv:logic_var) (l:logic_var list) = 
-				let flag = ref false in
-				List.iter(fun v->(
-					if lv.lv_name=v.lv_name then flag := true;(*id?*)
-				)
-				)l;
-				!flag;
-			in
 			
 			let lvars = Cil.extract_varinfos_from_lval lval in
 			let evars = Cil.extract_varinfos_from_exp exp in
@@ -98,19 +31,19 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 			
 			List.iter(fun cv->
 				let lv = Cil.cvar_to_lvar cv in
-				if (is_in_lv_list lv s.free_lv_list)=false then	lelvars := lv::!lelvars;
+				if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) s.free_lv_list)==true then	lelvars := lv::!lelvars;
 			)levars;
 			
 			List.iter(fun lv->
-				if (is_in_lv_list lv !lelvars)=false then alvars := lv::!alvars;
+				if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) !lelvars)==true then alvars := lv::!alvars;
 			)s.free_lv_list;
 			
 			List.iter(fun cv->
-				if (is_in_lv_list (Cil.cvar_to_lvar cv) s.free_lv_list)=false then llvars := (Cil.cvar_to_lvar cv)::!llvars;
+				if (List.for_all (fun lv1->(cv.vname==lv1.lv_name)==false) s.free_lv_list)==true then llvars := (Cil.cvar_to_lvar cv)::!llvars;
 			)(Varinfo.Set.elements lvars);
 			
 			List.iter(fun cv->
-				if (is_in_lv_list (Cil.cvar_to_lvar cv) s.free_lv_list)=false then elvars := (Cil.cvar_to_lvar cv)::!elvars;
+				if (List.for_all (fun lv1->(cv.vname==lv1.lv_name)==false) s.free_lv_list)==true then elvars := (Cil.cvar_to_lvar cv)::!elvars;
 			)(Varinfo.Set.elements evars);
 			
 			let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
@@ -210,19 +143,9 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		)
 		)(Varinfo.Set.elements texp_vars);
 		
-		let is_in_lv_list (lv:logic_var) (l:logic_var list) = 
-			let flag = ref false in
-			List.iter(fun v->(
-				if lv.lv_id=v.lv_id then flag := true;
-			)
-			)l;
-			flag;
-		in
-		
 		let f_lv = ref [] in
-		List.iter(fun lv->(
-			if !(is_in_lv_list lv s.free_lv_list)=false then f_lv := lv::!f_lv;
-		)
+		List.iter(fun lv->
+			if (List.for_all (fun lv1->(lv.lv_id==lv1.lv_id)==false) s.free_lv_list)==true then f_lv := lv::!f_lv;
 		)!tlv_vars;
 		
 		(*Logic_const.unamed (Pforall (!v_vars,con_named))*)
@@ -243,9 +166,8 @@ let  generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (
 		(*succs of If? not in b1,b2*)
 		let is_in_block (s:stmt) (b:block) = 
 			let flag = ref false in
-			List.iter(fun s0->(
-				if s.sid=s0.sid then flag := true;
-			)
+			List.iter(fun s0->
+				if s.sid==s0.sid then flag := true;
 			)b.bstmts;
 			flag;
 		in
@@ -356,8 +278,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
            		add_code_annot free_vars; end*)
 		  		(*let term = !Db.Properties.Interp.force_exp_to_term texp in
 		  		let new_code_annot = Logic_const.new_code_annotation (term,*)
-		  	| _->
-		  		Printf.printf "\n";
+		  	| _->();
 		  	);
 		  	(*Cil.d_exp Format.std_formatter texp;
 		  	Format.print_flush ();
@@ -457,189 +378,3 @@ let analysis_assert (kf:Cil_types.kernel_function) =
 		| None->();
 		)
 	| _->()
-(**语句类型*)
-(*let print_function_stmt_kind stmt visitor= 
-	(*let loop_visitor = new Visitor.frama_c_inplace in
-	Format.print_string "begin visit stmt\n";
-	Visitor.visitFramacStmt loop_visitor stmt;
-	Format.print_string "end visit stmt\n";*)
-	match stmt.skind with
-	| ( Instr ( instr ) ) ->
-		Format.print_string "instr\n";
-			(*Visitor.visitFramacInstr loop_visitor instr;
-			Format.print_string "\n";*)
-	| ( Return ( exp , location ) )->
-		Cil.d_loc Format.std_formatter location;
-		Format.print_string "return\n";
-	| ( Goto ( stmt , location) ) ->
-		Format.print_string "goto\n";
-	| ( Break ( location ) ) ->
-		Format.print_string "break\n";
-	| ( Continue ( location ) ) ->
-		Format.print_string "continue\n";
-	| ( If ( expr , block1 , block2 , location ) ) ->
-		Format.print_string "if\n";
-		(
-		match expr.enode with
-		| Lval (lval) ->
-			let value = !Db.Value.access visitor#current_kinstr lval in
-			Db.Value.pretty Format.std_formatter value;
-			Printf.printf "%s\n" "Lval";
-		| _ ->
-			Printf.printf "%s\n" "i donnot konw";
-		);
-	| ( Switch ( expr , block , stmtl , location ) ) ->
-		Format.print_string "switch\n";
-	| ( Loop ( code_annotation , block , location , stmt1 , stmt2 ) ) ->
-			(*Printf.printf "new_loc.loc_plnum=%d\n" (fst location).Lexing.pos_lnum;
-			let new_loc = location in
-			let lnum = (fst location).Lexing.pos_lnum in
-			(fst new_loc).Lexing.pos_lnum := !lnum+1;
-			let exp = Cil.mkString new_loc "mkString" in*)
-		Format.print_string "loop\n";
-		let (p1,p2) = location in
-		let mkPosition location : Lexing.position (*pos_fname pos_lnum pos_bol pos_cnum*) =
-			{Lexing.pos_fname=(location).Lexing.pos_fname;
-			pos_lnum=(location).Lexing.pos_lnum+2;
-			pos_bol=(location).Lexing.pos_bol;
-			pos_cnum=(location).Lexing.pos_cnum;} in
-				
-		let new_loc = mkPosition (fst location) in
-			
-		Printf.printf "new_loc.pos_fname=%s\n" (p1).Lexing.pos_fname;
-		(p1).Lexing.pos_lnum=(p1).Lexing.pos_lnum+1;
-		Printf.printf "new_loc.loc_lnum=%d\n" (new_loc).Lexing.pos_lnum;
-		let guard = Cil.mkString (new_loc,p2) "mkString op" in
-			
-		let mystmt = mkStmt ~ghost:false ~valid_sid:true (Break (new_loc,p2)) in
-		let myifstmt=mkStmt ~ghost:false ~valid_sid:false (If (guard,block,block,(new_loc,p2))) in
-			(**停不了了*)
-			
-		Printf.printf "%s\n" "mystmt begin";
-		Cil.d_stmt Format.std_formatter myifstmt;
-		Printf.printf "\n%s\n" "mystmt end";
-		let stmtl=[mystmt;] in
-		let mywhilestmt = Cil.mkWhile guard stmtl in
-		Printf.printf "%s\n" "我的语句begin";
-		List.iter(fun sm -> 
-			Cil.d_stmt Format.std_formatter sm;
-		)mywhilestmt;
-		Printf.printf "\n%s\n" "我的语句end";
-	| ( Block ( block ) ) ->
-		Format.print_string "block\n";
-			(*Visitor.visitFramacBlock loop_visitor block;
-			Format.print_string "\n";*)
-	| ( UnspecifiedSequence (_) ) ->
-		Format.print_string "unspecifiedSequence\n";
-	| ( TryFinally ( block1 , block2 , location ) ) ->
-		Format.print_string "TryFinally\n";
-	| ( TryExcept ( block1 , ( instr , exp ) , block2 , location ) ) ->
-		Format.print_string "TryExcept\n";
-	| ( _ ) ->
-		Format.print_string "other\n";
-			
-(**打印所有语句*)
-let print_function_stmts fundec visitor= 
-	List.iter (fun stmt ->
-		p_visitor visitor;
-		Printf.printf "\n";
-	)fundec.sallstmts;
-
-let rec print_block block visitor = 
-	List.iter(fun stmt ->
-		(
-		match stmt.skind with
-		| Instr (instr) ->
-			(
-			match instr with
-			| Set(lval,exp,location) ->
-							
-				let texp = constFold true (stripCasts exp) in							
-				Printf.printf "--------add_alarm\n";
-				Cil.d_exp Format.std_formatter texp;
-				let annot = !Db.Properties.Interp.force_exp_to_assertion texp in
-				Cil.d_code_annotation Format.std_formatter annot;
-				Printf.printf "++++++++add_alarm\n";
-			| Call(lvalo,exp,expl,loc) ->
-				visitor#vexpr exp;
-				match lvalo with
-				| Some l ->
-					let v1 = !Db.Value.access (Kstmt stmt) l in
-					Printf.printf "----call v1\n";
-					Db.Value.pretty Format.std_formatter v1;
-					Printf.printf "\n";
-					Printf.printf "++++call v1\n";
-										
-				| _ ->
-					Printf.printf "lvalo\n";
-			| Code_annot(code_annotation,location) ->
-				Printf.printf "Code_annot\n";
-			| Skip(location) ->
-				Printf.printf "Skip\n";
-			| _ ->
-				Printf.printf "Asm\n";(*end match instr*)
-			);
-		| Loop (code_annotation , subblock , location , stmt1 , stmt2) ->
-			Printf.printf "print_block:loop\n";
-			print_block subblock visitor;
-			Printf.printf "\n";
-		| Block (subblock) ->
-			Printf.printf "print_block:block\n";
-			print_block subblock visitor;
-			Printf.printf "\n";
-		| _ ->
-			Printf.printf "not Instr\n";
-		);
-	)block.bstmts;
-	
-let print_function_body (fundec:fundec) visitor= 
-	print_block fundec.sbody visitor;
-	
-let visit_cilfile file = 
-	let loop_visitor = new Visitor.frama_c_inplace in
-	Printf.printf "%s\n" "before visit";
-	Visitor.visitFramacFile loop_visitor file;
-	
-let print_proj_info = 
-	Printf.printf "Project.name:%s\n" Project.name;
-
-(**get loop information*)
-let get_loop_infor fundec = 
-	List.iter (fun stmt ->
-		(
-		match stmt.skind with
-		| Loop (code_annotation , block , location , stmt1 , stmt2) ->
-			Printf.printf "loop info\n";
-			(*
-					let (p1,p2) = location in
-					let mkPosition location : Lexing.position (*pos_fname pos_lnum pos_bol pos_cnum*) =
-						{Lexing.pos_fname=(location).Lexing.pos_fname;
-						pos_lnum=(location).Lexing.pos_lnum+2;
-						pos_bol=(location).Lexing.pos_bol;
-						pos_cnum=(location).Lexing.pos_cnum;} in
-					
-					let new_loc = mkPosition (fst location) in
-				
-					Printf.printf "new_loc.pos_fname=%s\n" (p1).Lexing.pos_fname;
-					(p1).Lexing.pos_lnum=(p1).Lexing.pos_lnum+1;
-					Printf.printf "new_loc.loc_lnum=%d\n" (new_loc).Lexing.pos_lnum;
-					let guard = Cil.mkString (new_loc,p2) "mkString op" in
-				
-					let mystmt = mkStmt ~ghost:false ~valid_sid:true (Break (new_loc,p2)) in
-					let myifstmt=mkStmt ~ghost:false ~valid_sid:false (If (guard,block,block,(new_loc,p2))) in
-					(**停不了了*)
-				
-					Printf.printf "%s\n" "mystmt begin";
-					Cil.d_stmt Format.std_formatter myifstmt;
-					Printf.printf "\n%s\n" "mystmt end";
-					let stmtl=[mystmt;] in
-					let mywhilestmt = Cil.mkWhile guard stmtl in
-					Printf.printf "%s\n" "我的语句begin";
-					List.iter(fun sm -> 
-						Cil.d_stmt Format.std_formatter sm;
-					) mywhilestmt;
-					Printf.printf "\n%s\n" "我的语句end";*)
-		| _ -> 
-			Printf.printf "other info\n";
-		);
-	)fundec.sallstmts;*)

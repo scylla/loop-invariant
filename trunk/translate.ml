@@ -189,6 +189,15 @@ let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.
 		Cil.d_lval strfmt lv;	
 		let name = Format.flush_str_formatter () in
 		LiType.APVar((Apron.Var.of_string name))
+	| Const(cons)->
+		begin match cons with
+		|	CInt64(big,_,_)->
+			LiType.APScalar(Apron.Scalar.of_int (My_bigint.to_int big));
+		| CReal(f,_,_)->
+			LiType.APScalar(Apron.Scalar.of_float f);
+		| _->
+			LiType.APScalar(Apron.Scalar.of_float 0.0);
+		end;
 	| _->
 		let expr = force_exp_to_texp exp in
 		LiType.APTexpr(Apron.Texpr1.of_expr env expr)
@@ -489,7 +498,6 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 	let rec analysis_exp fmt e =
 		(*when access an array element,these should be held*)
 		let apply_index fmt base index =
-			Printf.printf "arrayvars.len=%d\n" (List.length arrayvars);
 			List.iter(fun info->
 				Cil.d_var fmt info.LiType.v;Format.print_flush ();Printf.printf "\n";
 			)arrayvars;
@@ -498,19 +506,30 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 				let info = List.find (fun info->(String.compare info.LiType.v.vname (LiUtils.get_exp_name base))==0) arrayvars in
 				if (List.for_all (fun e->(Cil.compareExp e index)==false) !exps)==true then
 				begin
-					begin match info.LiType.size.scache with
-					| Not_Computed->Printf.printf "Not_Computed\n";
-					| Not_Computable(exn)->Printf.printf "Not_Computable\n";
-					| Computed(i)->Printf.printf "Computed\n";
-					end;
 					exps := index::(!exps);
+					(*i>=0*)
 					let zero_term = Cil.lzero () in
 					let t = !Db.Properties.Interp.force_exp_to_term index in
 					let pnamed = Logic_const.unamed (Prel(Rge,t,zero_term)) in
 					let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-					Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 					let root_code_annot_ba = Cil_types.User(code_annotation) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+					(*i<=n-1*)
+					begin match info.LiType.size with
+					| LiType.CSize(size)->
+						begin match size.scache with
+						| Not_Computed->Printf.printf "Not_Computed\n";
+						| Not_Computable(exn)->Printf.printf "Not_Computable\n";
+						| Computed(i)->Printf.printf "Computed\n";
+						end;
+					| LiType.CTerm(t1)->
+						Printf.printf "array size:";Cil.d_term fmt t1;Format.print_flush ();Printf.printf "\n";
+						let t = !Db.Properties.Interp.force_exp_to_term index in
+						let pnamed = Logic_const.unamed (Prel(Rle,t,t1)) in
+						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						let root_code_annot_ba = Cil_types.User(code_annotation) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+					end;
 				end;
 			with Not_found->();
 		in
