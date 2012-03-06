@@ -90,7 +90,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		let name = Kernel_function.get_name kf in
 		match kf.fundec with
 		| Definition(dec,loc)->
-			Cfg.printCfgFilename "/home/lzh/phase.dot" dec;
+			Cfg.printCfgFilename ("/home/lzh/"^name^".dot") dec;
 			let get_array_vars =
 				let vars = ref [] in
 				(*get from function specification*)

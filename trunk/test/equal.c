@@ -27,5 +27,5 @@ void main()
 {
 	int a[]={1,2,3},b[]={1,2,4};
 	int n=3;
-	equal(a,n,b);
+	equal(a,3,b);
 }

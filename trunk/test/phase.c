@@ -1,4 +1,4 @@
-#include <assert.h>
+/*#include <assert.h>
 
 void phase()
 {
@@ -10,6 +10,14 @@ void phase()
 			m=m+1;
 	}
 	assert(m==11);
+}*/
+void phase()
+{
+	int x=0,y=10;
+	while(x<y)
+	{
+		x++;
+	}
 }
 void main()
 {

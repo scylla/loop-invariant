@@ -212,7 +212,12 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		in
 		let rec add_env_exp e =
 			begin match e.enode with
-			| Const(_)|SizeOfStr(_)|AlignOf(_)|SizeOf(_)->();
+			| Const(cons)->
+				Cil.d_const strfmt cons;
+				let name = Format.flush_str_formatter () in
+				if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
+				begin lvals := (Apron.Var.of_string name)::(!lvals);end;
+			| SizeOfStr(_)|AlignOf(_)|SizeOf(_)->();
 			| Lval(l)|AddrOf(l)|StartOf(l)->add_lval l;
 			| SizeOfE(e1)|AlignOfE(e1)|UnOp(_,e1,_)|CastE(_,e1)|Info(e1,_)->add_env_exp e1;
 			| BinOp(_,e1,e2,_)->add_env_exp e1;add_env_exp e2;
@@ -500,7 +505,7 @@ module Forward = struct
 							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = ref [] in
 							List.iter(fun e->
-								Printf.printf "pin=\n";
+								Printf.printf "pin=\n";Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
 								let arg = Translate.force_exp_to_arg env e in
 								LiType.print_arg fmt arg;Printf.printf "\n";
 								pin := !pin@[arg];
