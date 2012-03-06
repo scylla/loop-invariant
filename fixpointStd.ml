@@ -18,8 +18,8 @@ let is_tvertex
   try
     Array.iter
       (begin fun vertex ->
-	let attr = PSHGraph.attrvertex graph vertex in
-	if attr.empty then raise Exit;
+				let attr = PSHGraph.attrvertex graph vertex in
+				if attr.empty then raise Exit;
       end)
       tvertex
     ;

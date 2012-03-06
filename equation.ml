@@ -259,6 +259,8 @@ let print_transfer fmt transfer =
 			    Apron.Texpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
+			  | LiType.APScalar(s)->
+			  	Apron.Scalar.print fmt s
 	    	end;
 	  	)pin;
     )
@@ -275,6 +277,8 @@ let print_transfer fmt transfer =
 			    Apron.Texpr1.print fmt dest
 			  | LiType.APVar(dest)->
 			  	Apron.Var.print fmt dest
+			  | LiType.APScalar(s)->
+			  	Apron.Scalar.print fmt s
 			  end;
 	   	)pout;
       Array.iter(fun arg->
@@ -283,6 +287,8 @@ let print_transfer fmt transfer =
 			    Apron.Texpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
+			  | LiType.APScalar(s)->
+			  	Apron.Scalar.print fmt s
 	    	end;
 	  	)pin;
 		end
@@ -295,6 +301,8 @@ let print_transfer fmt transfer =
 			    Apron.Texpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
+			  | LiType.APScalar(s)->
+			  	Apron.Scalar.print fmt s
 	    	end;
 	  	)pin;
     end

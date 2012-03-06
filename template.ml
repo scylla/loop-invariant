@@ -201,13 +201,12 @@ let environment_of_texpr
   !env;;
  
 let environment_of_args (args:LiType.arg array) =
-	let env = ref (Apron.Environment.make [||] [||]) in
+	let env = ref [] in
 	Array.iter(fun arg->
 		begin match arg with
 		| LiType.APTexpr(exp)->
 			let env0 = Apron.Texpr1.get_env exp and i = ref [] and r = ref [] in
 			let rec extract exp =
-				Printf.printf "envofargs:";Apron.Texpr1.print_expr Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 				begin match exp with
 				| Apron.Texpr1.Var(v)->
 					let tp = Apron.Environment.typ_of_var env0 v in
@@ -225,18 +224,14 @@ let environment_of_args (args:LiType.arg array) =
 			in
 			
 			extract (Apron.Texpr1.to_expr exp);
-			begin
-			try
-			env := Apron.Environment.add !env (Array.of_list !i) (Array.of_list !r);
-			with Failure(msg)->Printf.printf "failure because of %s in environment_of_args\n" msg;
-			end;
+			env := (!env)@(!i)@(!r);
 		| LiType.APVar(v)->
-			begin
-			try
-			env := Apron.Environment.add !env [|v|] [||];(*how to get type?*)
-			with Failure(msg)->Printf.printf "failure because of %s in environment_of_args\n" msg;
-			end;
-		| LiType.APScalar(_)->();
+			env := !env@[v];
+		| LiType.APScalar(s)->
+			Apron.Scalar.print Format.str_formatter s;
+			let name = Format.flush_str_formatter () in
+			let v = Apron.Var.of_string name in
+			env := !env@[v];
 		end;
 	)args;
 	
@@ -324,39 +319,27 @@ module Forward = struct
     (* 1. We begin by removing all non-argument variables from the current
      abstract value *)
     Printf.printf "apply_call\n";
-    Array.iter(fun arg->
-		  begin match arg with
-		  | LiType.APTexpr(a)->
-		  	Printf.printf "inargs:";LiType.print_arg Format.std_formatter arg;Format.print_flush ();Printf.printf "\n";
-		  | LiType.APVar(a)->
-				Printf.printf "inargs:";LiType.print_arg Format.std_formatter arg;Format.print_flush ();Printf.printf "\n";
-			| LiType.APScalar(s)->
-				Printf.printf "inargs:";LiType.print_arg Format.std_formatter arg;Format.print_flush ();Printf.printf "\n";
-		  end;
-    )inargs;
     
-    let tenv = environment_of_args inargs in(*too many?*)
-    Printf.printf "tenv:";Apron.Environment.print Format.std_formatter tenv;Format.print_flush ();Printf.printf "\n";
-    let (i,r) = Apron.Environment.vars tenv in
+    let tenv = environment_of_args inargs in
     
     let fmt =  Format.std_formatter in
     Printf.printf "var in ac inargs\n";
-    Array.iter(fun v->
+    List.iter(fun v->
     	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
-    )(Array.append i r);
+    )tenv;
     Printf.printf "var in fo inargs\n";
     Array.iter(fun v->
     	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
     )calleeinfo.Equation.pinput;
     
     let abstract2 =
-      Apron.Abstract1.change_environment manager abstract tenv false
+      Apron.Abstract1.change_environment manager abstract (Apron.Environment.make (Array.of_list tenv) [||]) false
     in
     (* From now on, we work by side-effect *)
     (* 2. We now rename actual parameters in formal ones *)
     Apron.Abstract1.rename_array_with
       manager abstract2
-      (Array.append i r) calleeinfo.Equation.pinput
+      (Array.of_list tenv) calleeinfo.Equation.pinput
     ;
     (* 3. Last, we embed in callee environment *)
     Apron.Abstract1.change_environment_with
@@ -390,15 +373,14 @@ module Forward = struct
        - formal out parameters by special names (to avoid name conflicts)
     *) 
     let tenv = environment_of_args inargs in
-    let (i,r) = Apron.Environment.vars tenv in
     let fmt =  Format.std_formatter in
     Printf.printf "var in ac inargs apply_return\n";
     Array.iter(fun v->
     	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
-    )(Array.append i r);
+    )(Array.of_list tenv);
     
     Apron.Abstract1.rename_array_with
-      manager res calleeinfo.Equation.pinput (Array.append i r);
+      manager res calleeinfo.Equation.pinput (Array.of_list tenv);
     (* 2. We unify the renamed callee value and the caller value *)
     Apron.Abstract1.unify_with manager res abscaller;
     (* 3. We assign the actual out parameters *)
@@ -622,10 +604,9 @@ module Backward = struct
     (* From now on, we work by side-effect *)
     (* 2. We now rename formal parameters into actual ones *)
     let tenv = environment_of_args inargs in
-    let (i,r) = Apron.Environment.vars tenv in
     Apron.Abstract1.rename_array_with
       manager abstract2
-      calleeinfo.Equation.pinput (Array.append i r)
+      calleeinfo.Equation.pinput (Array.of_list tenv)
     ;
     (* 3. Last, we embed in caller environment *)
     Apron.Abstract1.change_environment_with
