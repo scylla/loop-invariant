@@ -109,79 +109,15 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 	)rannot_bf_list;;
 	
 let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) (ipl:Property.identified_property list ref) wp_compute =
-	let flag = ref 1 in
+	let flag = ref 1 and fmt = Format.std_formatter in
 	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
 	
-	(*List.iter(fun ip->
-		Description.pp_property Format.std_formatter ip;Format.print_flush ();Printf.printf "\n";*)
-		flag := Prove.prove_predicate kf [] ip wp_compute;ipl := ip::!ipl;
-		(*let status = prove_predicate kf [] ip in
-		(match status with
-		| Considered_valid|Valid(_)|Valid_under_hyp(_)|Valid_but_dead(_)->
-			Printf.printf "Valid?\n";
-		|_->
-			flag := 0;
-			Printf.printf "Invalid\n";
-		);*)
-		(*(match status with
-		| Never_tried->
-			flag :=0;Printf.printf "result Never_tried\n";
-		| Best(e_status,erl)->
-			Printf.printf "result Best\n";
-			(match e_status with
-			| True->
-				(match code_annot.annot_content with
-				| AInvariant(_,_,pn)->
-					(match pn.content with
-					| Papp(linfo,labels,tl)->
-						(*remove_code_annot stmt kf code_annot;
-						let labels1 = ref [] in
-						let labels2 = ref [] in
-						List.iter(fun l->
-							labels1 := (List.append !labels1 [LogicLabel(None,"Here"),LogicLabel(None,"Here")]);
-							labels2 := (List.append !labels2 [LogicLabel(None,"Here")]);
-						)linfo.l_labels;
-						let oldlabels = linfo.l_labels in
-						linfo.l_labels <- !labels2;
-						let newpn = Logic_const.unamed (Papp(linfo,!labels1,tl)) in
-						linfo.l_labels <- oldlabels;
-			
-						let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
-						let root_code_annot_ba = Cil_types.User(annot) in
-						Annotations.add kf stmt [Ast.self] root_code_annot_ba;*)
-						();
-					| _->();
-					);
-				| _->();
-				);
-				Printf.printf "result True\n";
-			| False_if_reachable->
-				flag := 0;
-				Printf.printf "result False_if_reachable\n";
-			| False_and_reachable->
-				flag := 0;
-				Printf.printf "result False_and_reachable\n";
-			| Dont_know->
-				flag := 0;
-				Printf.printf "result Dont_know\n";
-			);
-			Printf.printf "erl.len=%d\n" (List.length erl);
-			List.iter(fun e->
-				Printf.printf "p.len=%d,\n" (List.length e.properties);
-				List.iter(fun p->
-					Description.pp_property Format.std_formatter p;Format.print_flush ();Printf.printf "\n";
-				)e.properties;
-			)erl;
-		| Inconsistent(inc)->
-			flag := 0;
-			Printf.printf "result InConsistent\n";
-		);
-	)ip_list;*)
+	flag := Prove.prove_predicate kf [] ip wp_compute;ipl := ip::!ipl;
 	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
 	if !flag=0 then
-	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)
+	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)
 	else
-	(Printf.printf "keep the annot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";);
+	(Printf.printf "keep the annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";);
 	!flag;;
 	
 	
@@ -191,9 +127,6 @@ let prove_kf (kf:Cil_types.kernel_function) =
 		Printf.printf "%s\n" bhv;
 	)(Kernel_function.all_function_behaviors kf);
 	
-	(*let fundec = Kernel_function.get_definition kf in
-	List.iter(fun stmt->
-	)fundec.sallstmts;*)
 	
 	let annot_list = Kernel_function.code_annotations kf in
 	List.iter(fun (stmt,root_code_annot_ba) ->
