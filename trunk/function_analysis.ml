@@ -5,6 +5,8 @@ open Cil_datatype
 let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list) (assumes:predicate named list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) (visitor:LiVisitor.liVisitor)=
 	
 	let total_lt = ref [] in
+	let fmt = Format.std_formatter in
+	
 	let rec generate_block_predicate (b:block) =
 		List.iter(fun s->
 	
@@ -26,9 +28,7 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 					if (List.for_all(fun v1->(v1.vname==v.vname)==false) !levars)==true then
 					levars := v::(!levars);
 				)(Varinfo.Set.elements evars);
-				let alvars = ref [] in
-				let llvars = ref [] in
-				let elvars = ref [] in
+				
 				let lelvars = ref [] in
 			
 			
@@ -36,18 +36,6 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 					let lv = Cil.cvar_to_lvar cv in
 					if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) s.free_lv_list)==true then	lelvars := lv::!lelvars;
 				)!levars;
-			
-				List.iter(fun lv->
-					if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) !lelvars)==true then alvars := lv::!alvars;
-				)s.free_lv_list;
-			
-				List.iter(fun cv->
-					if (List.for_all (fun lv1->(cv.vname==lv1.lv_name)==false) s.free_lv_list)==true then llvars := (Cil.cvar_to_lvar cv)::!llvars;
-				)(Varinfo.Set.elements lvars);
-			
-				List.iter(fun cv->
-					if (List.for_all (fun lv1->(cv.vname==lv1.lv_name)==false) s.free_lv_list)==true then elvars := (Cil.cvar_to_lvar cv)::!elvars;
-				)(Varinfo.Set.elements evars);
 			
 				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
 			
@@ -60,25 +48,46 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 				let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
 			
 				let con_named = Logic_const.pands (List.rev s.predicate_list) in
-				List.iter(fun lv->
-					begin match lv.lv_origin with
-					| Some(v)->
-						if (List.for_all(fun v1->(v1.vname==v.vname)==false) !levars)==true then
-							levars := v::(!levars);
-					| None->();
-					end;
-					Cil.d_logic_var Format.std_formatter lv;Format.print_flush ();Printf.printf "\n";
-				)s.free_lv_list;
-				(*if (List.length !alvars)!=0 then(*!llvars*)
-				begin
-					t_named := Logic_const.unamed (Pimplies (con_named,!t_named));
-				end
-				else
-				begin
-					t_named := Logic_const.unamed (Pimplies (con_named,!t_named));
-				end;*)
 			
-				total_lt := (!levars,con_named,!t_named)::!total_lt;
+				total_lt := (!levars,[],con_named,!t_named)::!total_lt;
+				
+				let (host,offset) = lval in
+				begin match (host,offset) with
+				| (Mem(e1),NoOffset)->
+					begin match e1.enode with
+					| BinOp(op,e2,e3,tp)->						
+						let zero_term = Cil.lzero () in
+						let t1 = !Db.Properties.Interp.force_exp_to_term e3 in
+						let k = Cil.make_temp_logic_var Linteger in
+						let tk = Logic_const.term (TLval(TVar(k),TNoOffset)) Linteger in
+						let pnamed1 = Logic_const.unamed (Prel(Rge,tk,zero_term)) in
+						let pnamed2 = Logic_const.unamed (Prel(Rle,tk,t1)) in
+						let p = Logic_const.pands [pnamed1;pnamed2] in
+						
+						let vars3 = Cil.extract_varinfos_from_exp e3 in
+						
+						let tk = Logic_const.term (TBinOp(op,(!Db.Properties.Interp.force_exp_to_term e2),tk)) (Ctype(Cil.typeOfLval lval)) in
+						let tl = Logic_const.term (TLval(TMem(tk),TNoOffset)) (Ctype(tp)) in
+						let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+						let id_pre = Copy.copy_predicate id_pre.ip_content in
+						let t_named = ref (Logic_const.unamed ~loc:location id_pre) in
+						let lvars = Cil.extract_free_logicvars_from_predicate !t_named in
+						List.iter(fun lv->							
+							List.iter(fun v3->
+								if (String.compare lv.lv_name v3.vname)==0 then
+								begin
+								lv.lv_name <- k.lv_name;
+								end;
+							)(Varinfo.Set.elements vars3);
+							
+						)(Logic_var.Set.elements lvars);
+						
+						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,p)) in
+						total_lt := (!levars,[k],p,!t_named)::!total_lt;
+					| _->();
+					end;
+				| _->();				
+				end;
 			(*Set End*)
 			| Call(lo,e1,el,loc)->
 				Printf.printf "Call in loop\n";
@@ -379,7 +388,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 			 	Printf.printf "Analysis loop body now.\n";
 			 	let total_lt = generate_loop_annotations kf stmt block linfo_list assumes funsigs visitor in
 			 	total_lt := List.rev !total_lt;
-			 	List.iter(fun (vars,conds,t_named)->
+			 	List.iter(fun (vars,freevar,conds,t_named)->
 					let oriConds = ref [] and negoriConds = ref [] in
 					(*assert*)
 					List.iter(fun v->
@@ -391,15 +400,29 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 						with Not_found->();
 					)vars;
 					
+					(*condition transition*)
 					let trans = Logic_const.unamed ~loc:location (Pimplies(conds,t_named)) in
+					if (List.length freevar)==0 then
+					begin
 					let es = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!oriConds),(Logic_const.pnot ~loc:location trans))) in
 					let prev = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!negoriConds),trans)) in
-						
-						
+					
+					
 					let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;();
+					(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;();*)
+					end else
+					begin
+						let trans = Logic_const.unamed (Pforall(freevar,trans)) in
+						let es = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!oriConds),(Logic_const.pnot ~loc:location trans))) in
+						let prev = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!negoriConds),trans)) in
+						
+						let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
+						let root_code_annot_ba = Cil_types.User(annot) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+						(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute;();*)
+					end;
 				)!total_lt;
 			 	Printf.printf "Analysis loop body over.\n";
 				(*List.iter(fun pn->

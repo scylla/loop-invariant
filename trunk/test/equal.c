@@ -19,8 +19,9 @@ int equal(int* a, int n, int* b)
 {
 	int flag=0;
 	for (int i = 0; i < n; i++)
-     if (a[i] != b[i])
-      {flag=1; return 0;}
+     //if (a[i] != b[i])
+     // {flag=1; return 0;}
+     a[i]=b[i];
 	return 1;
 }
 

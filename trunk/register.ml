@@ -59,7 +59,7 @@ end
 	
 	 
 let loopInvariantAnalysis (cil: Cil_types.file) =
-	let fmt =  Format.std_formatter in
+	let fmt = Format.std_formatter in
 	
 	let manpk = Polka.manager_alloc_strict() in
 	let manbox = Box.manager_alloc() in
