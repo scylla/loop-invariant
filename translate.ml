@@ -519,22 +519,12 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 						| Not_Computable(exn)->Printf.printf "Not_Computable\n";
 						| Computed(i)->Printf.printf "Computed\n";
 						end;
-					| LiType.CTerm(t1)->
-						let k = Cil.make_temp_logic_var Linteger in
-						let tk = Logic_const.term (TLval(TVar(k),TNoOffset)) Linteger in
-						let pnamed1 = Logic_const.unamed (Prel(Rge,tk,zero_term)) in
-						let pnamed2 = Logic_const.unamed (Prel(Rle,tk,t1)) in
-						let p = Logic_const.pands [pnamed1;pnamed2] in
-						let p = Logic_const.unamed (Pforall([k],p)) in
-						(*Pimplies what*)
-						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,p)) in
-						let root_code_annot_ba = Cil_types.User(code_annotation) in
-						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-						
+					| LiType.CTerm(t1)->						
 						Printf.printf "array size:";Cil.d_term fmt t1;Format.print_flush ();Printf.printf "\n";
 						let t = !Db.Properties.Interp.force_exp_to_term index in
 						let pnamed = Logic_const.unamed (Prel(Rle,t,t1)) in
 						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 						let root_code_annot_ba = Cil_types.User(code_annotation) in
 						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 					end;
@@ -673,7 +663,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	)!vars;
 	
 	(*get step of potential step vars*)
-	let steps = extract_step kf !vars stmt in	Printf.printf "after extract_step\n";
+	let steps = extract_step kf !vars stmt in
 	let coeffs = ref [] and consts = ref [] in
 	
 	List.iter(fun (_,e)->
