@@ -386,17 +386,25 @@ let extract_const_from_stmt cons s =
 		| Instr(ins)->
 			begin match ins with
 			| Set(lv,e,_)->
-				let l = extract_const_from_exp (Some(lv)) e in
-				List.iter(fun (lv,c)->
-					if (List.exists(fun (lv1,c1)->
-							match (lv1,lv) with
-							| ((Some(v1)),(Some(v2)))->
-								((Cil.compareLval v1 v2) && (c1==c));
-							| _->true;
-							) (!cons)
-						)==false then
-					begin cons := [(lv,c)]@(!cons); end;
-				)l;
+				begin match e.enode with
+				| BinOp(op,e1,e2,_)->
+					begin match op with
+					| PlusA|MinusA->
+						let l = extract_const_from_exp (Some(lv)) e2 in
+						List.iter(fun (lv,c)->
+							if (List.exists(fun (lv1,c1)->
+									match (lv1,lv) with
+									| ((Some(v1)),(Some(v2)))->
+										((Cil.compareLval v1 v2) && (c1==c));
+									| _->true;
+									) (!cons)
+								)==false then
+							begin cons := [(lv,c)]@(!cons); end;
+						)l;
+					| _->();
+					end;
+				| _->();
+				end;				
 			| _->();
 			end;
 		| If(_,b1,b2,_)|TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
@@ -430,17 +438,16 @@ let extract_step kf vars stmt =
 	let dec = Kernel_function.get_definition kf in
 	let fname = Kernel_function.get_name kf in
 	
-	(*let vars = dec.sformals@dec.slocals in*)
 	let pdg = (!Db.Pdg.get) kf in
 	(!Db.Pdg.extract) pdg ("/home/lzh/pdg_"^fname^".dot");
 	
 	let vlist = LiPdg.find_vnodes vars pdg in
 	let blist = LiPdg.find_bnodes dec.sbody pdg in
-			
+	
 	begin match stmt.skind with
 	| Loop(_,b,_,_,_)->
 		let llist = LiPdg.find_bnodes b pdg in
-			
+		
 		List.iter(fun node->
 			Printf.printf "pretty_node:";(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
 			let nodes = (!Db.Pdg.all_uses) pdg [node] in
@@ -458,38 +465,133 @@ let extract_step kf vars stmt =
 		)vlist;
 	| _->();
 	end;
-	!steps;;
-
-let rec extract_coeff_from_exp e =
-	let ltype = Cil_types.Ctype(Cil.intType) in(*temporary*)
-	begin match e.enode with
-	| Const(c)->
-		begin match c with
-		| CInt64(big,_,_)->
-			[Apron.Coeff.s_of_int (My_bigint.to_int big)];
-		| CReal(f,_,_)->
-			[Apron.Coeff.s_of_float f];
-		| _->[];(*or 1?*)
+	let res = Hashtbl.create 3 in
+	List.iter(fun (lv,c)->
+		begin match lv with
+		| Some(v)->
+			let (host,offset) = v in
+			begin match host,offset with
+			| Var(var),NoOffset->				
+				try
+					let l = Hashtbl.find res var.vname in
+					if (List.for_all(fun c1->c!=c1) !l)==true then			
+						l := c::(!l);				
+				with Not_found->Hashtbl.add res var.vname (ref [c]);
+			| _->();
+			end;
+		| None->();
 		end;
-		(*let tnode = Cil_types.TConst(c) in
-		Logic_const.term tnode ltype;*)(*can be used as cof.return Cof.t directly?*)
-	| Lval((host,offset))->[];
-		(*begin match host with
-		| Var(v)->
-			let lv = Cil.cvar_to_lvar v in
-			let tnode = TLval((TVar(lv),TNoOffset)) in
-			Logic_const.term tnode ltype;(*can be used as Var*)
-		| Mem(e1)->
-			extract_term e1;
-		end;*)
-	| BinOp(op,e1,e2,_)->
-		(extract_coeff_from_exp e1)@(extract_coeff_from_exp e2);
-	| UnOp(op,e1,_)->
-		extract_coeff_from_exp e1;
-	| _->[];
-		(*let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
-		Logic_const.term tnode ltype;*)
+	)(!steps);
+	res;;
+
+let rec extract_coeff_from_exp coeffs e varo =
+	let ltype = Cil_types.Ctype(Cil.intType) in(*temporary*)
+	let fmt = Format.std_formatter in
+	let strfmt = Format.str_formatter in
+	
+	begin match varo with
+	| Some(e1)->
+		Cil.d_exp strfmt e1;
+		let name = Format.flush_str_formatter () in
+		let res = Hashtbl.find coeffs name in
+		begin match e.enode with
+		| Const(c)->
+			begin match c with
+			| CInt64(big,_,_)->
+				if (List.for_all(fun c->(Apron.Coeff.cmp c (Apron.Coeff.s_of_int (My_bigint.to_int big)))!=0)
+						 !res)==true then
+				res := (Apron.Coeff.s_of_int (My_bigint.to_int big))::(!res);
+			| CReal(f,_,_)->
+				if (List.for_all(fun c->(Apron.Coeff.cmp c (Apron.Coeff.s_of_float f))!=0) !res)==true then
+				res := (Apron.Coeff.s_of_float f)::(!res);
+			| _->();(*or 1?*)
+			end;
+		| Lval((host,offset))->();
+		| BinOp(op,e1,e2,_)->
+			begin match op with
+			| Mult->
+				(extract_coeff_from_exp coeffs e1 (Some(e2)));(extract_coeff_from_exp coeffs e2 (Some(e1)));
+			| Gt->
+				(extract_coeff_from_exp coeffs e1 None);(extract_coeff_from_exp coeffs e2 None);
+			| _->();
+			end;
+		| UnOp(op,e1,_)->
+			extract_coeff_from_exp coeffs e1 None;
+		| _->();
+		end;
+	| None->
+		begin match e.enode with
+		| BinOp(op,e1,e2,_)->
+			begin match op with
+			| Mult->
+				(extract_coeff_from_exp coeffs e1 (Some(e2)));(extract_coeff_from_exp coeffs e2 (Some(e1)));
+			| Gt->
+				(extract_coeff_from_exp coeffs e1 None);(extract_coeff_from_exp coeffs e2 None);
+			| _->();
+			end;
+		| UnOp(op,e1,_)->
+			extract_coeff_from_exp coeffs e1 None;
+		| _->();
+		end;		
 	end;;
+
+let extract_coeff_from_loop coeffs stmt =
+	let rec analysis_exp e =
+		begin match e.enode with
+		| BinOp(op,e1,e2,_)->
+			begin match op with
+			| Mult->
+				(extract_coeff_from_exp coeffs e1 (Some(e2)));(extract_coeff_from_exp coeffs e2 (Some(e1)));
+			| _->
+				analysis_exp e1;
+				analysis_exp e2;
+			end;
+		| _->();
+		end;
+	in
+	
+	let rec analysis s =
+		begin match s.skind with
+		| Instr(ins)->
+			begin match ins with
+			| Set(lv,e,_)->
+				analysis_exp e;
+			| _->();
+			end;
+		| Loop(_,b,_,_,_)|Block(b)->
+			List.iter(fun s->
+				analysis s;
+			)b.bstmts;
+		| If(e,b1,b2,_)->
+				analysis_exp e;
+			List.iter(fun s->
+				analysis s;
+			)b1.bstmts;
+			List.iter(fun s->
+				analysis s;
+			)b2.bstmts;
+		| Switch(e,b,_,_)->
+				analysis_exp e;
+			List.iter(fun s->
+				analysis s;
+			)b.bstmts;
+		| UnspecifiedSequence(seq)->
+			let b = Cil.block_from_unspecified_sequence seq in
+			List.iter(fun s1->
+				analysis s;
+			)b.bstmts;
+		| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
+			List.iter(fun s->
+				analysis s;
+			)b1.bstmts;
+			List.iter(fun s->
+				analysis s;
+			)b2.bstmts;
+		| _->();
+		end;
+	in
+	
+	analysis stmt;;
 
 (*stmt is a [loop] stmt. this deals with array access operations in loop body*)
 let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
@@ -498,7 +600,6 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 	let rec analysis_exp fmt e =
 		(*when access an array element,these should be held*)
 		let apply_index fmt base index =
-			Printf.printf "base.name=%s\n" (LiUtils.get_exp_name base);
 			try
 				let info = List.find (fun info->(String.compare info.LiType.v.vname (LiUtils.get_exp_name base))==0) arrayvars in
 				if (List.for_all (fun e->(Cil.compareExp e index)==false) !exps)==true then
@@ -519,8 +620,7 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 						| Not_Computable(exn)->Printf.printf "Not_Computable\n";
 						| Computed(i)->Printf.printf "Computed\n";
 						end;
-					| LiType.CTerm(t1)->						
-						Printf.printf "array size:";Cil.d_term fmt t1;Format.print_flush ();Printf.printf "\n";
+					| LiType.CTerm(t1)->
 						let t = !Db.Properties.Interp.force_exp_to_term index in
 						let pnamed = Logic_const.unamed (Prel(Rle,t,t1)) in
 						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
@@ -593,30 +693,29 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	let cond = force_exp2tcons loop.con env in  
 	let transfers = ref [] in
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
-		(*let tvnode = Cil_types.TLval((Cil_types.TVar v),TNoOffset) in*)
 	let term_vars = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
-	let zero_term = Cil.lzero () in(*Logic_utils.mk_dummy_term tnode Cil.intType in*)
+	let zero_term = Cil.lzero () in
 	let mone_term = Cil.lconstant (My_bigint.of_int (-1)) in(*-1*)
 	let ltype = Cil_types.Ctype(Cil.intType) in
 	
-	(*get all vars in conl*)
+	(*get all valEles in conl*)
 	let vars = ref [] in
 	List.iter(fun (s,e)->
 		let evars = !(LiUtils.extract_valEle_from_exp e) in
 		List.iter(fun v->
-			if (List.exists(fun v1->v1==v) !vars)==false then
+			LiType.print_valEle fmt v;
+			if (List.for_all(fun v1->(LiUtils.compareValele v1 v)==false) (!vars))==true then
 			begin
-				vars := v::!vars;
+				vars := v::(!vars);
 			end;
+			();
 		)evars;
 	)conl;
 
 	(*get min and max value of vars after the loop stmt*)
 	let most = ref [] in
 	let mini = min_int and maxi = max_int in
-	Printf.printf "mini=%d,maxi=%d\n" mini maxi;
-	Printf.printf "value node len=%d\n" (List.length !vars);
-	List.iter(fun v->
+	List.iter(fun v->(*valEle*)
 		let lv =
 			begin match v with
 			| LiType.Var(vi)->
@@ -640,9 +739,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 					let j = My_bigint.to_int i in
 					if j<(!min) then min := j;
 					if j>(!max) then max := j;
-					Printf.printf "%d," j;
 				)set;
-				Printf.printf "\n";
 				most := (v,!min,!max)::!most;
 			| Ival.Float(f)->Printf.printf "Float\n";
 			| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)
@@ -662,16 +759,27 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		end;
 	)!vars;
 	
-	(*get step of potential step vars*)
+	(*get step of potential step vars in loop body*)
 	let steps = extract_step kf !vars stmt in
-	let coeffs = ref [] and consts = ref [] in
+	(*get coeff of var in Mult op,both in loop body and conds*)
+	let coeffs = Hashtbl.create 3 in
+	List.iter(fun v->
+		Hashtbl.add coeffs v.vname (ref [(Apron.Coeff.s_of_int 1);
+		(Apron.Coeff.s_of_int 0);
+		(Apron.Coeff.s_of_int (-1))]);
+	)lvars;
+	extract_coeff_from_loop coeffs stmt;
 	
 	List.iter(fun (_,e)->
-		coeffs := (extract_coeff_from_exp e)@(!coeffs);Printf.printf "after extract_coeff_from_exp\n";
-		consts := (extract_const_from_exp None e)@(!consts);
-		Printf.printf "after extract_const_from_exp\n";
+		let ecoeffs = extract_coeff_from_exp coeffs e None in
+		(*List.iter(fun (name,cof)->
+			try
+			let l = Hashtbl.find coeffs name in
+			if (List.for_all(fun c->(Apron.Coeff.equal c cof)==false) !l)==true then l := cof::(!l);
+			with Not_found->();
+		)ecoeffs;*)
+		
 		let tcons = force_exp2tcons e env in
-		Printf.printf "after force_exp2tcons to get tcons\n";
 		
 		let t = Logic_utils.expr_to_term false e in
 		let pred = match t.term_node with
@@ -699,18 +807,56 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		end;
 	)conl;
 	
-	List.iter2(fun cof (lvo,const)->(*here lvo is None*)
+	Printf.printf "after extract_coeff_from_exp\n";
+	Hashtbl.iter(fun name cof->
+		Printf.printf "name:%s--" name;
+		List.iter(fun c->
+			Apron.Coeff.print fmt c;Format.print_flush ();Printf.printf "\n";
+		)(!cof);
+	)coeffs;
+	Hashtbl.iter(fun vname cl->
+		Printf.printf "%s\n" vname;
+		List.iter(fun c->
+			Printf.printf "step=%d\n" c;
+		)(!cl);
+	)steps;
+	
+	(*enumerate the combinations of coeffs and steps. coeffs both in loop body and conds.steps in loop body*)
 		let lterm = ref [] in
 		let const_min = ref 0 and const_max = ref 0 in
 		(*the form is sum(cof*var)+const?0,? represents >,<,>=,<=,!=,== etc*)
+		
 		(*var and cof part*)
-		Printf.printf "lvar.len=%d\n" (List.length lvars);
+		(*merge lvars and vars.lvars represents all var in loop body*)
+		let avars = ref lvars in
+		List.iter(fun valele->
+			begin match valele with
+			| LiType.Var(v)->
+				if (List.for_all(fun v1->v.vid!=v1.vid) !avars)==true then
+				avars := v::(!avars);
+			| LiType.Lval(_)->();
+			end;
+		)(!vars);
+		
+		Printf.printf "avars:\n";
+		List.iter(fun v->
+			Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+		)(!avars);
+		
 		List.iter(fun v->
 			let lv = Cil.cvar_to_lvar v in
 			let tnode = TLval((TVar(lv),TNoOffset)) in
 			let tvar = Logic_const.term tnode ltype in
 		
-			(*now the cofs are all -1*)
+			(*now the cofs are all 1*)
+			Printf.printf "find v:%s\n" v.vname;
+			try
+			let cofl = Hashtbl.find coeffs v.vname in
+			List.iter(fun c->
+				Apron.Coeff.print fmt c;Format.print_flush ();Printf.printf "\n";
+			)(!cofl);
+			with Not_found->();
+			
 			let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (1)),Cil_types.IInt,None)) in
 			let tcof = Logic_const.term tnode ltype in
 		
@@ -718,14 +864,16 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			lterm := !lterm@[Logic_const.term tnode ltype];
 			
 			let lval = Cil.var v in
-			let step = List.find_all (fun (lv,c)->
-				begin match lv with
-				| Some(lv1)->
-					Cil.compareLval lval lv1;
-				| _->false;
-				end;
-				) steps
-			in
+			
+			(*sum of steps of var v*)
+			try
+				let step = Hashtbl.find steps v.vname in			
+				List.iter(fun c->
+					const_min := !const_min+c;
+					const_max := !const_max+c;
+				)(!step);
+			with Not_found->Printf.printf "Not_found:";Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+			
 			let mostv = 
 				List.find_all (fun (v1,min,max)->
 				begin match v1 with
@@ -734,16 +882,12 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				end;) !most
 			in
 			
-			List.iter(fun (_,c)->
-				const_min := !const_min+c;
-				const_max := !const_max+c;
-			)step;
 			List.iter(fun (v,min,max)->
 				const_min := !const_min+min;
 				const_max := !const_max+max;
 				Printf.printf ",min=%d,max=%d\n" min max;
 			)mostv;
-		)lvars;
+		)(!avars);
 	
 		(*constant part*)
 		let tnode_min = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (!const_min)),Cil_types.IInt,None)) in
@@ -755,6 +899,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		List.iter(fun t->
 			term_vars := Logic_const.term (TBinOp(PlusA,!term_vars,t)) ltype;
 		)(!lterm);(*(!lterm@[tcon_max]);*)
+		Printf.printf "term_vars:";Cil.d_term fmt (!term_vars);Format.print_flush ();Printf.printf "\n";
 		
 		(*make cons*)
 		let vars = ref [||] in
@@ -768,7 +913,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		  
 		let cofl = ref [] in
 		let len = (Array.length !vars)-1 in
-		(*now the cofs are all -1*)
+		(*now the cofs are all 1*)
 		for i=0 to len do
 		 	cofl := (Apron.Coeff.s_of_int (1), !vars.(i))::!cofl;
 		done;
@@ -908,20 +1053,20 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			end
 		in
 				
-    List.iter(fun typ->
-    	let result = mk_lincons typ in
-    	List.iter(fun (pred,cons)->
-				let pnamed = Logic_const.unamed pred in
-				let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-				let root_code_annot_ba = Cil_types.User(code_annotation) in
-				Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-				if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-				begin(*wp cannot prove*)
-					Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-					transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-				end;
-			)result;
-		)[Req;Rge;Rgt;Rneq;Rle;Rlt];
-	)!coeffs !consts;
+  List.iter(fun typ->
+    let result = mk_lincons typ in
+    List.iter(fun (pred,cons)->
+			let pnamed = Logic_const.unamed pred in
+			let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+			let root_code_annot_ba = Cil_types.User(code_annotation) in
+			Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+			if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+			begin(*wp cannot prove*)
+				Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+				transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+			end;
+		)result;
+	)[Req;Rge;Rgt;Rneq;Rle;Rlt];
+	
 	Printf.printf "generate over\n";
 	!transfers;;

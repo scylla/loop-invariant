@@ -21,7 +21,9 @@ int equal(int* a, int n, int* b)
 	for (int i = 0; i < n; i++)
      //if (a[i] != b[i])
      // {flag=1; return 0;}
-     a[i]=b[i];
+     //a[i]=b[i];
+     {flag=flag+5;flag=flag+10;}
+  assert(flag==15);
 	return 1;
 }
 
