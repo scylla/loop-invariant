@@ -21,11 +21,11 @@ let find_bnodes b pdg =
 		| Instr(ins)->
 			begin match ins with
 			| Call _->();
-			| _->Printf.printf "find_bnodes:";Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
+			| _->
 				try
 				let node = (!Db.Pdg.find_stmt_node) pdg s in
 				l := !l@[node];
-				with Not_found->Printf.printf "the stmt is unreachable.\n";
+				with Not_found->();
 			end;
 		| Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->		
 			let node = (!Db.Pdg.find_stmt_node) pdg s in

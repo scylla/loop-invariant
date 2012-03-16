@@ -3,6 +3,18 @@ open Cil_types
 open Cil_datatype
 open TypePrinter
 
+let compareValele (e1:LiType.valEle) (e2:LiType.valEle) :bool =
+	let res =
+		begin match e1,e2 with
+		| LiType.Var(v1),LiType.Var(v2)->
+			v1.vid==v2.vid;
+		| LiType.Lval(lv1),LiType.Lval(lv2)->
+			Cil.compareLval lv1 lv2;
+		| _,_->false;
+		end
+	in
+	res
+
 let extract_varinfos_from_stmt (s:stmt) =
   let visitor = object
     inherit nopCilVisitor
@@ -31,7 +43,11 @@ let extract_valEle_from_exp (e:exp) =
 	 let result = ref [] in
 	 begin match e.enode with
 	 | Cil_types.Lval(lv)->result := LiType.Lval(lv)::(!result);
-	 | _->();
+	 | _->
+	 	 let vars = Varinfo.Set.elements (Cil.extract_varinfos_from_exp e) in
+	 	 List.iter(fun v->
+	 		result := LiType.Var(v)::(!result);
+	 	 )vars;
 	 end;
 	 result
 

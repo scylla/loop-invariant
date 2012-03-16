@@ -5,6 +5,15 @@ type valEle =
 	| Var of varinfo
 	| Lval of lval
 
+let print_valEle fmt ele =
+	begin match ele with
+	| Var(v)->
+		Cil.d_var fmt v;
+	| Lval(lv)->
+		Cil.d_lval fmt lv;
+	end;
+	Format.print_flush ()
+
 (*arguments type*)
 type arg =
 	| APTexpr of Apron.Texpr1.t

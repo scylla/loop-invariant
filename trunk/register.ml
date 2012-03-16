@@ -99,12 +99,11 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 					List.iter(fun ip->
 						begin match ip.ip_content with
 						| Pvalid_range(t1,t2,t3)->
-							Printf.printf "Pvalid_range\n";
 							begin match t1.term_node with
 							| TLval((thost,toffset))->
 								begin match thost with
-								| TMem(tm)->Printf.printf "TMem\n";TypePrinter.print_tnode_type fmt tm.term_node;
-								| TVar(lv)->Printf.printf "TVar\n";
+								| TMem(tm)->();
+								| TVar(lv)->
 									begin match lv.lv_origin with
 									| Some(v1)->
 										let v = {LiType.v=v1;typ=v1.vtype;size=LiType.CTerm(t3);} in
@@ -115,9 +114,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 								end;
 							| _->();
 							end;
-							TypePrinter.print_tnode_type fmt t1.term_node;
-							TypePrinter.print_tnode_type fmt t2.term_node;
-							TypePrinter.print_tnode_type fmt t3.term_node;
 						| _->();
 						end;
 					)b.b_requires;
