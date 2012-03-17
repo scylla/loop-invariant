@@ -102,8 +102,8 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 	List.iter(fun rannot->
 		match rannot with
 		| User(annot)|AI(_,annot)->
-		if annot.annot_id=rannot_bf.annot_id then begin
-			Printf.printf "invalid rannot_bf\n";end
+		if annot.annot_id==rannot_bf.annot_id then begin
+			();end
 		else begin
 			(Annotations.add kf stmt [Ast.self] rannot;)end
 	)rannot_bf_list;;
@@ -113,7 +113,6 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
 	
 	flag := Prove.prove_predicate kf [] ip wp_compute;ipl := ip::!ipl;
-	Printf.printf "in prove_code_annot,flag=%d\n" !flag;
 	if !flag=0 then
 	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)
 	else
