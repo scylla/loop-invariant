@@ -354,30 +354,30 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 					| Cvalue.V.Map(m)->
 						Printf.printf "Map\n";
 						try
-						let iv = Cvalue.V.project_ival value in(*Ival.t*)
-						begin match iv with
-						| Ival.Set(set)->Printf.printf "Set\n";
-							let pset1 = ref [] and pset2 = ref [] in
+							let iv = Cvalue.V.project_ival value in(*Ival.t*)
+							begin match iv with
+							| Ival.Set(set)->Printf.printf "Set\n";
+								let pset1 = ref [] and pset2 = ref [] in
 							
-							Array.iter(fun i->								
-								let tr = Logic_const.term ~loc:location (TConst(CInt64(i,IInt,None))) (Ctype(v.vtype)) in
-								let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
-								let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-								pset1 := t_named::(!pset1);
-								let id_pre = Logic_const.new_predicate (Logic_const.prel (Rneq,tl,tr)) in
-								let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-								pset2 := t_named::(!pset2);
+								Array.iter(fun i->								
+									let tr = Logic_const.term ~loc:location (TConst(CInt64(i,IInt,None))) (Ctype(v.vtype)) in
+									let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+									let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+									pset1 := t_named::(!pset1);
+									let id_pre = Logic_const.new_predicate (Logic_const.prel (Rneq,tl,tr)) in
+									let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
+									pset2 := t_named::(!pset2);
 																
-								Printf.printf "t=%d," (My_bigint.to_int i);
-							)set;
-							Hashtbl.add oriValues v (Logic_const.pands (!pset1));
-							Hashtbl.add negoriValues v (Logic_const.pands (!pset2));
+									Printf.printf "t=%d," (My_bigint.to_int i);
+								)set;
+								Hashtbl.add oriValues v (Logic_const.pands (!pset1));
+								Hashtbl.add negoriValues v (Logic_const.pands (!pset2));
 							
-						| Ival.Float(f)->Printf.printf "Float\n";
-						| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)							
-							Printf.printf "%d," (My_bigint.to_int t1);Printf.printf "%d" (My_bigint.to_int t2);
-							Printf.printf "\n";
-						end;
+							| Ival.Float(f)->Printf.printf "Float\n";
+							| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)							
+								Printf.printf "%d," (My_bigint.to_int t1);Printf.printf "%d" (My_bigint.to_int t2);
+								Printf.printf "\n";
+							end;
 						with Cvalue.V.Not_based_on_null->();
 					end;
 		 		)lvars;

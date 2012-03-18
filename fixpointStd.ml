@@ -264,32 +264,33 @@ let propagate_vertex
   if PSette.mem vertex info.iinit then
       lpost := (manager.abstract_init vertex) :: !lpost
   ;
-  List.iter
-    (begin fun hedge ->
-      let tpredvertex = PSHGraph.predvertex graph hedge in
-      let attrhedge = PSHGraph.attrhedge graph hedge in
-      let takeit =
-	(if descend then not attrhedge.aempty else true)
-	&& is_tvertex graph tpredvertex
-      in
-      if takeit then begin
-	PHashhe.remove info.iworkhedge hedge;
-	let treach = treach_of_tvertex graph tpredvertex in
-	let (arc,post) = manager.apply hedge treach in
-	attrhedge.arc <- arc;
-	if manager.print_postpre then av_print_contrib manager hedge post;
-	if not (manager.is_bottom vertex post) then begin
-	  lpost := post :: !lpost;
-	  attrhedge.aempty <- false
-	end
-	else
-	  attrhedge.aempty <- true;
-      end
-      else
-	attrhedge.aempty <- true;
-    end)
-    lhedges
-  ;
+  List.iter(fun hedge ->
+  	let tpredvertex = PSHGraph.predvertex graph hedge in
+    let attrhedge = PSHGraph.attrhedge graph hedge in
+    let takeit =
+			(if descend then not attrhedge.aempty else true)
+			&& is_tvertex graph tpredvertex
+		in
+			
+		if takeit then begin
+			PHashhe.remove info.iworkhedge hedge;
+			let treach = treach_of_tvertex graph tpredvertex in
+			let (arc,post) = manager.apply hedge treach in
+			attrhedge.arc <- arc;
+			if manager.print_postpre then av_print_contrib manager hedge post;
+			
+			begin try
+				if not (manager.is_bottom vertex post) then begin
+					lpost := post :: !lpost;
+					attrhedge.aempty <- false
+				end
+				else
+					attrhedge.aempty <- true;
+			with Apron.Manager.Error(log)->Printf.printf "Manager.Error:";Apron.Manager.print_exclog manager.print_fmt log;Format.print_flush ();Printf.printf "\n";end;
+		end
+		else
+			attrhedge.aempty <- true;
+  )lhedges;
   attr.reach <-
     if !lpost=[]
     then manager.bottom vertex

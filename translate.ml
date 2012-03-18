@@ -35,22 +35,26 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 		| TInt(_,_)->
 			let avar = (Apron.Var.of_string var.vname) in
 			lint := avar::!lint;
+			names := var.vname::(!names);
 			(*update [names]??*)
 			Hashhe.add avar2cvar avar var;
 		| TFloat(_,_)->
 			let avar = (Apron.Var.of_string var.vname) in
 			lreal := avar::!lreal;
+			names := var.vname::(!names);
 			Hashhe.add avar2cvar avar var;
 		| TPtr(tp,attr)->(*pointer,how to?*)
 			Cil.d_var Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
 			let avar = (Apron.Var.of_string var.vname) in
 			lint := avar::!lint;
+			names := var.vname::(!names);
 			Hashhe.add avar2cvar avar var;
 		| TArray(tp,eo,size,attr)->
 			begin match eo with
 			| Some(e)->
 				let avar = (Apron.Var.of_string var.vname) in
 				lint := avar::!lint;
+			names := var.vname::(!names);
 				Hashhe.add avar2cvar avar var;
 			| None->();
 			end;
@@ -135,7 +139,6 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 			Apron.Texpr1.Binop(Apron.Texpr1.Add,te1,te2,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		|_->
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
-			Cil.d_binop Format.std_formatter op;Format.print_flush ();Printf.printf "\n";
 			Printf.printf "unknownBinOp\n";
 			(*TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
@@ -148,7 +151,6 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 			Apron.Texpr1.Unop(Apron.Texpr1.Neg,te,Apron.Texpr1.Real,Apron.Texpr1.Down)
 		| _->
 			Printf.printf "unknownUnOp\n";
-			TypePrinter.print_exp_type Format.std_formatter exp;
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownUnOp");
 		)
@@ -167,21 +169,19 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 	| CastE(ty,e)->
 		force_exp_to_texp e;(*not exactly right*)
 	| Lval((host,offset))->
-		Printf.printf "Lval in force_exp_to_texp:\n";
+		Printf.printf "unknownEnode1 in translate\n";
 		begin match host with
 		| Mem(m)->
-			Cil.d_exp Format.std_formatter m;Format.print_flush ();Printf.printf "\n";
-			TypePrinter.print_exp_type Format.std_formatter m;Format.print_flush ();Printf.printf "\nEnd mem\n";
+			();(*Cil.d_exp Format.std_formatter m;Format.print_flush ();Printf.printf "\n";*)
 		| Var(v)->();
 		end;
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 	|_->
-		Printf.printf "unknownEnode\n";
-		TypePrinter.print_exp_type Format.std_formatter exp;
+		Printf.printf "unknownEnode2 in translate\n";
 		Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 	end
-	
+
 let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.arg =
 	begin match exp.enode with
 	| StartOf(lv)|AddrOf(lv)|Lval(lv)->
@@ -300,22 +300,23 @@ let force_stmt2block (stmt:Cil_types.stmt) :Cil_types.block =
 let extract_loop stmt :Equation.loop =
 	let fmt = Format.std_formatter in
 	(match stmt.skind with
-	| Loop(_,b,_,_,_)->
+	| Loop(_,b,loc,_,_)->
 		let con_stmt = List.nth b.bstmts 1 in
 		let body_stmt = ref [] in
 		for i=2 to ((List.length b.bstmts)-1) do
 			body_stmt := !body_stmt@[List.nth b.bstmts i];
 		done;
-		(match con_stmt.skind with
+		begin match con_stmt.skind with
 		| If(con,_,_,_)->
 			{Equation.con=con;Equation.body=(!body_stmt)};
-		| _->
-			let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con"))) in
+		| _->(*while(1){},so the con should be true*)
+			Printf.printf "con_stmt:";TypePrinter.print_stmtkind fmt con_stmt.skind;
+			let con = Cil.one ~loc:loc in
 			let body_stmt = Cil.dummyStmt in
 			{Equation.con=con;Equation.body = [body_stmt]};
-		);
+		end;
 	| _->
-		let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con"))) in
+		let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con2"))) in
 		let body_stmt = Cil.dummyStmt in
 		{Equation.con=con;Equation.body = [body_stmt]};
 	);;
@@ -438,11 +439,13 @@ let extract_step kf vars stmt =
 	let dec = Kernel_function.get_definition kf in
 	let fname = Kernel_function.get_name kf in
 	
+	Printf.printf "extract_step\n";
 	let pdg = (!Db.Pdg.get) kf in
-	(!Db.Pdg.extract) pdg ("/home/lzh/pdg_"^fname^".dot");
+	(*(!Db.Pdg.extract) pdg ("/home/lzh/pdg_"^fname^".dot");*)
 	
 	let vlist = LiPdg.find_vnodes vars pdg in
 	let blist = LiPdg.find_bnodes dec.sbody pdg in
+	Printf.printf "vlist.len=%d\n" (List.length vlist);
 	
 	begin match stmt.skind with
 	| Loop(_,b,_,_,_)->
@@ -471,12 +474,14 @@ let extract_step kf vars stmt =
 		| Some(v)->
 			let (host,offset) = v in
 			begin match host,offset with
-			| Var(var),NoOffset->				
+			| Var(var),NoOffset->
+				let name = LiUtils.get_vname var in
+				Printf.printf "step name:%s" name;
 				try
 					let l = Hashtbl.find res var.vname in
 					if (List.for_all(fun c1->c!=c1) !l)==true then			
-						l := c::(!l);				
-				with Not_found->Hashtbl.add res var.vname (ref [c]);
+						l := c::(!l);
+				with Not_found->Hashtbl.add res name (ref [c]);
 			| _->();
 			end;
 		| None->();
@@ -493,6 +498,7 @@ let rec extract_coeff_from_exp coeffs e varo =
 	| Some(e1)->
 		Cil.d_exp strfmt e1;
 		let name = Format.flush_str_formatter () in
+		Printf.printf "extract:%s" name;
 		let res = Hashtbl.find coeffs name in
 		begin match e.enode with
 		| Const(c)->
@@ -689,7 +695,7 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 	in
 	analysis_stmt stmt;;
 
-let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_types.stmt * Cil_types.exp) list) stmt env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
+let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_types.stmt * Cil_types.exp) list) stmt loc env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
 	let cond = force_exp2tcons loop.con env in  
 	let transfers = ref [] in
 	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
@@ -732,31 +738,33 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		| Cvalue.V.Map(m)->
 			Printf.printf "Map\n";
 			Cvalue.V.pretty fmt value;Format.print_flush ();Printf.printf "\n";
-			let iv = Cvalue.V.project_ival value in(*Ival.t*)
-			begin match iv with
-			| Ival.Set(set)->Printf.printf "Set\n";
-				let min = ref (My_bigint.to_int (Array.get set 0)) and max = ref (My_bigint.to_int (Array.get set 0)) in
-				Array.iter(fun i->
-					let j = My_bigint.to_int i in
-					if j<(!min) then min := j;
-					if j>(!max) then max := j;
-				)set;
-				most := (v,!min,!max)::!most;
-			| Ival.Float(f)->Printf.printf "Float\n";
-			| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)
-				begin match to1,to2 with
-				| Some(i1),Some(i2)->Printf.printf "to1=%d,to2=%d\n" (My_bigint.to_int i1) (My_bigint.to_int i2);
-					most := (v,(My_bigint.to_int i1),(My_bigint.to_int i2))::!most;
-				| Some(i1),None->
-					most := (v,(My_bigint.to_int i1),maxi)::!most;
-				| None,Some(i2)->
-					most := (v,mini,(My_bigint.to_int i2))::!most;
-				| None,None->Printf.printf "to1 None\n";
-					most := (v,mini,maxi)::!most;
+			try
+				let iv = Cvalue.V.project_ival value in(*Ival.t*)
+				begin match iv with
+				| Ival.Set(set)->Printf.printf "Set\n";
+					let min = ref (My_bigint.to_int (Array.get set 0)) and max = ref (My_bigint.to_int (Array.get set 0)) in
+					Array.iter(fun i->
+						let j = My_bigint.to_int i in
+						if j<(!min) then min := j;
+						if j>(!max) then max := j;
+					)set;
+					most := (v,!min,!max)::!most;
+				| Ival.Float(f)->Printf.printf "Float\n";
+				| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)
+					begin match to1,to2 with
+					| Some(i1),Some(i2)->Printf.printf "to1=%d,to2=%d\n" (My_bigint.to_int i1) (My_bigint.to_int i2);
+						most := (v,(My_bigint.to_int i1),(My_bigint.to_int i2))::!most;
+					| Some(i1),None->
+						most := (v,(My_bigint.to_int i1),maxi)::!most;
+					| None,Some(i2)->
+						most := (v,mini,(My_bigint.to_int i2))::!most;
+					| None,None->Printf.printf "to1 None\n";
+						most := (v,mini,maxi)::!most;
+					end;
+					Printf.printf "%d," (My_bigint.to_int t1);Printf.printf "%d" (My_bigint.to_int t2);
+					Printf.printf "\n";
 				end;
-				Printf.printf "%d," (My_bigint.to_int t1);Printf.printf "%d" (My_bigint.to_int t2);
-				Printf.printf "\n";
-			end;
+			with Cvalue.V.Not_based_on_null->();
 		end;
 	)!vars;
 	
@@ -765,7 +773,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	(*get coeff of var in Mult op,both in loop body and conds*)
 	let coeffs = Hashtbl.create 3 in
 	List.iter(fun v->
-		Hashtbl.add coeffs v.vname (ref [(Apron.Coeff.s_of_int 1);
+		let name = LiUtils.get_vname v in
+		Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);
 		(Apron.Coeff.s_of_int 0);
 		(Apron.Coeff.s_of_int (-1))]);
 	)lvars;
@@ -827,8 +836,17 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			end;
 		)(!vars);
 		
-		List.iter(fun v->
-			Hashtbl.add varhash v.vname v;
+		List.iter(fun v->			
+			begin match v.vtype with
+			| TPtr(_,_)->
+				let lv = Cil.new_exp ~loc:loc (Lval(Mem((Cil.evar ~loc:loc v)),NoOffset)) in
+				Cil.d_exp strfmt lv;
+				let name = Format.flush_str_formatter () in
+				Hashtbl.add varhash name v;
+				Printf.printf "TPtr:%s\n" name;
+			| _->
+				Hashtbl.add varhash v.vname v;
+			end;
 		)(!avars);
 		
 		let coeffl = ref [] in
@@ -837,10 +855,14 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			coeffl := ((ref 0),name,!l)::(!coeffl);
 			total := !total*(List.length !l);
 		)coeffs;
-		let len = (List.length !coeffl)-1 in
+		let len = List.length !coeffl in
+		Printf.printf "total=%d\n" !total;
+		if len>0 then
+		begin
+		
 		while !count<(!total) do
 			let com = ref [] in
-			for i=0 to len do
+			for i=0 to (len-1) do
 				let (indexi,name,li) = List.nth !coeffl i in
 				com := (name,(List.nth li !indexi))::(!com);
 				indexi := !indexi+1;
@@ -849,7 +871,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				begin
 					indexi := 0;
 					let rec inc j =
-						if j<=len then begin
+						if j<len then begin
 							let (indexj,name,lj) = List.nth !coeffl j in
 							indexj := !indexj+1;
 							if !indexj==(List.length lj) then
@@ -873,7 +895,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			let term_vars = ref zero_term in
 			let const_min = ref 0 and const_max = ref 0 in
 			
-			List.iter(fun (name,c)->					
+			List.iter(fun (name,c)->
+				Printf.printf "name:%s\n" name;
 				let v = Hashtbl.find varhash name in
 				let lv = Cil.cvar_to_lvar v in
 				let tnode = TLval((TVar(lv),TNoOffset)) in
@@ -892,7 +915,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 					
 				let lval = Cil.var v in
 			
-				(*sum of steps of var v*)
+				(*sum of steps of var v.vname??*)
 				try
 					let step = Hashtbl.find steps name in			
 					List.iter(fun c->
@@ -915,7 +938,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 					Printf.printf ",min=%d,max=%d\n" min max;
 				)mostv;
 					
-					
+				
+				Printf.printf "env var name:%s\n" name;
 				let av = Apron.Var.of_string name in
 				vars := Array.append !vars [|av|];
 				cofs := Array.append !cofs [|Apron.Var.of_string (name^"cof")|];
@@ -938,6 +962,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			)(!lterm);(*(!lterm@[tcon_max]);*)
 			Printf.printf "term_vars:";Cil.d_term fmt (!term_vars);Format.print_flush ();Printf.printf "\n";
 			
+			Printf.printf "len=%d\n" len;
 			let new_env = Apron.Environment.make (!vars) (!cofs) in
 			let tab = Apron.Lincons1.array_make new_env len in
 			let expr = Apron.Linexpr1.make new_env in
@@ -1110,6 +1135,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			
 			count := !count+1;
 		done;
-	
+		end;
+		
 	Printf.printf "generate over\n";
 	!transfers;;

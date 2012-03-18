@@ -51,6 +51,17 @@ let extract_valEle_from_exp (e:exp) =
 	 end;
 	 result
 
+(*if v is a PTtr,then returen *v*)
+let get_vname (v:Cil_types.varinfo) =
+	let strfmt = Format.str_formatter in
+	begin match v.vtype with
+	| TPtr(_,_)->
+		let lv = Cil.new_exp ~loc:v.vdecl (Lval(Mem((Cil.evar ~loc:v.vdecl v)),NoOffset)) in
+		Cil.d_exp strfmt lv;
+	| _->Cil.d_var strfmt v;
+	end;
+	Format.flush_str_formatter ()
+
 let get_constant_str (c:Cil_types.constant) =
 	match c with
   | CInt64(i, _, Some s)->Escape.escape_char (Char.chr (My_bigint.to_int i))
@@ -165,9 +176,9 @@ let get_exp_name (e:Cil_types.exp) =
 	| Lval(l)->
 		let (host,off) = l in
 		(match host with
-		| Var(v)->Printf.printf "var:";
-			v.vname;
-		| Mem(_)->Printf.printf "Mem:";assert false;
+		| Var(v)->
+			get_vname v;
+		| Mem(_)->Printf.printf "Mem";assert false;
 		);
 	| SizeOf(_)->Printf.printf "SizeOf\n";assert false
 	| SizeOfE(_)->Printf.printf "SizeOfE\n";assert false

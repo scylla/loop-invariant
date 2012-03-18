@@ -227,7 +227,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let info = C2equation.make_info cil in
 	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	Frontend.compute_and_display fmt info fgraph bgraph manpk ipl wp_compute;
+	Frontend.compute_and_display fmt info fgraph bgraph manbox ipl wp_compute;
 	Printf.printf "Frontend.compute_and_display over\n";
 	
 	
@@ -297,7 +297,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  )!assumes;
 		  match kf.fundec with
 		  | Definition(_,_)->
-	    	analysis_kf kf manpk !linfo_list !assumes funsigs visitor ipl wp_compute;
+	    	analysis_kf kf manbox !linfo_list !assumes funsigs visitor ipl wp_compute;
       		(*prove_kf kf;*)
       | Declaration(spec,v,vlo,_)->
       	();

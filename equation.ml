@@ -70,6 +70,7 @@ type procinfo = {
   plocal: Apron.Var.t array;  (** Array of other variables *)
   penv: Apron.Environment.t;  (** Environment of the procedure *)
   avar2cvar: (Apron.Var.t,Cil_types.varinfo) Hashhe.t;
+  has_def: bool;(*the fun is only declaration?*)
 }
 
 let dummy_procinfo =
@@ -82,6 +83,7 @@ let dummy_procinfo =
 		plocal = [||];
 		penv = Apron.Environment.make [||] [||];
 		avar2cvar = Hashhe.create 1;
+		has_def = false;
 	}
 (** Useful information for the program *)
 type info = {
@@ -237,26 +239,36 @@ let print_transfer fmt transfer =
       fprintf fmt "CALL %s:" calleeinfo.pname;
       Array.iter(fun arg->
 		    begin match arg with
-		    | LiType.APTexpr(dest)->
-			    Apron.Texpr1.print fmt dest
+				| LiType.APTexpr(dest)->
+					Apron.Texpr1.print fmt dest;
+		    | LiType.APLexpr(dest)->
+			    Apron.Linexpr1.print fmt dest
 			  | LiType.APVar(dest)->
 			  	Apron.Var.print fmt dest
+			  | LiType.APScalar(dest)->
+			  	Apron.Scalar.print fmt dest
 			  end;
 	   	)out;
 	   	Array.iter(fun arg->
       begin match arg with
-		    | LiType.APTexpr(source)->
-			    Apron.Texpr1.print fmt source
+				| LiType.APTexpr(source)->
+					Apron.Texpr1.print fmt source;
+		    | LiType.APLexpr(source)->
+			    Apron.Linexpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
+			  | LiType.APScalar(source)->
+			  	Apron.Scalar.print fmt source
 	    end;
 	    )pin;
     | None->
     	fprintf fmt "CALL %s:" calleeinfo.pname;
       Array.iter(fun arg->
      		begin match arg with
-		    | LiType.APTexpr(source)->
-			    Apron.Texpr1.print fmt source
+				| LiType.APTexpr(source)->
+					Apron.Texpr1.print fmt source;
+		    | LiType.APLexpr(source)->
+			    Apron.Linexpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
 			  | LiType.APScalar(s)->
@@ -273,8 +285,10 @@ let print_transfer fmt transfer =
     	fprintf fmt "RETURN %s:" calleeinfo.pname;
       Array.iter(fun arg->
 		    begin match arg with
-		    | LiType.APTexpr(dest)->
-			    Apron.Texpr1.print fmt dest
+				| LiType.APTexpr(dest)->
+					Apron.Texpr1.print fmt dest;
+		    | LiType.APLexpr(dest)->
+			    Apron.Linexpr1.print fmt dest
 			  | LiType.APVar(dest)->
 			  	Apron.Var.print fmt dest
 			  | LiType.APScalar(s)->
@@ -283,8 +297,10 @@ let print_transfer fmt transfer =
 	   	)pout;
       Array.iter(fun arg->
      		begin match arg with
-		    | LiType.APTexpr(source)->
-			    Apron.Texpr1.print fmt source
+				| LiType.APTexpr(source)->
+					Apron.Texpr1.print fmt source;
+		    | LiType.APLexpr(source)->
+			    Apron.Linexpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
 			  | LiType.APScalar(s)->
@@ -297,8 +313,10 @@ let print_transfer fmt transfer =
       fprintf fmt "RETURN %s:" calleeinfo.pname;
       Array.iter(fun arg->
      		begin match arg with
-		    | LiType.APTexpr(source)->
-			    Apron.Texpr1.print fmt source
+				| LiType.APTexpr(source)->
+					Apron.Texpr1.print fmt source;
+		    | LiType.APLexpr(source)->
+			    Apron.Linexpr1.print fmt source
 			  | LiType.APVar(source)->
 			  	Apron.Var.print fmt source
 			  | LiType.APScalar(s)->

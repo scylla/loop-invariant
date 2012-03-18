@@ -79,6 +79,7 @@ let make_fpmanager
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
       (*Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);*)
       with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
+      | Apron.Manager.Error(log)->Printf.printf "Manager.Error:";Apron.Manager.print_exclog fmt log;Format.print_flush ();Printf.printf "\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
       (* Apron.Abstract1.canonicalize man abs *)
@@ -87,7 +88,12 @@ let make_fpmanager
       Apron.Abstract1.is_bottom man abs
     end;
     Fixpoint.is_leq = begin fun vtx abs1 abs2 ->
+    	Printf.printf "is_leq\n";
+    	Apron.Abstract1.print fmt abs1;Format.print_flush ();Printf.printf "\n";
+    	Apron.Abstract1.print fmt abs2;Format.print_flush ();Printf.printf "\n";
+      try
       Apron.Abstract1.is_leq man abs1 abs2
+      with Apron.Manager.Error(exclog)->false(*they are not compatible*)
     end;
     Fixpoint.join = begin fun vtx abs1 abs2 ->
       Apron.Abstract1.join man abs1 abs2
@@ -250,6 +256,9 @@ module Forward = struct
   let apply_tassign (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (var: Apron.Var.t) (expr:Apron.Texpr1.t) (dest:'a Apron.Abstract1.t option)
     =
     let fmt = Format.std_formatter in
+    Printf.printf "tassign:\n";
+    Apron.Var.print fmt var;Format.print_flush ();Printf.printf "\n";
+    Apron.Texpr1.print fmt expr;Format.print_flush ();Printf.printf "\n";
     let res =
     	Apron.Abstract1.assign_texpr
 				manager abstract
@@ -379,6 +388,10 @@ module Forward = struct
     	Apron.Var.print fmt v;Format.print_flush ();Printf.printf "\n";
     )(Array.of_list tenv);
     
+    Printf.printf "res:";
+    Apron.Abstract1.print fmt res;Format.print_flush ();Printf.printf "\n";
+    
+    begin try
     Apron.Abstract1.rename_array_with
       manager res calleeinfo.Equation.pinput (Array.of_list tenv);
     (* 2. We unify the renamed callee value and the caller value *)
@@ -406,6 +419,7 @@ module Forward = struct
     | Some dest ->
 			Apron.Abstract1.meet_with manager res dest
     end;
+    with Apron.Manager.Error(log)->Printf.printf "Manager.Error:";Apron.Manager.print_exclog fmt log;Format.print_flush ();Printf.printf "\n";end;
     res
 
   (** Main transfer function *)
@@ -458,7 +472,14 @@ module Forward = struct
 	  	| Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
 	  		apply_call manager abs calleeinfo tin dest
       | Equation.Return(callerinfo,calleeinfo,tin,tout) ->
+      	(*how to decide that whether two abstract values are compatible*)
+      	Array.iter(fun abs->
+      		Printf.printf "abs:";Apron.Abstract1.print fmt abs;Format.print_flush ();Printf.printf "\n";
+      	)tabs;
+      	if calleeinfo.Equation.has_def == true then
 	  		apply_return manager abs tabs.(1) calleeinfo tin tout dest
+	  		else
+	  		tabs.(1)
     in
     (transfer,res)
 
