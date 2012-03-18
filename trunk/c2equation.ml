@@ -153,6 +153,7 @@ let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 		| Neg->assert false;(*-*)
 		| BNot->assert false;
 		)
+	| Const _->TRUE;
 	| _->assert false
 	end
 
@@ -195,12 +196,16 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		let strfmt = Format.str_formatter in
 		let fmt = Format.std_formatter in
 		
-		let add_lval lv =
+		let add_lval lv loc =
 			let (host,offset) = lv in
 			begin match host with
 			| Var(v)->
 				begin match v.vtype with
 				| TArray(_)->();
+				| TPtr(_,_)->
+					let name = LiUtils.get_vname v in
+					if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
+					begin lvals := (Apron.Var.of_string name)::(!lvals);end;
 				| _->
 					Cil.d_lval strfmt lv;
 					let name = Format.flush_str_formatter () in
@@ -210,7 +215,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 			| Mem(m)->();
 			end;
 		in
-		let rec add_env_exp e =
+		let rec add_env_exp e loc =
 			begin match e.enode with
 			| Const(cons)->
 				Cil.d_const strfmt cons;
@@ -218,9 +223,9 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 				if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
 				begin lvals := (Apron.Var.of_string name)::(!lvals);end;
 			| SizeOfStr(_)|AlignOf(_)|SizeOf(_)->();
-			| Lval(l)|AddrOf(l)|StartOf(l)->add_lval l;
-			| SizeOfE(e1)|AlignOfE(e1)|UnOp(_,e1,_)|CastE(_,e1)|Info(e1,_)->add_env_exp e1;
-			| BinOp(_,e1,e2,_)->add_env_exp e1;add_env_exp e2;
+			| Lval(l)|AddrOf(l)|StartOf(l)->add_lval l loc;
+			| SizeOfE(e1)|AlignOfE(e1)|UnOp(_,e1,_)|CastE(_,e1)|Info(e1,_)->add_env_exp e1 loc;
+			| BinOp(_,e1,e2,_)->add_env_exp e1 loc;add_env_exp e2 loc;
 			end;
 		in
 		let rec add_env_block b =
@@ -228,34 +233,34 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 				begin match s.skind with
 				| Instr (ins)->
 					begin match ins with
-					| Set(lv,e,_)->
-						add_lval lv;
-						add_env_exp e;
-					| Call(lvo,e,el,_)->
+					| Set(lv,e,loc)->
+						add_lval lv loc;
+						add_env_exp e loc;
+					| Call(lvo,e,el,loc)->
 						begin match lvo with
 						| Some(lv)->
-							add_lval lv;
+							add_lval lv loc;
 						| None->();
 						end;
 						add_env_exp e;
 						List.iter(fun e1->
-							add_env_exp e1;
+							add_env_exp e1 loc;
 						)el;
 					| Asm _|Skip _|Code_annot _->();
 					end;
-				| Cil_types.Return(eo,_)->
+				| Cil_types.Return(eo,loc)->
 					begin match eo with
 					| Some(e1)->
-						add_env_exp e1;
+						add_env_exp e1 loc;
 					| None->();
 					end;
 				| Goto _|Break _|Continue _->();
-				| If(e,b1,b2,_)->
-					add_env_exp e;
+				| If(e,b1,b2,loc)->
+					add_env_exp e loc;
 					add_env_block b1;
 					add_env_block b2;
-				| Switch(e,b1,_,_)->
-					add_env_exp e;
+				| Switch(e,b1,_,loc)->
+					add_env_exp e loc;
 					add_env_block b1;
 				| Loop(_,b1,_,_,_)|Block(b1)->
 					add_env_block b1;
@@ -281,6 +286,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		  Equation.plocal = plocal;
 		  Equation.penv = penv;
 		  Equation.avar2cvar = avar2cvar;
+		  Equation.has_def = true;
  	 }
   | Declaration(spec,v,vlo,loc)->
   	let pinput = ref [||] in
@@ -301,6 +307,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		  Equation.plocal = [||];
 		  Equation.penv = !penv;
 		  Equation.avar2cvar = avar2cvar;
+		  Equation.has_def = false;
   	}
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
@@ -470,7 +477,7 @@ module Forward = struct
 						let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|point|] transfer spoint;
 					| Call(lvo,e,el,l)->
-						match lvo with
+						begin match lvo with
 						| Some(lv)->
 							let (host,offset) = lv in
 							(match host with
@@ -508,7 +515,7 @@ module Forward = struct
 							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = ref [] in
 							List.iter(fun e->
-								Printf.printf "pin=\n";Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
+								(*Printf.printf "pin=\n";Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";*)
 								let arg = Translate.force_exp_to_arg env e in
 								LiType.print_arg fmt arg;Printf.printf "\n";
 								pin := !pin@[arg];
@@ -518,12 +525,13 @@ module Forward = struct
 							Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 							Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
 							);
+						end;
       		| _->
       			Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
       			let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
-      	| Loop(_,_,_,_,_)->
+      	| Loop(_,_,loc,_,_)->
       		Translate.generate_array fmt procinfo.kf (Hashtbl.find arrayvars (Kernel_function.get_id procinfo.kf)) stmt;
       		let loop = Translate.extract_loop stmt in
       		let rec find_con s conl =
@@ -599,9 +607,16 @@ module Forward = struct
       		
       		let vars = LiUtils.extract_varinfos_from_stmt stmt in
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
-					
-					
-					let transfers = Translate.generate_template fmt procinfo.kf loop lvars !conl stmt env ipl wp_compute in
+					(*remove ptr var*)
+					let nvars = ref [] in
+					List.iter(fun v->
+						begin match v.vtype with
+						| TPtr _->();
+						| _->nvars := v::(!nvars);
+						end;
+					)lvars;
+					Printf.printf "precess fun [%s] in formake\n" name;
+					let transfers = Translate.generate_template fmt procinfo.kf loop !nvars !conl stmt loc env ipl wp_compute in
 					List.iter(fun constransfer->
 						Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 						Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
@@ -612,6 +627,7 @@ module Forward = struct
           Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
           LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;*)
           
+          Printf.printf "loop.con:";Cil.d_exp fmt loop.con;Format.print_flush ();Printf.printf "\n";
       		let bexpr = force_exp2bexp loop.con in
       		let cond = boolexpr_of_bexpr env bexpr in
 					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
@@ -675,10 +691,13 @@ module Forward = struct
 					)else
 					(
 						let last_stmt = List.nth b1.bstmts ((List.length b1.bstmts)-1) in
+						if (List.length last_stmt.succs)>0 then
+						begin
 						let first_stmt = List.nth last_stmt.succs 0 in
 						if (Equation.compare_point {fname=name;sid=first_stmt.Cil_types.sid} Equation.vertex_dummy)!=0 then(
 							Equation.add_equation graph	[|point|] condnottransfer {fname=name;sid=first_stmt.Cil_types.sid};
 						);
+						end;
 					);
 					
 					iter_block name procinfo b1;

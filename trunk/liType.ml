@@ -17,6 +17,7 @@ let print_valEle fmt ele =
 (*arguments type*)
 type arg =
 	| APTexpr of Apron.Texpr1.t
+	| APLexpr of Apron.Linexpr1.t
 	| APVar of Apron.Var.t
 	| APScalar of Apron.Scalar.t(*const-->Scalar?*)
 
@@ -24,6 +25,8 @@ let print_arg fmt arg =
 	begin match arg with
 	| APTexpr(exp)->
 		Apron.Texpr1.print fmt exp;
+	| APLexpr(exp)->
+		Apron.Linexpr1.print fmt exp;
 	| APVar(v)->
 		Apron.Var.print fmt v;
 	| APScalar(s)->
