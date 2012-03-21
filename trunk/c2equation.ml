@@ -212,7 +212,12 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 					if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
 					begin lvals := (Apron.Var.of_string name)::(!lvals);end;
 				end;
-			| Mem(m)->();
+			| Mem(m)->
+				let strfmt = Format.str_formatter in
+				Cil.d_lval strfmt lv;
+				let name = Format.flush_str_formatter () in
+				if (List.for_all (fun v->(String.compare (Apron.Var.to_string v) name)!=0) !lvals)==true then
+				begin lvals := (Apron.Var.of_string name)::(!lvals);end;
 			end;
 		in
 		let rec add_env_exp e loc =
@@ -454,11 +459,12 @@ module Forward = struct
       			(match host with
       			| Var(v)->
       				let var = Apron.Var.of_string v.vname in
-		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (Translate.force_exp_to_texp e) in
-								Apron.Texpr1.of_expr env texp
+		   				let ass =
+		   					(*let texp = (Translate.force_exp_to_arg env e) in
+								Apron.Texpr1.of_expr env texp*)
+								Translate.force_exp_to_arg env e
 							in
-							let transfer = Equation.Tassign(var,texpr) in
+							let transfer = Equation.Assign(var,ass) in
 							
 							Equation.add_equation graph [|point|] transfer spoint;
 						| Mem(e1)->Cil.d_exp fmt e1;Format.print_flush ();Printf.printf "\n";
@@ -466,11 +472,12 @@ module Forward = struct
 							Cil.d_lval strfmt lval;
 							let name = Format.flush_str_formatter () in
 							let var = Apron.Var.of_string name in(*(LiUtils.get_exp_name e1)*)
-		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (Translate.force_exp_to_texp e) in
-								Apron.Texpr1.of_expr env texp
+		   				let ass =
+		   					(*let texp = (Translate.force_exp_to_texp e) in
+								Apron.Texpr1.of_expr env texp*)
+								Translate.force_exp_to_arg env e
 							in
-      				let transfer = Equation.Tassign(var,texpr) in
+      				let transfer = Equation.Assign(var,ass) in
 							Equation.add_equation graph [|point|] transfer spoint;
 						);
 					| Skip(l)->
@@ -768,11 +775,12 @@ module Backward = struct
       			(match host with
       			| Var(v)->
       				let var = Apron.Var.of_string v.vname in
-		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (Translate.force_exp_to_texp e) in
-								Apron.Texpr1.of_expr env texp
+		   				let ass =
+		   					(*let texp = (Translate.force_exp_to_texp e) in
+								Apron.Texpr1.of_expr env texp*)
+								Translate.force_exp_to_arg env e
 							in
-							let transfer = Equation.Tassign(var,texpr) in
+							let transfer = Equation.Assign(var,ass) in
 							
 							Equation.add_equation graph [|spoint|] transfer point;
 						| Mem(e1)->
@@ -780,11 +788,12 @@ module Backward = struct
 							Cil.d_lval strfmt lval;
 							let name = Format.flush_str_formatter () in
 							let var = Apron.Var.of_string name in(*(LiUtils.get_exp_name e1)*)
-		   				let (texpr:Apron.Texpr1.t) =
-		   					let texp = (Translate.force_exp_to_texp e) in
-								Apron.Texpr1.of_expr env texp
+		   				let ass =
+		   					(*let texp = (Translate.force_exp_to_texp e) in
+								Apron.Texpr1.of_expr env texp*)
+								Translate.force_exp_to_arg env e
 							in
-      				let transfer = Equation.Tassign(var,texpr) in
+      				let transfer = Equation.Assign(var,ass) in
 							Equation.add_equation graph [|spoint|] transfer point;
 						);
 					| Skip(l)->

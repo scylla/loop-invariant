@@ -117,12 +117,8 @@ type var = point
 (** Information associated to hyperedges/functions used in equations *)
 type transfer =
 	| Lcons of Apron.Tcons1.t * Apron.Lincons1.t * Cil_types.code_annotation * bool ref
-		(**linear constraint. cond,cons and is all true?*)
 	| Tcons of Apron.Tcons1.t * Apron.Tcons1.t * Cil_types.code_annotation * bool ref
-  | Lassign of Apron.Var.t * Apron.Linexpr1.t
-    (** Assignement by a linear expression *)
-  | Tassign of Apron.Var.t * Apron.Texpr1.t
-    (** Assignement by a tree expression *)
+  | Assign of Apron.Var.t * LiType.arg
   | Condition of Apron.Tcons1.earray Boolexpr.t
     (** Filtering of a predicate by a Boolean expression *)
   | Calle of procinfo * procinfo * LiType.arg array * LiType.arg array option
@@ -225,11 +221,10 @@ let print_transfer fmt transfer =
 		Apron.Lincons1.print fmt cons1
 	| Tcons(cond,tcons,code_annotation,sat)->
 		Apron.Tcons1.print fmt tcons
-  | Lassign _ -> failwith ""
-  | Tassign(v,e) ->
+  | Assign(v,ass)->
     fprintf fmt "%a = %a"
     Apron.Var.print v
-    Apron.Texpr1.print e
+    LiType.print_arg ass
   | Condition(bexpr) ->
     fprintf fmt "IF %a"
     (Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) bexpr

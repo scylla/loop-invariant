@@ -286,7 +286,7 @@ let propagate_vertex
 				end
 				else
 					attrhedge.aempty <- true;
-			with Apron.Manager.Error(log)->Printf.printf "Manager.Error:";Apron.Manager.print_exclog manager.print_fmt log;Format.print_flush ();Printf.printf "\n";end;
+			with Apron.Manager.Error(log)->Printf.printf "Manager.Error2:";Apron.Manager.print_exclog manager.print_fmt log;Format.print_flush ();Printf.printf "\n";attrhedge.aempty <- true;end;
 		end
 		else
 			attrhedge.aempty <- true;
