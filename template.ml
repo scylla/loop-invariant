@@ -73,13 +73,15 @@ let make_fpmanager
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
     	try
-    	(*Printf.printf "find bottom\n";
+    	Printf.printf "find bottom\n";
+    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Format.print_flush ();Printf.printf "\n";
     	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
-    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Printf.printf "\n";*)
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
       (*Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);*)
-      with Not_found->Printf.printf "Not_found in make_fpmanager\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
-      | Apron.Manager.Error(log)->Printf.printf "Manager.Error:";Apron.Manager.print_exclog fmt log;Format.print_flush ();Printf.printf "\n";Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
+      with Not_found->Printf.printf "Not_found in make_fpmanager\n";
+      Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
+      | Apron.Manager.Error(log)->Printf.printf "Manager.Error1:";Apron.Manager.print_exclog fmt log;Format.print_flush ();Printf.printf "\n";
+      Apron.Abstract1.bottom man (Apron.Environment.make [||] [||])
     end;
     Fixpoint.canonical = begin fun vtx abs -> ()
       (* Apron.Abstract1.canonicalize man abs *)
@@ -231,6 +233,17 @@ let environment_of_args (args:LiType.arg array) =
 			
 			extract (Apron.Texpr1.to_expr exp);
 			env := (!env)@(!i)@(!r);
+		| LiType.APLexpr(lexp)->
+			let env0 = Apron.Linexpr1.get_env lexp and i = ref [] and r = ref [] in
+			Apron.Linexpr1.iter(fun c v->
+				let tp = Apron.Environment.typ_of_var env0 v in
+				begin match tp with
+				| Apron.Environment.INT->i := v::(!i);
+				| Apron.Environment.REAL->r := v::(!r);
+				end;
+			)lexp;			
+			
+			env := (!env)@(!i)@(!r);
 		| LiType.APVar(v)->
 			env := !env@[v];
 		| LiType.APScalar(s)->
@@ -253,16 +266,25 @@ module Forward = struct
   (** {3 Transfer function} *)
   (*  ===================================================================== *)
 
-  let apply_tassign (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (var: Apron.Var.t) (expr:Apron.Texpr1.t) (dest:'a Apron.Abstract1.t option)
+  let apply_assign (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (var: Apron.Var.t) (expr:LiType.arg) (dest:'a Apron.Abstract1.t option)
     =
     let fmt = Format.std_formatter in
     Printf.printf "tassign:\n";
     Apron.Var.print fmt var;Format.print_flush ();Printf.printf "\n";
-    Apron.Texpr1.print fmt expr;Format.print_flush ();Printf.printf "\n";
+    LiType.print_arg fmt expr;Format.print_flush ();Printf.printf "\n";
     let res =
-    	Apron.Abstract1.assign_texpr
+    	begin match expr with
+    	| LiType.APTexpr(expr)->
+    		Apron.Abstract1.assign_texpr
 				manager abstract
 				var expr dest
+    	| LiType.APLexpr(expr)->
+    		Apron.Abstract1.assign_linexpr
+				manager abstract
+				var expr dest
+    	| LiType.APScalar(_)|LiType.APVar(_)->
+    		abstract
+    	end;
     in
     res
 
@@ -463,10 +485,8 @@ module Forward = struct
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
       	apply_tcons manager abs tcons dest
-      | Equation.Tassign(var,expr) ->
-	 			apply_tassign manager abs var expr dest
-      | Equation.Lassign _ ->
-	 			failwith ""
+      | Equation.Assign(var,ass) ->
+	 			apply_assign manager abs var ass dest
       | Equation.Condition cond ->
 	  		apply_condition manager abs cond dest
 	  	| Equation.Calle(callerinfo,calleeinfo,tin,tout) ->
@@ -588,17 +608,26 @@ module Backward = struct
   (** {3 Transfer function} *)
   (*  ===================================================================== *)
 
-  let apply_tassign
+  let apply_assign
     (manager:'a Apron.Manager.t)
     (abstract:'a Apron.Abstract1.t)
     (var: Apron.Var.t)
-    (expr:Apron.Texpr1.t)
+    (expr:LiType.arg)
     (dest:'a Apron.Abstract1.t option)
     =
     let res =
-      Apron.Abstract1.substitute_texpr
+    	begin match expr with
+    	| LiType.APTexpr(expr)->
+    		Apron.Abstract1.assign_texpr
 				manager abstract
 				var expr dest
+    	| LiType.APLexpr(expr)->
+    		Apron.Abstract1.assign_linexpr
+				manager abstract
+				var expr dest
+    	| LiType.APScalar(_)|LiType.APVar(_)->
+    		abstract
+    	end;
     in
     res
 
@@ -682,10 +711,8 @@ module Backward = struct
     in
     let res =
       match transfer with
-      | Equation.Tassign(var,expr) ->
-	 			apply_tassign manager abs var expr dest
-      | Equation.Lassign _ ->
-	  		failwith ""
+      | Equation.Assign(var,ass) ->
+	 			apply_assign manager abs var ass dest
       | Equation.Condition cond ->
 	  		apply_condition manager abs cond dest
       | Equation.Calle(callerinfo,calleeinfo,tin,tout) ->

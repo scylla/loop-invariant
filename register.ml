@@ -227,8 +227,8 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let info = C2equation.make_info cil in
 	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	Frontend.compute_and_display fmt info fgraph bgraph manbox ipl wp_compute;
-	Printf.printf "Frontend.compute_and_display over\n";
+	(*Frontend.compute_and_display fmt info fgraph bgraph manbox ipl wp_compute;
+	Printf.printf "Frontend.compute_and_display over\n";*)
 	
 	
 	let funsigs =

@@ -11,10 +11,6 @@ void phase()
 	}
 	assert(m==11);
 }*/
-#include<stdlib.h>
-
-//extern  __attribute__((__nothrow__)) void *malloc(size_t __size )  __attribute__((__malloc__)) ;
-//line 451 "nxt-bad.c"
 int create_msg(u_char *buf ) 
 { 
   u_char *p ;
@@ -176,15 +172,23 @@ int create_msg(u_char *buf )
   }
 #line 496
   len += comp_size;
+#line 498
   while (1) {
+#line 498
     t_s = (u_int16_t )30;
-//#line 498
+#line 498
     t_cp = p;
+#line 498
     tmp___12 = t_cp;
+#line 498
     t_cp ++;
+#line 498
     *tmp___12 = (u_char )((int )t_s >> 8);
+#line 498
     *t_cp = (u_char )t_s;
+#line 498
     p += 2;
+#line 498
     break;
   }
 #line 499
