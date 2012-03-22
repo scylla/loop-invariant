@@ -875,11 +875,23 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		if len>0 then
 		begin
 		
+		
+		let cof_to_int c =(*maybe exist problem*)
+			Apron.Coeff.print strfmt c;
+			int_of_string (Format.flush_str_formatter ());
+		in
+		
+		let template_size = 1 in
 		while !count<(!total) do
 			let com = ref [] in
+			
 			for i=0 to (len-1) do
 				let (indexi,name,li) = List.nth !coeffl i in
-				com := (name,(List.nth li !indexi))::(!com);
+				let c = List.nth li !indexi in
+				if (cof_to_int c)!=0 then
+				begin
+					com := (name,c)::(!com);
+				end;
 				indexi := !indexi+1;
 				
 				if !indexi==(List.length li) then
@@ -895,10 +907,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 					in
 				
 					inc (i+1);
-				end;
-				
+				end;				
 			done;
-			
 			
 			Printf.printf "com:";
 			
@@ -910,6 +920,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			let term_vars = ref zero_term in
 			let const_min = ref Big_int.zero_big_int and const_max = ref Big_int.zero_big_int in
 			
+			if (List.length !com)<=template_size then
+			begin
 			List.iter(fun (name,c)->
 				Printf.printf "name:%s\n" name;
 				let v = Hashtbl.find varhash name in
@@ -920,17 +932,17 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				let tnode = TLval((TVar(lv),TNoOffset)) in
 				let tvar = Logic_const.term tnode ltype in
 				
-				let cof_to_int c =(*maybe exist problem*)
-					Apron.Coeff.print strfmt c;
-					int_of_string (Format.flush_str_formatter ());
-				in
 				
-				let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (cof_to_int c)),Cil_types.IInt,None)) in
-				let tcof = Logic_const.term tnode ltype in
-					
-				let tnode = TBinOp(Mult,tcof,tvar) in
-				lterm := !lterm@[Logic_const.term tnode ltype];
-					
+				
+				if (cof_to_int c)!=0 then
+				begin
+					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (cof_to_int c)),Cil_types.IInt,None)) in
+					let tcof = Logic_const.term tnode ltype in				
+				
+					let tnode = TBinOp(Mult,tcof,tvar) in
+					lterm := !lterm@[Logic_const.term tnode ltype];
+				end;
+				
 				let lval = Cil.var v in
 			
 				(*sum of steps of var v.vname??*)
@@ -1184,6 +1196,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			List.iter(fun typ->
 				mk_lincons typ;();
 			)[Req;Rgt];
+			end;
 			
 			count := !count+1;
 		done;
