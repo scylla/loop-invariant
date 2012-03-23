@@ -67,6 +67,7 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 
 let add_vars (env:Apron.Environment.t) (lvar:Apron.Var.t list) avar2cvar :Apron.Environment.t =
 	let names = ref [] in
+	
 	let (a1,a2)= Apron.Environment.vars env in
 	Array.iter(fun v->
 		names := (Apron.Var.to_string v)::!names;
@@ -465,6 +466,7 @@ let extract_step kf vars stmt =
 	| Loop(_,b,_,_,_)->
 		let llist = LiPdg.find_bnodes b pdg in
 		
+		try
 		List.iter(fun node->
 			Printf.printf "pretty_node:";(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
 			let nodes = (!Db.Pdg.all_uses) pdg [node] in
@@ -480,6 +482,7 @@ let extract_step kf vars stmt =
 				end;
 			)nodes;
 		)vlist;
+		with Stack_overflow->Printf.printf "Stack_overflow\n";
 	| _->();
 	end;
 	let res = Hashtbl.create 3 in
@@ -796,14 +799,6 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	extract_coeff_from_loop coeffs stmt;
 	
 	List.iter(fun (_,e)->
-		let ecoeffs = extract_coeff_from_exp coeffs e None in
-		(*List.iter(fun (name,cof)->
-			try
-			let l = Hashtbl.find coeffs name in
-			if (List.for_all(fun c->(Apron.Coeff.equal c cof)==false) !l)==true then l := cof::(!l);
-			with Not_found->();
-		)ecoeffs;*)
-		
 		let tcons = force_exp2tcons e env in
 		
 		let t = Logic_utils.expr_to_term false e in
@@ -826,62 +821,61 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 		let root_code_annot_ba = Cil_types.User(code_annotation) in
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-		if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+		(*if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
 		begin(*wp cannot prove*)
 			transfers := Tcons(cond,tcons,code_annotation,ref true)::!transfers; 
-		end;
+		end;*)
 	)conl;
 	
 	
 	(*enumerate the combinations of coeffs and steps. coeffs both in loop body and conds.steps in loop body*)
 		(*the form is sum(cof*var)+const?0,? represents >,<,>=,<=,!=,== etc*)
 		
-		(*var and cof part*)
-		(*merge lvars and vars.lvars represents all var in loop body. varhash:name->var*)
-		let varhash = Hashtbl.create 3 in
-		let avars = ref lvars in
-		List.iter(fun valele->
-			begin match valele with
-			| LiType.Var(v)->
-				if (List.for_all(fun v1->v.vid!=v1.vid) !avars)==true then
-				begin
-					avars := v::(!avars);
-				end;
-			| LiType.Lval(_)->();
+	(*var and cof part*)
+	(*merge lvars and vars.lvars represents all var in loop body. varhash:name->var*)
+	let varhash = Hashtbl.create 3 in
+	let avars = ref lvars in
+	List.iter(fun valele->
+		begin match valele with
+		| LiType.Var(v)->
+			if (List.for_all(fun v1->v.vid!=v1.vid) !avars)==true then
+			begin
+				avars := v::(!avars);
 			end;
-		)(!vars);
+		| LiType.Lval(_)->();
+		end;
+	)(!vars);
 		
-		List.iter(fun v->			
-			begin match v.vtype with
-			| TPtr(_,_)->
-				let lv = Cil.new_exp ~loc:loc (Lval(Mem((Cil.evar ~loc:loc v)),NoOffset)) in
-				Cil.d_exp strfmt lv;
-				let name = Format.flush_str_formatter () in
-				Hashtbl.add varhash name v;
-				Printf.printf "TPtr:%s\n" name;
-			| _->
-				Hashtbl.add varhash v.vname v;
-			end;
-		)(!avars);
+	List.iter(fun v->			
+		begin match v.vtype with
+		| TPtr(_,_)->
+			let lv = Cil.new_exp ~loc:loc (Lval(Mem((Cil.evar ~loc:loc v)),NoOffset)) in
+			Cil.d_exp strfmt lv;
+			let name = Format.flush_str_formatter () in
+			Hashtbl.add varhash name v;
+			Printf.printf "TPtr:%s\n" name;
+		| _->
+			Hashtbl.add varhash v.vname v;
+		end;
+	)(!avars);
 		
-		let coeffl = ref [] in
-		let total = ref 1 and count = ref 0 in	
-		Hashtbl.iter(fun name l->
-			coeffl := ((ref 0),name,!l)::(!coeffl);
-			total := !total*(List.length !l);
-		)coeffs;
-		let len = List.length !coeffl in
-		Printf.printf "total=%d\n" !total;
-		if len>0 then
-		begin
-		
-		
+	let coeffl = ref [] in
+	let total = ref 1 and count = ref 0 in	
+	Hashtbl.iter(fun name l->
+		coeffl := ((ref 0),name,!l)::(!coeffl);
+		total := !total*(List.length !l);
+	)coeffs;
+	
+	let len = List.length !coeffl in
+	Printf.printf "total=%d\n" !total;
+	if len>0 then
+	begin		
 		let cof_to_int c =(*maybe exist problem*)
 			Apron.Coeff.print strfmt c;
 			int_of_string (Format.flush_str_formatter ());
 		in
 		
-		let template_size = 1 in
+		let template_size = 2 in
 		while !count<(!total) do
 			let com = ref [] in
 			
@@ -930,9 +924,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				| _->
 				let lv = Cil.cvar_to_lvar v in
 				let tnode = TLval((TVar(lv),TNoOffset)) in
-				let tvar = Logic_const.term tnode ltype in
-				
-				
+				let tvar = Logic_const.term tnode ltype in				
 				
 				if (cof_to_int c)!=0 then
 				begin
@@ -941,40 +933,40 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				
 					let tnode = TBinOp(Mult,tcof,tvar) in
 					lterm := !lterm@[Logic_const.term tnode ltype];
-				end;
 				
-				let lval = Cil.var v in
+					let lval = Cil.var v in
 			
-				(*sum of steps of var v.vname??*)
-				try
-					let step = Hashtbl.find steps name in			
-					List.iter(fun c->
-						const_min := Big_int.add_big_int !const_min (Big_int.big_int_of_int c);
-						const_max := Big_int.add_big_int !const_max (Big_int.big_int_of_int c);
-					)(!step);
-				with Not_found->Printf.printf "Not_found:";Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+					(*sum of steps of var v.vname??*)
+					try
+						let step = Hashtbl.find steps name in			
+						List.iter(fun c->
+							const_min := Big_int.add_big_int !const_min (Big_int.big_int_of_int c);
+							const_max := Big_int.add_big_int !const_max (Big_int.big_int_of_int c);
+						)(!step);
+					with Not_found->Printf.printf "Not_found:";Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
 			
-				let mostv = 
-					List.find_all (fun (v1,min,max)->
-					begin match v1 with
-					| LiType.Var(v2)->v2==v
-					| LiType.Lval(_)->false
-					end;) !most
-				in
+					let mostv = 
+						List.find_all (fun (v1,min,max)->
+						begin match v1 with
+						| LiType.Var(v2)->v2==v
+						| LiType.Lval(_)->false
+						end;) !most
+					in
 			
-				List.iter(fun (v,min,max)->
-					const_min := Big_int.add_big_int !const_min min;
-					const_max := Big_int.add_big_int !const_max max;
-					Printf.printf ",min=%s,max=%s\n" (My_bigint.to_string min) (My_bigint.to_string max);
-				)mostv;
+					List.iter(fun (v,min,max)->
+						const_min := Big_int.add_big_int !const_min min;
+						const_max := Big_int.add_big_int !const_max max;
+						Printf.printf ",min=%s,max=%s\n" (My_bigint.to_string min) (My_bigint.to_string max);
+					)mostv;
 					
 				
-				Printf.printf "env var name:%s\n" name;
-				let av = Apron.Var.of_string name in
-				vars := Array.append !vars [|av|];
-				cofs := Array.append !cofs [|Apron.Var.of_string (name^"cof")|];
+					Printf.printf "env var name:%s\n" name;
+					let av = Apron.Var.of_string name in
+					vars := Array.append !vars [|av|];
+					cofs := Array.append !cofs [|Apron.Var.of_string (name^"cof")|];
 
-				cofl := (c,av)::!cofl;
+					cofl := (c,av)::!cofl;
+					end;
 				end;
 					
 					
@@ -988,6 +980,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			let tcon_max = Logic_const.term tnode_max ltype in
 	
 			(*make sum to get the last term being the form above.we can create [code_annotation] with this term*)
+			if (List.length !lterm)>0 then
+			begin
 			List.iter(fun t->
 				term_vars := Logic_const.term (TBinOp(PlusA,!term_vars,t)) ltype;
 			)(!lterm);(*(!lterm@[tcon_max]);*)
@@ -1197,10 +1191,11 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				mk_lincons typ;();
 			)[Req;Rgt];
 			end;
+			end;
 			
 			count := !count+1;
 		done;
-		end;
+	end;
 		
 	Printf.printf "generate over\n";
 	!transfers;;

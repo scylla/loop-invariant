@@ -31,7 +31,7 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip wp_compu
 			Printf.printf "Invalid\n";0;
 		);
 	
-	with Exit->Printf.printf "Exit\n";0;
+	with Stack_overflow|Exit->Printf.printf "Exit\n";0;
 	(*1;with Exit->0;
 	let status = Property_status.get ip in
 	match status with

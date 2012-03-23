@@ -149,12 +149,16 @@ let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 	| UnOp(op,e,_)->
 		(match op with
 		| LNot->
+			let fmt = Format.std_formatter in
+			Printf.printf "force_exp2bexp\n";
+			TypePrinter.print_exp_type fmt e;
+			Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
 			NOT(force_exp2bexp e);
 		| Neg->assert false;(*-*)
 		| BNot->assert false;
 		)
 	| Const _->TRUE;
-	| _->assert false
+	| _->FALSE;(*assert false*)
 	end
 
 (** Extract an array of variables from variable declaration list *)
@@ -484,6 +488,7 @@ module Forward = struct
 						let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|point|] transfer spoint;
 					| Call(lvo,e,el,l)->
+					(*we only consider the fun having definition*)
 						begin match lvo with
 						| Some(lv)->
 							let (host,offset) = lv in
@@ -618,11 +623,12 @@ module Forward = struct
 					let nvars = ref [] in
 					List.iter(fun v->
 						begin match v.vtype with
-						| TPtr _->();
-						| _->nvars := v::(!nvars);
+						| TPtr _| TFun _| TNamed _|TComp _| TEnum _| TBuiltin_va_list _->();
+						| _->Printf.printf "%s:" (LiUtils.get_vname v);Cil.d_type fmt v.vtype;Format.print_flush ();Printf.printf "\n";nvars := v::(!nvars);
 						end;
 					)lvars;
 					Printf.printf "precess fun [%s] in formake\n" name;
+					Printf.printf "loop stmt:\n";Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
 					let transfers = Translate.generate_template fmt procinfo.kf loop !nvars !conl stmt loc env ipl wp_compute in
 					List.iter(fun constransfer->
 						Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
