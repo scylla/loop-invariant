@@ -204,6 +204,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 			let (host,offset) = lv in
 			begin match host with
 			| Var(v)->
+				if v.vgenerated==false then
 				begin match v.vtype with
 				| TArray(_)->();
 				| TPtr(_,_)->
@@ -451,6 +452,7 @@ module Forward = struct
       
       if (Equation.compare_point bpoint Equation.vertex_dummy)!=0 then(
       List.fold_left(fun point stmt->
+      	TypePrinter.print_stmtkind fmt stmt.skind;Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
       	let (p1,p2) = LiUtils.get_stmt_location stmt in
       	let spoint = {fname=name;sid=stmt.Cil_types.sid} in
 				if (Equation.compare_point spoint Equation.vertex_dummy)!=0 then
@@ -459,6 +461,7 @@ module Forward = struct
       	| Instr(instr)->
       		(match instr with
       		| Set(lval,e,_)->
+      			Printf.printf "Instr Set\n";
       			let (host,offset) = lval in
       			(match host with
       			| Var(v)->
@@ -492,8 +495,10 @@ module Forward = struct
 						begin match lvo with
 						| Some(lv)->
 							let (host,offset) = lv in
-							(match host with
+							begin match host with
 							| Var(v)->
+								if v.vgenerated==false then
+								begin
 								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
 								let pin = ref [] in
 								List.iter(fun e->
@@ -504,6 +509,7 @@ module Forward = struct
 								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
 								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+								end;
 							| Mem(e)->
 								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
 								let pin = ref [] in
@@ -515,7 +521,7 @@ module Forward = struct
 								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
 								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
 								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
-							);
+							end;
 						| None->
       				let fname = LiUtils.get_exp_name e in
       				if (String.compare fname "__assert_fail")==0 then
@@ -624,7 +630,9 @@ module Forward = struct
 					List.iter(fun v->
 						begin match v.vtype with
 						| TPtr _| TFun _| TNamed _|TComp _| TEnum _| TBuiltin_va_list _->();
-						| _->Printf.printf "%s:" (LiUtils.get_vname v);Cil.d_type fmt v.vtype;Format.print_flush ();Printf.printf "\n";nvars := v::(!nvars);
+						| _->Printf.printf "nvars:%s:" (LiUtils.get_vname v);Cil.d_type fmt v.vtype;Format.print_flush ();Printf.printf "\n";
+						if v.vgenerated==false then
+						begin nvars := v::(!nvars); end;
 						end;
 					)lvars;
 					Printf.printf "precess fun [%s] in formake\n" name;
@@ -640,12 +648,13 @@ module Forward = struct
           Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
           LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;*)
           
-          Printf.printf "loop.con:";Cil.d_exp fmt loop.con;Format.print_flush ();Printf.printf "\n";
+          Printf.printf "loop.con1:";Cil.d_exp fmt loop.con;Format.print_flush ();Printf.printf "\n";
       		let bexpr = force_exp2bexp loop.con in
       		let cond = boolexpr_of_bexpr env bexpr in
 					let condnot = boolexpr_of_bexpr env (NOT bexpr) in
 					let condtransfer = Equation.Condition(cond) in
 					let condnottransfer = Equation.Condition(condnot) in
+					Printf.printf "loop.con2\n";
 					
 					Equation.add_equation graph [|point|] condtransfer {fname=name;sid=first_stmt.Cil_types.sid};
 					Equation.add_equation graph [|{fname=name;sid=first_stmt.Cil_types.sid}|] (Equation.Condition(Boolexpr.make_cst true)) {fname=name;sid=first_id};

@@ -1,3 +1,14 @@
+2012.03.24
+对于会overflow的地方，改用迭代而非递归如iter的实现。
+去除最初的0
+[wp] failure: CFG node <loop-992> has 2 successors instead of 1.为何会这样？
+!Db.Properties.Interp.force_exp_to_predicate的使用，细节要处理。
+如何将所有变量的声明放在最前面？
+不要总是检查指针，如何禁用掉，不生成 synthesized的assert信息？
+kernel/printer.ml,禁掉173行
+cilly没有展开数组，先用它合并，直接用frama-c合并一则没有把所有变量定义放最前，而则展开了数组。
+生成的结果还不能直接验证程序，不知道为什么。
+
 2012.03.23
 如何不展开数组？变量太多时会有Stack_overflow的错误。
 能不能将多个式子一次验证？
