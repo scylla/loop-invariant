@@ -161,49 +161,53 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 			)!tlv_vars;
 		
 			(*Logic_const.unamed (Pforall (!v_vars,con_named))*)
-			let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in(*condition predicate named*)
-			(*let cp_named_temp = Logic_const.unamed (Pforall (!f_lv,cp_named_temp)) in*)
-			List.iter(fun succs->(
-				succs.predicate_list <- cp_named_temp::s.predicate_list;
-				succs.free_lv_list <- !f_lv@s.free_lv_list;
-			)
-			)b1.bstmts;
+			begin match texp_temp.enode with
+			| Lval _ | CastE _ | AddrOf _ | StartOf _ | UnOp _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ ->();
+			| _->
+				let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in(*condition predicate named*)
+				(*let cp_named_temp = Logic_const.unamed (Pforall (!f_lv,cp_named_temp)) in*)
+				List.iter(fun succs->(
+					succs.predicate_list <- cp_named_temp::s.predicate_list;
+					succs.free_lv_list <- !f_lv@s.free_lv_list;
+				)
+				)b1.bstmts;
 		
-			List.iter(fun succs->(
-				succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
-				succs.free_lv_list <- !f_lv@s.free_lv_list;
-			)
-			)b2.bstmts;
+				List.iter(fun succs->(
+					succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
+					succs.free_lv_list <- !f_lv@s.free_lv_list;
+				)
+				)b2.bstmts;
 		
-			(*succs of If? not in b1,b2*)
-			let is_in_block (s:stmt) (b:block) = 
-				let flag = ref false in
-				List.iter(fun s0->
-					if s.sid==s0.sid then flag := true;
-				)b.bstmts;
-				flag;
-			in
+				(*succs of If? not in b1,b2*)
+				let is_in_block (s:stmt) (b:block) = 
+					let flag = ref false in
+					List.iter(fun s0->
+						if s.sid==s0.sid then flag := true;
+					)b.bstmts;
+					flag;
+				in
 		
-			if !b1_break=true then
-			(
-				List.iter(fun if_succs->
-					if (!(is_in_block if_succs b1)=false)&&(!(is_in_block if_succs b2)=false) then
-					begin
-						if_succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::if_succs.predicate_list@s.predicate_list;
-						if_succs.free_lv_list <- !f_lv@s.free_lv_list;
-					end;
-				)s.succs;
-			);
-			if !b2_break=true then
-			(
-				List.iter(fun if_succs->
-					if (!(is_in_block if_succs b1)=false)&&(!(is_in_block if_succs b2)=false) then
-					begin
-						if_succs.predicate_list <- cp_named_temp::if_succs.predicate_list@s.predicate_list;
-						if_succs.free_lv_list <- !f_lv@s.free_lv_list;
-					end;
-				)s.succs;
-			);
+				if !b1_break=true then
+				(
+					List.iter(fun if_succs->
+						if (!(is_in_block if_succs b1)=false)&&(!(is_in_block if_succs b2)=false) then
+						begin
+							if_succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::if_succs.predicate_list@s.predicate_list;
+							if_succs.free_lv_list <- !f_lv@s.free_lv_list;
+						end;
+					)s.succs;
+				);
+				if !b2_break=true then
+				(
+					List.iter(fun if_succs->
+						if (!(is_in_block if_succs b1)=false)&&(!(is_in_block if_succs b2)=false) then
+						begin
+							if_succs.predicate_list <- cp_named_temp::if_succs.predicate_list@s.predicate_list;
+							if_succs.free_lv_list <- !f_lv@s.free_lv_list;
+						end;
+					)s.succs;
+				);
+			end;
 		
 			generate_block_predicate b1;
 			generate_block_predicate b2;
@@ -251,9 +255,8 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 	List.iter( fun stmt ->
 		match stmt.skind with
 		| If(exp,block1,block2,location)->
-		  	let texp = constFold true (stripCasts exp) in
-		  	(
-		  	match texp.enode with
+		  	(*let texp = constFold true (stripCasts exp) in		  	
+		  	begin match texp.enode with
 		  	| BinOp((Div|Mod|Mult|PlusA|MinusA),_,_,_)->
 		  		();
 		  	| BinOp((Lt|Gt|Le|Ge),exp1,exp2,typ)->
@@ -266,72 +269,26 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 		  			let annotation =
 				      Logic_const.new_code_annotation
 				      (AAssert ([],Logic_const.unamed (Prel (Rneq,lexpr, lzero()))))
-		       		in
-		       		let assert_root_code_annot_ba = Cil_types.User(annotation) in
-		       		(*Annotations.add kf stmt [Ast.self] assert_root_code_annot_ba;
+		       	in
+		       		(*let assert_root_code_annot_ba = Cil_types.User(annotation) in
+		       		Annotations.add kf stmt [Ast.self] assert_root_code_annot_ba;
 		       		prove_code_annot kf stmt annotation;*)();
 		  		in
 		  		
 		  		if (Logic_var.Set.is_empty free_vars)=false
 		  		then add_code_annot free_vars;
-		  		(*else begin
-				(*let annotation =
-				      Logic_const.new_code_annotation
-				      (AInvariant ([],true,Logic_const.unamed (Pforall ((Logic_var.Set.elements free_vars),pre_named))
-				      ))
-           		in
-           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
-           		add_code_annot free_vars; end*)
-		  		(*let term = !Db.Properties.Interp.force_exp_to_term texp in
-		  		let new_code_annot = Logic_const.new_code_annotation (term,*)
 		  	| _->();
-		  	);
-		  	(*Cil.d_exp Format.std_formatter texp;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";
-		  	
-		  	let assert_code_annot = !Db.Properties.Interp.force_exp_to_assertion texp in
-		  	Cil.d_code_annotation Format.std_formatter assert_code_annot;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";
-		  	
-		  	let pre = !Db.Properties.Interp.force_exp_to_predicate texp in
-		  	Cil.d_predicate_named Format.std_formatter pre;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";*)
-		  	(*Annotations.add_assert stmt [Ast.self] ~before:true pre;*)
-		  	
-		  	(*let term = !Db.Properties.Interp.force_exp_to_term texp in
-		  	Cil.d_term Format.std_formatter term;
-		  	Format.print_flush ();
-		  	Printf.printf "\n";*)
+		  	end;*)();
 		 (*end If*)
-		 | Instr(instr) ->
-		  	(
-		  	match instr with
-		  	| Set(lval,exp,_)->
-		  		();
-			  	(*let lexp = constFold true (stripCasts exp) in
-				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
-				let tr = !Db.Properties.Interp.force_exp_to_term lexp in
-				let tnode = TLval(tlval) in	
-				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in			
-				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
-				let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
-				
-				let annotation = Logic_const.new_code_annotation (AStmtSpec((tr,id_pre,(Logic_const.new_identified_term tr) spec))) in
-           		let root_code_annot_ba = Db_types.Before(Db_types.User(annotation)) in
-           		Annotations.add stmt [Ast.self] root_code_annot_ba;*)
-			| _->
-				();
-			(*match instr End*)
-			);
-		 		Format.print_flush ();
+		 | Instr(instr) ->();
 		 | Loop(code_annot_list,block,location,stmto1,stmto2) ->
 		 		let loop = Translate.extract_loop stmt in
 		 		List.iter(fun s->
-		 			s.predicate_list <- (!Db.Properties.Interp.force_exp_to_predicate loop.Equation.con)::s.predicate_list;
+		 			begin match loop.Equation.con.enode with
+		 			| Lval _ | CastE _ | AddrOf _ | StartOf _ | UnOp _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ ->();
+    			| _->
+    	 			s.predicate_list <- (!Db.Properties.Interp.force_exp_to_predicate loop.Equation.con)::s.predicate_list;
+    	 		end;
 		 		)loop.Equation.body;
 		 		
 		 		Printf.printf "Enter Loop Now.\n";
@@ -368,7 +325,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (manager:'a Apron.Manager.t) (lin
 									let t_named = Logic_const.unamed ~loc:location id_pre.ip_content in
 									pset2 := t_named::(!pset2);
 																
-									Printf.printf "t=%d," (My_bigint.to_int i);
 								)set;
 								Hashtbl.add oriValues v (Logic_const.pands (!pset1));
 								Hashtbl.add negoriValues v (Logic_const.pands (!pset2));

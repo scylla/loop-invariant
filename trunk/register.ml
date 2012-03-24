@@ -3,7 +3,6 @@ open Cil_datatype
 open Cil
 open LiVisitor
 open Translate
-open Function_analysis
 
 (** Register the new plug-in "Loop Invariant" and provide access to some plug-in
     dedicated features. *)
@@ -79,7 +78,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		| _->
 			Format.print_flush ();
 	)gannot_list;
-      	
+  
 	(*before compute, must clear first. set clear_id to be false*)
   Cfg.clearFileCFG ~clear_id:false cil;
 	Cfg.computeFileCFG cil;
@@ -225,12 +224,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Dynamic.Parameter.Int.set "-wp-par" 6;
 	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
 	
-	let info = C2equation.make_info cil in
-	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute in
-	Printf.printf "Frontend.compute_and_display begin\n";
-	(*Frontend.compute_and_display fmt info fgraph bgraph manbox ipl wp_compute;
-	Printf.printf "Frontend.compute_and_display over\n";*)
-	
 	
 	let funsigs =
 		let funsig = Hashtbl.create 2 in
@@ -246,30 +239,21 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	in
 	
 	let visitor = new liVisitor (Project.current ()) in
-	Globals.Functions.iter(fun kf ->		
-		match kf.fundec with
-		| Definition(_,_)->
-	    Translate.translate_kf kf;
-      (*prove_kf kf;*)
-    | Declaration(spec,v,vlo,_)->
-      ();
-	);
-  
+	
   Globals.Functions.iter(fun kf ->
   	let fname = Kernel_function.get_name kf in
     if fname="assert" then
     (
       Self.result "This is an Assert clause.\n";
-      analysis_assert kf;
+      Function_analysis.analysis_assert kf;
     )else
     (
       Self.result "Enter function [%s].\n" fname;
       Printf.printf "the funspec is as follow:\n";
 		  let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
-		  	
+		  
 		  let assumes = ref [] in
 		  List.iter(fun b->
-		  	Printf.printf "b_name begin:%s\n" b.b_name;
 		  	Printf.printf "assumes\n";
 		  	let al = ref [] in
 		  	List.iter(fun ip->
@@ -281,8 +265,26 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  	List.iter(fun ip->
 		  		begin match ip.ip_content with
 		  		| Pvalid_range(t1,t2,t3)->
-		  			Printf.printf "Pvalid_range";
-		  		| _->();
+		  			Printf.printf "Pvalid_range:";
+		  		| Prel(_,t1,t2)->Printf.printf "Prel:";
+		  			Cil.d_logic_type fmt t1.term_type;Format.print_flush ();Printf.printf "\n";
+		  			Cil.d_logic_type fmt t2.term_type;Format.print_flush ();Printf.printf "\n";
+		  			
+		  			
+		  			
+		  			begin match t1.term_node with
+		  			| TConst(_)->
+		  				Printf.printf "t1 TConst\n";
+		  			| TLval(tl)->Printf.printf "t1 TLval\n";
+		  			| _->();
+		  			end;
+		  			begin match t2.term_node with
+		  			| TConst(_)->
+		  				Printf.printf "t2 TConst\n";
+		  			| TLval(tl)->Printf.printf "t2 TLval\n";
+		  			| _->();
+		  			end;
+		  		| _->TypePrinter.print_predicate_type fmt ip.ip_content;Format.print_flush ();();
 		  		end;
 		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
 		  	)b.b_requires;
@@ -296,18 +298,35 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		  List.iter(fun pn->
 		  	Cil.d_predicate_named fmt pn;Format.print_flush ();Printf.printf "\n";
 		  )!assumes;
-		  match kf.fundec with
+		  
+		  begin match kf.fundec with
 		  | Definition(_,_)->
-	    	analysis_kf kf manbox !linfo_list !assumes funsigs visitor ipl wp_compute;
-      		(*prove_kf kf;*)
+	    	Function_analysis.analysis_kf kf manbox !linfo_list !assumes funsigs visitor ipl wp_compute;
       | Declaration(spec,v,vlo,_)->
       	();
+      end;
     );
   );
   
+  
+	let info = C2equation.make_info cil in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute in
+	Printf.printf "Frontend.compute_and_display begin\n";
+	(*Frontend.compute_and_display fmt info fgraph bgraph manbox ipl wp_compute;
+	Printf.printf "Frontend.compute_and_display over\n";*)
 	
-	!Db.Properties.Interp.from_range_to_comprehension  (Cil.inplace_visit ()) (Project.current ()) cil;
-		
+	
+	
+	Globals.Functions.iter(fun kf ->		
+		match kf.fundec with
+		| Definition(_,_)->
+	    Translate.translate_kf kf;
+      (*prove_kf kf;*)
+    | Declaration(spec,v,vlo,_)->
+      ();
+	);
+  
+	
   let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
   Printf.printf "logic_info_list.length=%d\n" (List.length logic_info_list);(*0?*)
   List.iter (fun (node:logic_info) ->
@@ -315,10 +334,10 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   )logic_info_list;
       	
     
-      	(*let logic_var = Logic_typing.Make.find_var cil.fileName in
-      	Cil.d_logic_var Format.std_formatter logic_var;
-      	let logic_type_info = Logic_env.find_logic_type cil.fileName in
-      	Printf.printf "logic_type_info.name=%s\n" logic_type_info.lt_name;*)
+   (*let logic_var = Logic_typing.Make.find_var cil.fileName in
+     Cil.d_logic_var Format.std_formatter logic_var;
+     let logic_type_info = Logic_env.find_logic_type cil.fileName in
+     Printf.printf "logic_type_info.name=%s\n" logic_type_info.lt_name;*)
       	
       	
 		
@@ -335,41 +354,10 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 		Printf.printf "length=fundec.sallstmts=%d\n" (List.length fundec.sallstmts);
 		Printf.printf "fundec.smaxid=%d\n" fundec.smaxid;*)
 		
-		
-	Printf.printf "%s\n" "----cil.globals";
-		(*!Db.Value.compute ();
-		let visitor = new File.check_file cil.fileName in*)
-		
-		
-		(**get CallGraph and print*)
+	(*get CallGraph and print*)
 	let graph = Callgraph.computeGraph cil in
 	Callgraph.printGraph Pervasives.stdout graph;
-		
-		
-		(**Slicing*)
-		(*let slicPro = !Db.Slicing.Project.mk_project "test_slice" in*)
-		(*let slicPro = !Db.Slicing.Slice.create (Project.current ())  kfun in
-		let kfuncion = !Db.Slicing.Slice.get_function (Project.current ()) in*)
-						
-		(**global kernel_function*)
-		(*List.iter(fun s ->
-			Printf.printf "----%s\n" s;
-			List.iter(fun kfun ->
-						
-				) (Globals.FileIndex.get_functions s);
-			Printf.printf "++++%s\n" s;
-			) (Globals.FileIndex.get_files ());*)
-		
-		(**value compute*)
-		(*let state= Db.Value.globals_state () in
-		Printf.printf "Db.Value.is_reachable=%b\n" (Db.Value.is_reachable state);
-		let visitor = new File.check_file cil.fileName in
-		Db.Value.access visitor#current_kinstr lval;
-		Printf.printf "%s\n" "begin visitFramacFile";
-		Visitor.visitFramacFile visitor cil;
-		Visitor.visitFramacFunction visitor fundec;
-		Printf.printf "%s\n" "end visitFramacFile";*)
-		
+
 	let out_file = open_out "/home/lzh/result.c" in
 	Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" cil;
 	flush out_file;
