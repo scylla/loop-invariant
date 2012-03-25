@@ -19,7 +19,7 @@ module Enabled =
   Self.False
     (struct
        let option_name = "-loop-invariant"
-       let help = "my loop invariant plugin. by Liu"
+       let help = "my loop invariant plugin. by Henry Liu"
        let kind = `Correctness
      end)
 
@@ -59,6 +59,7 @@ end
 	 
 let loopInvariantAnalysis (cil: Cil_types.file) =
 	let fmt = Format.std_formatter in
+	let unknownout = open_out_gen [Open_wronly;Open_append;Open_creat;Open_trunc] 766 "/home/lzh/unknown.c" in
 	
 	let manpk = Polka.manager_alloc_strict() in
 	let manbox = Box.manager_alloc() in
@@ -88,7 +89,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	Globals.Functions.iter(fun kf ->
 		let name = Kernel_function.get_name kf in
 		match kf.fundec with
-		| Definition(dec,loc)->
+		| Definition(dec,_)->
 			Cfg.printCfgFilename ("/home/lzh/"^name^".dot") dec;
 			let get_array_vars =
 				let vars = ref [] in
@@ -97,11 +98,11 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 				List.iter(fun b->
 					List.iter(fun ip->
 						begin match ip.ip_content with
-						| Pvalid_range(t1,t2,t3)->
+						| Pvalid_range(t1,_,t3)->
 							begin match t1.term_node with
-							| TLval((thost,toffset))->
+							| TLval((thost,_))->
 								begin match thost with
-								| TMem(tm)->();
+								| TMem(_)->();
 								| TVar(lv)->
 									begin match lv.lv_origin with
 									| Some(v1)->
@@ -133,7 +134,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 						begin match (host,offset) with
 						| (Mem(e1),NoOffset)->
 							begin match e1.enode with
-							| BinOp(op,e2,e3,_)->
+							| BinOp(_,e2,_,_)->
 								let vl = Varinfo.Set.elements (LiUtils.extract_varinfos_from_exp e2) in
 								List.iter(fun v1->
 									if (List.for_all (fun v2->(String.compare v1.vname v2.LiType.v.vname)!=0) !vars)==true then
@@ -146,11 +147,11 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 							end;
 						| _->();
 						end;
-					| BinOp(op,e1,e2,ty)->
+					| BinOp(_,e1,e2,_)->
 						analysis_exp fmt e1;analysis_exp fmt e2;
-					| UnOp(op,e,ty)->
+					| UnOp(_,e,_)->
 						analysis_exp fmt e;
-					| CastE(ty,e)->
+					| CastE(_,e)->
 						analysis_exp fmt e;
 					| _->();
 					end
@@ -159,7 +160,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 					begin match s.skind with
 					| Instr(ins)->
 						begin match ins with
-						| Set(lo,e,_)->
+						| Set(_,e,_)->
 							analysis_exp fmt e;
 						| _->();
 						end;
@@ -178,7 +179,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 						List.iter(fun s1->
 							analysis_stmt s1;
 						)b.bstmts;
-					| If(exp,b1,b2,l)->
+					| If(exp,b1,b2,_)->
 						analysis_exp fmt exp;
 						List.iter(fun s1->
 							analysis_stmt s1;
@@ -198,18 +199,17 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 			in
 			
 			Hashtbl.add arrayvars (Kernel_function.get_id kf) get_array_vars;(*fundec-->arrayvars*)
-		| Declaration(spec,v,vlo,_)->
+		| Declaration(_,_,_,_)->
 		  ();
 	);
 	
 	(*assign bid to [block] in program*)
 	let maxid = ref 0 in
 	Globals.Functions.iter(fun kf ->
-		let name = Kernel_function.get_name kf in
 		match kf.fundec with
-		| Definition(dec,loc)->
+		| Definition(dec,_)->
 			Translate.get_block_maxid maxid dec.sbody;
-		| Declaration(spec,v,vlo,_)->
+		| Declaration(_,_,_,_)->
 		  ();
 	);
 	Translate.preprocess_bpoint maxid;
@@ -222,6 +222,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let module OP = Datatype.Option(Property) in
 	Dynamic.Parameter.Int.set "-wp-timeout" 10;
 	Dynamic.Parameter.Int.set "-wp-par" 6;
+	Dynamic.Parameter.String.set "-wp-out" "/home/lzh/why-out";
 	let wp_compute = Dynamic.get ~plugin:"Wp" "wp_compute" (Datatype.func3 OKF.ty OLS.ty OP.ty Datatype.unit) in
 	
 	
@@ -232,7 +233,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 			match kf.fundec with
 			| Definition(dec,_)->
 			  Hashtbl.add funsig name {Loop_parameters.spec=dec.sspec;Loop_parameters.formals=Some dec.sformals;}
-		  | Declaration(spec,v,vlo,_)->
+		  | Declaration(spec,_,vlo,_)->
 		    Hashtbl.add funsig name {Loop_parameters.spec=spec;Loop_parameters.formals=vlo;}
 		);
 		funsig;
@@ -250,82 +251,22 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
     (
       Self.result "Enter function [%s].\n" fname;
       Printf.printf "the funspec is as follow:\n";
-		  let funspec = Kernel_function.get_spec kf in(*structure   (term, identified_predicate, identified_term) spec*)
-		  
-		  let assumes = ref [] in
-		  List.iter(fun b->
-		  	Printf.printf "assumes\n";
-		  	let al = ref [] in
-		  	List.iter(fun ip->
-		  		al := (Logic_const.unamed ip.ip_content)::!al;
-		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
-		  	)b.b_assumes;
-		  	assumes := (Logic_const.pands !al)::!assumes;
-		  	Printf.printf "requires\n";
-		  	List.iter(fun ip->
-		  		begin match ip.ip_content with
-		  		| Pvalid_range(t1,t2,t3)->
-		  			Printf.printf "Pvalid_range:";
-		  		| Prel(_,t1,t2)->Printf.printf "Prel:";
-		  			Cil.d_logic_type fmt t1.term_type;Format.print_flush ();Printf.printf "\n";
-		  			Cil.d_logic_type fmt t2.term_type;Format.print_flush ();Printf.printf "\n";
-		  			
-		  			
-		  			
-		  			begin match t1.term_node with
-		  			| TConst(_)->
-		  				Printf.printf "t1 TConst\n";
-		  			| TLval(tl)->Printf.printf "t1 TLval\n";
-		  			| _->();
-		  			end;
-		  			begin match t2.term_node with
-		  			| TConst(_)->
-		  				Printf.printf "t2 TConst\n";
-		  			| TLval(tl)->Printf.printf "t2 TLval\n";
-		  			| _->();
-		  			end;
-		  		| _->TypePrinter.print_predicate_type fmt ip.ip_content;Format.print_flush ();();
-		  		end;
-		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
-		  	)b.b_requires;
-		  	Printf.printf "post_cond\n";
-		  	List.iter(fun (_,ip)->
-		  		Cil.d_identified_predicate fmt ip;Format.print_flush ();Printf.printf "\n";
-		  	)b.b_post_cond;
-		  	Printf.printf "b_name end\n";
-		  )funspec.spec_behavior;
-		  Printf.printf "assumes named\n";
-		  List.iter(fun pn->
-		  	Cil.d_predicate_named fmt pn;Format.print_flush ();Printf.printf "\n";
-		  )!assumes;
-		  
 		  begin match kf.fundec with
 		  | Definition(_,_)->
-	    	Function_analysis.analysis_kf kf manbox !linfo_list !assumes funsigs visitor ipl wp_compute;
-      | Declaration(spec,v,vlo,_)->
+	    	Function_analysis.analysis_kf kf !linfo_list funsigs visitor ipl wp_compute unknownout;
+      | Declaration(_,_,_,_)->
       	();
       end;
     );
   );
   
   
-	let info = C2equation.make_info cil in
-	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute in
+	let info = C2equation.make_info in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute unknownout in
 	Printf.printf "Frontend.compute_and_display begin\n";
-	(*Frontend.compute_and_display fmt info fgraph bgraph manbox ipl wp_compute;
-	Printf.printf "Frontend.compute_and_display over\n";*)
+	Frontend.compute_and_display fmt info fgraph bgraph manbox;
+	(*Printf.printf "Frontend.compute_and_display over\n";*)
 	
-	
-	
-	Globals.Functions.iter(fun kf ->		
-		match kf.fundec with
-		| Definition(_,_)->
-	    Translate.translate_kf kf;
-      (*prove_kf kf;*)
-    | Declaration(spec,v,vlo,_)->
-      ();
-	);
-  
 	
   let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
   Printf.printf "logic_info_list.length=%d\n" (List.length logic_info_list);(*0?*)
@@ -357,7 +298,9 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	(*get CallGraph and print*)
 	let graph = Callgraph.computeGraph cil in
 	Callgraph.printGraph Pervasives.stdout graph;
-
+	
+	close_out unknownout;
+	
 	let out_file = open_out "/home/lzh/result.c" in
 	Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" cil;
 	flush out_file;

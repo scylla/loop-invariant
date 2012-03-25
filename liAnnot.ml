@@ -36,7 +36,7 @@ let compareLogicInfo (linfo1:Cil_types.logic_info) (linfo2:Cil_types.logic_info)
 			
 let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Cil_types.code_annotation) : bool =
 	match code_annot1.annot_content , code_annot2.annot_content with
-	| AInvariant(sl1,b1,p1),AInvariant(sl2,b2,p2)->
+	| AInvariant(_,_,p1),AInvariant(_,_,p2)->
 		(match p1.content,p2.content with
 		| Papp(linfo1,_,tl1),Papp(linfo2,_,tl2)->
 			if (compareLogicInfo linfo1 linfo2)=true then
@@ -55,11 +55,11 @@ let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Ci
 						let t1 = (List.nth tl1 i) in
 						let t2 = (List.nth tl2 i) in
 						match t1.term_node,t2.term_node with
-						| TConst(c1),TConst(c2)->
+						| TConst(_),TConst(_)->
 							Printf.printf "term_node:TConst\n";
 						| TLval(l1),TLval(l2)->
-							let (host1,offset1) = l1 in
-							let (host2,offset2) = l2 in
+							let (host1,_) = l1 in
+							let (host2,_) = l2 in
 							(
 							match host1,host2 with
 							| TVar(lv1),TVar(lv2)->
@@ -67,9 +67,9 @@ let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Ci
 							| _,_->();
 							);
 							Printf.printf "term_node:TLval\n";
-						| TUnOp(u1,_),TUnOp(u2,_)->
+						| TUnOp(_,_),TUnOp(_,_)->
 							Printf.printf "term_node:TUnOp\n";
-						| TBinOp(b1,_,_),TBinOp(b2,_,_)->
+						| TBinOp(_,_,_),TBinOp(_,_,_)->
 							Printf.printf "term_node:TBinOp\n";
 						| _,_->();
 					)
@@ -108,15 +108,25 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 			(Annotations.add kf stmt [Ast.self] rannot;)end
 	)rannot_bf_list;;
 	
-let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) (ipl:Property.identified_property list ref) wp_compute =
+let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) (ipl:Property.identified_property list ref) wp_compute unknownout =
 	let flag = ref 1 and fmt = Format.std_formatter in
 	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
 	
+	let strfmt = Format.str_formatter in	
+	
 	flag := Prove.prove_predicate kf [] ip wp_compute;ipl := ip::!ipl;
-	if !flag=0 then
+	if !flag==0 then
 	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)
-	else
-	(Printf.printf "keep the annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";);
+	else if !flag==1 then
+	(Printf.printf "keep the annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";)
+	else if !flag==2 then
+	(Cil.d_code_annotation strfmt code_annot;
+	output_string unknownout (Format.flush_str_formatter ());
+	output_string unknownout "\n====>>\n";
+	Cil.d_stmt strfmt stmt;
+	output_string unknownout (Format.flush_str_formatter ());	
+	output_string unknownout "\n\n\n";
+	flush unknownout;);
 	!flag;;
 	
 	

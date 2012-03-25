@@ -64,7 +64,7 @@ let get_vname (v:Cil_types.varinfo) =
 
 let get_constant_str (c:Cil_types.constant) =
 	match c with
-  | CInt64(i, _, Some s)->Escape.escape_char (Char.chr (My_bigint.to_int i))
+  | CInt64(i, _, _)->Escape.escape_char (Char.chr (My_bigint.to_int i))
   | CStr(s) ->Escape.escape_string s
   | CWStr(sl) ->
   	let s = ref "" in
@@ -74,13 +74,12 @@ let get_constant_str (c:Cil_types.constant) =
 		!s
   | CChr(c) ->Escape.escape_char c
   | CReal(_, _, Some s) ->s
-  | CReal(f, fsize, None) ->string_of_float f
+  | CReal(f, _, None) ->string_of_float f
   | CEnum (item) ->item.eiorig_name
    
 let rec replace_logic_varname (t:Cil_types.term) (lv:Cil_types.logic_var) (exp:Cil_types.exp) =
-	let fmt = Format.std_formatter in
 	match exp.enode with
-	| Lval((host,offset))|AddrOf((host,offset))|StartOf((host,offset))->
+	| Lval((host,_))|AddrOf((host,_))|StartOf((host,_))->
 		(match host with
 		| Var(v)->
 			lv.lv_name <- v.vname;
@@ -99,9 +98,8 @@ let rec replace_logic_varname (t:Cil_types.term) (lv:Cil_types.logic_var) (exp:C
 	| _->()
 	
 let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
-	let fmt = Format.std_formatter in
 	match t.term_node with
-	| TLval((thost,toffset))|TAddrOf((thost,toffset))|TStartOf((thost,toffset))->
+	| TLval((thost,_))|TAddrOf((thost,_))|TStartOf((thost,_))->
 		(match thost with
 		| TVar(lv)->
 			let len = (List.length formals)-1 in
@@ -117,7 +115,7 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 		replace_term t1 p formals args;
 		let check_cons t0 t1 = 
 			(match t1.term_node with
-			| TConst(c)->
+			| TConst(_)->
 				t0.term_node <- t1.term_node
 			| _->()
 			);
@@ -148,7 +146,6 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 	| TConst(_)|TSizeOf(_)|TSizeOfStr(_)|TAlignOf(_)|Tnull|Ttype(_)|Tempty_set->()
 		
 let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
-	let fmt = Format.std_formatter in
 	match p with
 	| Psubtype(t1,t2)|Pvalid_index(t1,t2)|Prel(_,t1,t2)->
 		replace_term t1 p formals args;
@@ -168,13 +165,13 @@ let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo
 	| Pand(pn1,pn2)|Por(pn1,pn2)|Pxor(pn1,pn2)|Pimplies(pn1,pn2)|Piff(pn1,pn2)|Pif(_,pn1,pn2)->
 		replace_predicate_var pn1.content formals args;
 		replace_predicate_var pn2.content formals args
-	| Pfalse|Ptrue->()
+	| _->()
 
 let get_exp_name (e:Cil_types.exp) =
 	match e.enode with
 	| Const(_)->Printf.printf "Const\n";assert false
 	| Lval(l)->
-		let (host,off) = l in
+		let (host,_) = l in
 		(match host with
 		| Var(v)->
 			get_vname v;

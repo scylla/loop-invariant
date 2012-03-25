@@ -38,7 +38,7 @@ let make_cst b =
 let make_conjunction conj = DISJ([conj])
 
 let make_or e1 e2 = match (e1,e2) with
-  | (TRUE,x) | (x,TRUE) -> TRUE
+  | (TRUE,_) | (_,TRUE) -> TRUE
   | (DISJ(l1), DISJ(l2)) -> DISJ(l1@l2)
 
 let make_and ~cand e1 e2 = match (e1,e2) with

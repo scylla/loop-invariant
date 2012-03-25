@@ -4,47 +4,47 @@ open Cil_datatype
 		
 let print_predicate_type fmt (p:Cil_types.predicate) =
 	match p with
-	| Psubtype(t1,t2)->
+	| Psubtype _->
 		fprintf fmt "Psubtype\n"
-	| Pfresh(t)->
+	| Pfresh _->
 		fprintf fmt "Pfresh\n"
-	| Pvalid_range(t1,t2,t3)->
+	| Pvalid_range _->
 		fprintf fmt "Pvalid_range\n"
-	| Pvalid_index(t1,t2)->
+	| Pvalid_index _->
 		fprintf fmt "Pvalid_index\n"
-	| Pvalid(t)->
+	| Pvalid _->
 		fprintf fmt "Pvalid\n"
-	| Pat(pn1,label)->
+	| Pat _->
 		fprintf fmt "Pat\n"
-	| Pexists(q,pn1)->
+	| Pexists _->
 		fprintf fmt "Pexists\n"
-	| Pforall(q,pn1)->
+	| Pforall _->
 		fprintf fmt "Pforall\n"
-	| Plet(linfo,pn1)->
+	| Plet _->
 		fprintf fmt "Plet\n"
 	| Pfalse->
 		fprintf fmt "Pfalse\n"
 	| Ptrue->
 		fprintf fmt "Ptrue\n"
-	| Papp(linfo,l1,l2)->
+	| Papp _->
 		fprintf fmt "Papp\n"
-	| Pseparated(tl)->
+	| Pseparated _->
 		fprintf fmt "Pseparated\n"
-	| Prel(re,t1,t2)->
+	| Prel _->
 		fprintf fmt "Prel\n"
-	| Pand(pn1,pn2)->
+	| Pand _->
 		fprintf fmt "Pand\n"
-	| Por(pn1,pn2)->
+	| Por _->
 		fprintf fmt "Por\n"
-	| Pxor(pn1,pn2)->
+	| Pxor _->
 		fprintf fmt "Pxor\n"
-	| Pimplies(pn1,pn2)->
+	| Pimplies _->
 		fprintf fmt "Pimplies\n"
-	| Piff(pn1,pn2)->
+	| Piff _->
 		fprintf fmt "Piff\n"
-	| Pnot(pn1)->
+	| Pnot _->
 		fprintf fmt "Pnot\n"
-	| Pif(t,pn1,pn2)->
+	| Pif _->
 		fprintf fmt "Pif\n"
 	| _->
 		fprintf fmt "other\n"
@@ -120,7 +120,7 @@ let print_instrkind fmt (ins:Cil_types.instr) =
 	
 let print_stmtkind fmt (s:Cil_types.stmtkind) =
 	match s with
-	| Instr (ins)->
+	| Instr _->
 		fprintf fmt "Instr\n";
 	| Return _->fprintf fmt "Return\n"
 	| Goto _->fprintf fmt "Goto\n"

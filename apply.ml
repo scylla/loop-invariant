@@ -3,15 +3,13 @@ open Apron
 open Equation
 
 	
-let apply_lincons1 fmt (procinfo:Equation.procinfo) stmt lincons1 =
+let apply_lincons1 fmt (procinfo:Equation.procinfo) lincons1 =
 	let tp = Apron.Lincons1.get_typ lincons1 in
 		
 		let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
 		let term = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
 		let lterm = ref [] in
 		let zero_term = Cil.lzero () in(*Logic_const.term tnode (Cil_types.Ctype(Cil.intType)) in*)
-		let llvar = ref [] in
-		let count = ref 0 in
 		
 		Apron.Lincons1.iter(fun cof v->
 			let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
@@ -93,14 +91,14 @@ let apply_cons fmt procinfo stmt cons ipl wp_compute =
 	Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
 	LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute
 *)	
-let apply_abstract1 fmt procinfo stmt abs ipl wp_compute =
+let apply_abstract1 fmt procinfo stmt abs =
 	let man = Apron.Abstract1.manager abs in
 	if (Apron.Abstract1.is_bottom man abs)==false then
 	begin
 		let lconsarray = Apron.Abstract1.to_lincons_array man abs in
 		Array.iter(fun cons->
 			let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
-			let code_annotation = apply_lincons1 fmt procinfo stmt lincons1 in
+			let code_annotation = apply_lincons1 fmt procinfo lincons1 in
 			let root_code_annot_ba = Cil_types.User(code_annotation) in
 			Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
 			(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;*)
@@ -108,7 +106,7 @@ let apply_abstract1 fmt procinfo stmt abs ipl wp_compute =
 	end
 	
 
-let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
+let apply_result (prog:Equation.info) fmt fp =
 	Globals.Functions.iter(fun kf ->
 		try
 			let name = Kernel_function.get_name kf in
@@ -126,7 +124,7 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 							List.iter(fun s->
 								apply_stmt s;
 							)b2.bstmts;
-						| Switch(_,b,sl,_)->
+						| Switch(_,b,_,_)->
 							List.iter(fun s->
 								apply_stmt s;
 							)b.bstmts;
@@ -136,7 +134,7 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 							let end_stmt = LiUtils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
 							
 							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-							apply_abstract1 fmt procinfo s abs ipl wp_compute;
+							apply_abstract1 fmt procinfo s abs;
 							
 							let edges1 = PSHGraph.predhedge fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
 							let edges2 = PSHGraph.succhedge fp {Equation.fname=name;Equation.sid=end_stmt.Cil_types.sid} in
@@ -151,20 +149,16 @@ let apply_result (prog:Equation.info) fmt fp ipl wp_compute=
 							List.iter(fun edge->
 								let transfer = PSHGraph.attrhedge fp edge in
 								match transfer with
-								| Equation.Lcons(cond,cons,code_annotation,sat)->
+								| Equation.Lcons(_,_,code_annotation,sat)->
 									if !sat==true then
 									(
-										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-										let root_code_annot_ba = Cil_types.User(code_annotation) in
-										
+										let root_code_annot_ba = Cil_types.User(code_annotation) in										
 										Annotations.add kf s [Ast.self] root_code_annot_ba;
 									)
-								| Equation.Tcons(cond,tcons,code_annotation,sat)->
+								| Equation.Tcons(_,_,code_annotation,sat)->
 									if !sat==true then
 									(
-										let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-										let root_code_annot_ba = Cil_types.User(code_annotation) in
-										
+										let root_code_annot_ba = Cil_types.User(code_annotation) in										
 										Annotations.add kf s [Ast.self] root_code_annot_ba;
 									);
 								| _->()

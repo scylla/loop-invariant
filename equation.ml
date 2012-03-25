@@ -69,6 +69,7 @@ type procinfo = {
   pinput: Apron.Var.t array;  (** Array of input variables *)
   plocal: Apron.Var.t array;  (** Array of other variables *)
   penv: Apron.Environment.t;  (** Environment of the procedure *)
+  var2coeff: (string,Apron.Coeff.t list ref) Hashtbl.t;(**varname to coeff*)
   avar2cvar: (Apron.Var.t,Cil_types.varinfo) Hashhe.t;
   has_def: bool;(*the fun is only declaration?*)
 }
@@ -82,6 +83,7 @@ let dummy_procinfo =
 		pinput = [||];
 		plocal = [||];
 		penv = Apron.Environment.make [||] [||];
+		var2coeff = Hashtbl.create 3;
 		avar2cvar = Hashhe.create 1;
 		has_def = false;
 	}
@@ -217,9 +219,9 @@ let print_info fmt info =
 
 let print_transfer fmt transfer = 
 	match transfer with
-	| Lcons(cond,cons1,code_annotation,sat)->
+	| Lcons(_,cons1,_,_)->
 		Apron.Lincons1.print fmt cons1
-	| Tcons(cond,tcons,code_annotation,sat)->
+	| Tcons(_,tcons,_,_)->
 		Apron.Tcons1.print fmt tcons
   | Assign(v,ass)->
     fprintf fmt "%a = %a"
@@ -228,7 +230,7 @@ let print_transfer fmt transfer =
   | Condition(bexpr) ->
     fprintf fmt "IF %a"
     (Boolexpr.print (Apron.Tcons1.array_print ~first:"@[" ~sep:" &&@ " ~last:"@]")) bexpr
-  | Calle(callerinfo,calleeinfo,pin,pout) ->
+  | Calle(_,calleeinfo,pin,pout) ->
   	(match pout with
   	| Some(out)->
       fprintf fmt "CALL %s:" calleeinfo.pname;
@@ -271,7 +273,7 @@ let print_transfer fmt transfer =
 	    	end;
 	  	)pin;
     )
-  | Return(callerinfo,calleeinfo,pin,pout) ->
+  | Return(_,calleeinfo,pin,pout) ->
   	let length =
   		Array.length pout
   	in

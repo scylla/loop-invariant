@@ -102,9 +102,9 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 				);
 			)
 		)else
-		(
-			Printf.printf "type inconsistent\n";
-			(*List.iter(fun v->
+		(();
+			(*Printf.printf "type inconsistent\n";
+			List.iter(fun v->
 				Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
 			)vars;*)
 		)
@@ -132,7 +132,7 @@ class liVisitor prj = object (self)
 			
 	method add_pn (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
 		match linfo.l_body with
-		| LBpred(pn)->(
+		| LBpred(_)->(
 			let flen = (List.length linfo.l_profile) in
 			let alen = List.length vars in
 			if alen>=flen then
@@ -153,15 +153,9 @@ class liVisitor prj = object (self)
 	method vlogic_info_use (linfo:logic_info) = 
 		
 		match linfo.l_body with
-		| LBpred(pn)->(
-			(*let stmt = Extlib.the (self#current_stmt) in
-			Cil.d_stmt Format.std_formatter stmt;
-			Format.print_flush ();
-			Annotations.add_assert stmt [Ast.self] ~before:true pn;*)
+		| LBpred(_)->(
 			(match self#current_stmt with
-			| Some(s)->
-				(*let func = self#current_func in
-				Annotations.add_assert s [Ast.self] ~before:true pn;*)();
+			| Some(_)->();
 			| None->();
 			);
 			SkipChildren
@@ -185,7 +179,7 @@ class liVisitor prj = object (self)
 			let assertion = Logic_const.prel (Rneq , logic_e2 , Cil.lzero()) in
 		
 			(match self#current_stmt with
-			| Some stmt ->
+			| Some _ ->
 				(*let stmt = Extlib.the self#current_stmt in*)
 				Printf.printf "current_stmt:vexpr.stmt\n";
 				Cil.d_predicate_named Format.std_formatter assertion;
@@ -199,13 +193,13 @@ class liVisitor prj = object (self)
 				Printf.printf "current_stmt:vexpr.none\n";
 				SkipChildren
 			)
-		| UnOp((Neg) ,e1 ,_) ->
+		| UnOp((Neg) ,_ ,_) ->
 			Printf.printf "vexpr.unop\n";
 			DoChildren
-		| Const(con) ->
+		| Const(_) ->
 			Printf.printf "vexpr.const\n";
 			DoChildren
-		| Lval (lval) ->
+		| Lval (_) ->
 			Printf.printf "vexpr.lval\n";
 			DoChildren
 		| _ -> DoChildren
