@@ -95,7 +95,7 @@ let make_fpmanager
     	Apron.Abstract1.print fmt abs2;Format.print_flush ();Printf.printf "\n";
       try
       Apron.Abstract1.is_leq man abs1 abs2
-      with Apron.Manager.Error(exclog)->false(*they are not compatible*)
+      with Apron.Manager.Error(_)->false(*they are not compatible*)
     end;
     Fixpoint.join = begin fun vtx abs1 abs2 ->
       Apron.Abstract1.join man abs1 abs2
@@ -155,8 +155,6 @@ let make_emptyoutput
   let info = PSHGraph.info graph in
   PSHGraph.map graph
     (fun vertex attr ->
-    	Printf.printf "make_emptyoutput\nHashhe.find vtx:\n";
-    	Equation.print_point Format.std_formatter vertex;Format.print_flush ();Printf.printf "\n";
       Apron.Abstract1.bottom manager (Hashhe.find info.Equation.pointenv vertex)
     )
     (fun hedge arc -> Equation.Condition(Boolexpr.make_cst true))
@@ -289,7 +287,6 @@ module Forward = struct
     res
 
 	let apply_lcons (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (cons:Apron.Lincons1.t)  (dest:'a Apron.Abstract1.t option):'a Apron.Abstract1.t =
-		let fmt = Format.std_formatter in
     let env = Apron.Abstract1.env abstract in
     let abs = ref (Apron.Abstract1.copy manager abstract) in
     let expr = Apron.Lincons1.get_linexpr1 cons in
@@ -298,7 +295,6 @@ module Forward = struct
     !abs
 	
 	let apply_tcons (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (cons:Apron.Tcons1.t)  (dest:'a Apron.Abstract1.t option):'a Apron.Abstract1.t =
-		let fmt = Format.std_formatter in
     let env = Apron.Abstract1.env abstract in
     let abs = ref (Apron.Abstract1.copy manager abstract) in
     !abs
@@ -477,11 +473,11 @@ module Forward = struct
     in
     let res =
       match transfer with
-      | Equation.Lcons(cond,cons,code_annotation,sat)->
+      | Equation.Lcons(cond,cons,_,sat)->
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
       	apply_lcons manager abs cons dest
-      | Equation.Tcons(cond,tcons,code_annotation,sat)->
+      | Equation.Tcons(cond,tcons,_,sat)->
       	let pvertexs = PSHGraph.predvertex graph hedge in
       	let svertexs = PSHGraph.succvertex graph hedge in
       	apply_tcons manager abs tcons dest
@@ -728,7 +724,6 @@ module Backward = struct
 
   let compute
       ~(fmt : Format.formatter)
-      (prog:Equation.info)
       (graph:Equation.graph)
       ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
       (manager:'a Apron.Manager.t)
@@ -755,7 +750,7 @@ module Backward = struct
 				in
 				if ok then
 				sstart := PSette.add bpoint !sstart;
-			| If(e,b1,b2,_)->
+			| If(_,b1,b2,_)->
 				add_sstart name b1;
 				add_sstart name b2;
 			| Switch(_,b1,_,_)->add_sstart name b1;
@@ -870,18 +865,16 @@ let print_apron_box fmt box =
   ;
   Format.fprintf fmt "@]|]"
   
-let print_abstract1 fmt kf stmt abs =
+let print_abstract1 fmt abs =
 	let man = Apron.Abstract1.manager abs in
 	let box = Apron.Abstract1.to_box man abs in
 	print_apron_box fmt box;Format.print_flush ();
 	Apron.Abstract1.print fmt abs;Format.print_flush ()
 	
-let print_output prog fmt fp =
-	let print_comment kf s point =
+let print_output fmt fp =
+	let print_comment point =
 		let abs = PSHGraph.attrvertex fp point in
-		Printf.printf "point:";Equation.print_point fmt point;Format.print_flush ();Printf.printf "\n";
-		print_abstract1 fmt kf s abs;Format.print_flush ();Printf.printf "\n";
-		Printf.printf "attr:";
+		print_abstract1 fmt abs;Format.print_flush ();Printf.printf "\n";
 		let edges = PSHGraph.succhedge fp point in
 		PSette.iter(fun edge->
 			let attr = PSHGraph.attrhedge fp edge in
@@ -895,7 +888,7 @@ let print_output prog fmt fp =
 				List.iter(fun s->
 					try
 					Printf.printf "stmt result:\n";Cil.d_stmt fmt s;Format.print_flush ();Printf.printf "\n";
-					print_comment kf s {Equation.fname=name;Equation.sid=s.Cil_types.sid};
+					print_comment {Equation.fname=name;Equation.sid=s.Cil_types.sid};
 					with Not_found->Printf.printf "Not_found\n";
 					Printf.printf "\n";
 				)fundec.sallstmts;
@@ -904,8 +897,8 @@ let print_output prog fmt fp =
 
 let output_of_graph graph =
 	PSHGraph.copy
-  	(fun vertex attrvertex -> attrvertex.FixpointType.reach)
-    (fun hedge attrhedge -> attrhedge.FixpointType.arc)
+  	(fun _ attrvertex -> attrvertex.FixpointType.reach)
+    (fun _ attrhedge -> attrhedge.FixpointType.arc)
     (fun info -> {
 			Fixpoint.time = !(info.FixpointType.itime);
 			Fixpoint.iterations = !(info.FixpointType.iiterations);

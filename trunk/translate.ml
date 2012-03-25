@@ -16,6 +16,78 @@ let avar_to_lvar va =
 	in
 	lv;;
 
+let extract_coeff_from_funspec coeffs kf =
+	let strfmt = Format.str_formatter in
+	let funspec = Kernel_function.get_spec kf in
+	let rec get_coeff_from_term t =
+		begin match t.term_node with
+		| TConst(_)->();
+		| TLval(_)->();
+		| TBinOp(op,t3,t4)->
+			begin match op with
+			| Mult->
+				begin match t3.term_node,t4.term_node with
+				| TConst(cons),TLval(tl)|TLval(tl),TConst(cons)->
+					Cil.d_term_lval strfmt tl;
+					let name = Format.flush_str_formatter () in
+								
+					begin match cons with
+					| CInt64(big,_,_)->
+						begin try
+							let res = Hashtbl.find coeffs name in
+							if (List.for_all(fun c->(Apron.Coeff.cmp c 
+								(Apron.Coeff.s_of_int (My_bigint.to_int big)))!=0) !res)==true then
+							res := (Apron.Coeff.s_of_int (My_bigint.to_int big))::(!res);
+						with Not_found->
+							Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);
+								(Apron.Coeff.s_of_int 0);
+								(Apron.Coeff.s_of_int (-1))]);
+						end;
+					| CReal(f,_,_)->
+						begin try
+							let res = Hashtbl.find coeffs name in
+							if (List.for_all(fun c->(Apron.Coeff.cmp c (Apron.Coeff.s_of_float f))!=0) !res)==true then
+							res := (Apron.Coeff.s_of_float f)::(!res);
+						with Not_found->
+							Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);(*float?*)
+								(Apron.Coeff.s_of_int 0);
+								(Apron.Coeff.s_of_int (-1))]);
+						end;
+					| _->();
+					end;
+					
+				| _->();
+				end;
+				
+			| _->();
+			end;
+		| _->();
+		end;
+	in
+		  
+	let rec get_coeff_from_predicate p =
+		begin match p with
+		 | Prel(_,t1,t2)->
+		 	get_coeff_from_term t1;
+		 	get_coeff_from_term t2;
+		 | _->();
+		 end;
+	in
+		  		
+	List.iter(fun b->
+	  List.iter(fun ip->
+		 	get_coeff_from_predicate ip.ip_content;
+		 )b.b_assumes;
+		  	
+	  List.iter(fun ip->
+		 	get_coeff_from_predicate ip.ip_content;
+		)b.b_requires;
+		  	
+		List.iter(fun (_,ip)->
+		 get_coeff_from_predicate ip.ip_content;
+		)b.b_post_cond;
+	)funspec.spec_behavior;;
+
 
 (** Add to an environment a list of variables *)
 let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Environment.t =
@@ -43,18 +115,18 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 			lreal := avar::!lreal;
 			names := var.vname::(!names);
 			Hashhe.add avar2cvar avar var;
-		| TPtr(tp,attr)->(*pointer,how to?*)
+		| TPtr(_,_)->(*pointer,how to?*)
 			Cil.d_var Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
 			let avar = (Apron.Var.of_string var.vname) in
 			lint := avar::!lint;
 			names := var.vname::(!names);
 			Hashhe.add avar2cvar avar var;
-		| TArray(tp,eo,size,attr)->
+		| TArray(_,eo,_,_)->
 			begin match eo with
-			| Some(e)->
+			| Some(_)->
 				let avar = (Apron.Var.of_string var.vname) in
 				lint := avar::!lint;
-			names := var.vname::(!names);
+				names := var.vname::(!names);
 				Hashhe.add avar2cvar avar var;
 			| None->();
 			end;
@@ -65,7 +137,7 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
     (Array.of_list !lint)
     (Array.of_list !lreal)
 
-let add_vars (env:Apron.Environment.t) (lvar:Apron.Var.t list) avar2cvar :Apron.Environment.t =
+let add_vars (env:Apron.Environment.t) (lvar:Apron.Var.t list) :Apron.Environment.t =
 	let names = ref [] in
 	
 	let (a1,a2)= Apron.Environment.vars env in
@@ -90,7 +162,7 @@ let negate_texpr (texpr:Apron.Texpr1.t) : Apron.Texpr1.t
   =
   let expr = Apron.Texpr1.to_expr texpr in
   let nexpr = match expr with
-    | Apron.Texpr1.Unop(Apron.Texpr1.Neg,e,typ,round) ->
+    | Apron.Texpr1.Unop(Apron.Texpr1.Neg,e,_,_) ->
 			e
     | _ ->
 			Apron.Texpr1.Unop(
@@ -113,7 +185,7 @@ let negate_linexpr (lexpr:Apron.Linexpr1.t) : Apron.Linexpr1.t
 
 let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 	begin match exp.enode with
-	| BinOp(op,e1,e2,ty)->
+	| BinOp(op,e1,e2,_)->
 		let te1 = force_exp_to_texp e1 in
 		let te2 = force_exp_to_texp e2 in
 		(match op with
@@ -146,7 +218,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";*)
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownBinOp");
 		)
-	| UnOp(op,e,ty)->
+	| UnOp(op,e,_)->
 		(match op with
 		| Neg->
 			let te = force_exp_to_texp e in
@@ -158,7 +230,7 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 		)
 	| Const(cons)->
 		(match cons with
-		| CInt64(i,kind,_)->
+		| CInt64(i,_,_)->
 			Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));
 		| CReal(f,_,_)->
 			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
@@ -168,14 +240,14 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 			Cil.d_exp Format.std_formatter exp;Format.print_flush ();Printf.printf "\n";
 			Apron.Texpr1.Var(Apron.Var.of_string "unknownConst");
 		)
-	| CastE(ty,e)->
+	| CastE(_,e)->
 		force_exp_to_texp e;(*not exactly right*)
-	| Lval((host,offset))->
+	| Lval((host,_))->
 		Printf.printf "unknownEnode1 in translate\n";
 		begin match host with
-		| Mem(m)->
+		| Mem(_)->
 			();(*Cil.d_exp Format.std_formatter m;Format.print_flush ();Printf.printf "\n";*)
-		| Var(v)->();
+		| Var(_)->();
 		end;
 		Apron.Texpr1.Var(Apron.Var.of_string "unknownEnode")
 	|_->
@@ -201,9 +273,9 @@ let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.
 			LiType.APScalar(Apron.Scalar.of_float 0.0);
 		end;
 	| Lval(lval)->
-		let (host,offset) = lval in
+		let (host,_) = lval in
 		begin match host with
-		| Mem(m)->
+		| Mem(_)->
 			let strfmt = Format.str_formatter in
 			Cil.d_lval strfmt lval;
 			let name = Format.flush_str_formatter () in
@@ -211,7 +283,7 @@ let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.
 		| Var(v)->
 			LiType.APVar(Apron.Var.of_string (LiUtils.get_vname v));
 		end;
-	| CastE(ty,e)->
+	| CastE(_,e)->
 		force_exp_to_arg env e;
 	| _->
 		let expr = force_exp_to_texp exp in
@@ -221,8 +293,6 @@ let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.
 
 let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 	let texpr = force_exp_to_texp e in
-	let vars = LiUtils.extract_varinfos_from_exp e in
-	let lvars = Cil_datatype.Varinfo.Set.elements vars in
 	(*let env = add_env env lvars in*)
 	let texpr = Apron.Texpr1.of_expr env texpr in
 	begin match e.enode with
@@ -242,11 +312,10 @@ let force_exp2tcons (e:Cil_types.exp) env: Apron.Tcons1.t =
 (*get max sid in block*)
 let rec get_block_maxid (id:int ref) (b:Cil_types.block) =
 	List.iter(fun s->
-		let fmt = Format.std_formatter in
 		if s.Cil_types.sid> !id then id := s.Cil_types.sid;
 		match s.Cil_types.skind with
 		| Instr(_)|Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
-		| If(e,b1,b2,_)->
+		| If(_,b1,b2,_)->
 			get_block_maxid id b1;
 			get_block_maxid id b2;
 		| TryFinally(b1,b2,_)->
@@ -279,7 +348,7 @@ let rec generate_bpoint (id:int ref) (name:string) (b:Cil_types.block) =
 		| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
 			generate_bpoint id name b1;
 			generate_bpoint id name b2;
-		| Switch(_,b,sl,_)->
+		| Switch(_,b,_,_)->
 			generate_bpoint id name b;
 		| Loop(_,b,_,_,_)|Block(b)->
 			generate_bpoint id name b;
@@ -294,13 +363,13 @@ let rec generate_bpoint (id:int ref) (name:string) (b:Cil_types.block) =
 let preprocess_bpoint maxid =
 	Globals.Functions.iter(fun kf ->
 		match kf.fundec with
-		| Definition(dec,loc)->
+		| Definition(dec,_)->
 			let name = Kernel_function.get_name kf in
 			dec.sbody.kf_name <- name;
 			dec.sbody.bid <- !maxid+1;
 			maxid := !maxid+1;
 			generate_bpoint maxid name dec.sbody;
-		| Declaration(spec,v,vlo,_)->
+		| Declaration _->
 		  ()
 	);;
 	
@@ -347,19 +416,6 @@ let rec force_assert_to_annot (e:Cil_types.exp) (kf:Cil_types.kernel_function) (
     let assert_root_code_annot_ba = Cil_types.User(code_annot) in
     Annotations.add kf s [Ast.self] assert_root_code_annot_ba;
   );;
-           			
-let translate_kf (kf:Cil_types.kernel_function) =
-	let fundec = Kernel_function.get_definition kf in
-	List.iter(fun stmt ->
-		match stmt.skind with
-		| Instr(ins) ->
-		  (match ins with
-		  | Call(lo,e,el,l) ->
-        Printf.printf "\n";
-      | _->();
-      );
-    | _->();
-	)fundec.sallstmts;;
 
 let copy_env env =
 	let (va1,va2) = Apron.Environment.vars env in
@@ -389,9 +445,9 @@ let rec extract_const_from_exp (lv:lval option) e =
 		| CReal(f,_,_)->[(lv,int_of_float f)];
 		| _->[];
 		end;
-	| BinOp(op,e1,e2,_)->
+	| BinOp(_,e1,e2,_)->
 		(extract_const_from_exp lv e1)@(extract_const_from_exp lv e2);
-	| UnOp(op,e1,_)->
+	| UnOp(_,e1,_)->
 		extract_const_from_exp lv e1;
 	| _->[];
 	end;;
@@ -403,7 +459,7 @@ let extract_const_from_stmt cons s =
 			begin match ins with
 			| Set(lv,e,_)->
 				begin match e.enode with
-				| BinOp(op,e1,e2,_)->
+				| BinOp(op,_,e2,_)->
 					begin match op with
 					| PlusA|MinusA->
 						let l = extract_const_from_exp (Some(lv)) e2 in
@@ -430,7 +486,7 @@ let extract_const_from_stmt cons s =
 			List.iter(fun s1->
 				extract s1;
 			)b2.bstmts;
-		| Switch(_,b,sl,_)->
+		| Switch(_,b,_,_)->
 			List.iter(fun s1->
 				extract s1;
 			)b.bstmts;
@@ -451,15 +507,11 @@ let extract_const_from_stmt cons s =
 let extract_step kf vars stmt =
 	let fmt =  Format.std_formatter in
 	let steps = ref [] in
-	let dec = Kernel_function.get_definition kf in
-	let fname = Kernel_function.get_name kf in
 	
-	Printf.printf "extract_step\n";
 	let pdg = (!Db.Pdg.get) kf in
 	(*(!Db.Pdg.extract) pdg ("/home/lzh/pdg_"^fname^".dot");*)
 	
 	let vlist = LiPdg.find_vnodes vars pdg in
-	let blist = LiPdg.find_bnodes dec.sbody pdg in
 	Printf.printf "vlist.len=%d\n" (List.length vlist);
 	
 	begin match stmt.skind with
@@ -469,13 +521,8 @@ let extract_step kf vars stmt =
 		
 		try
 		for i=0 to (len_llist-1) do
-			Printf.printf "nth1:%d\n" i;
 			let node = List.nth vlist i in
-			Printf.printf "nth2:%d\n" i;
-			Printf.printf "pretty_node:";(!Db.Pdg.pretty_node) false fmt node;Format.print_flush ();Printf.printf "\n";
 			let nodes = (!Db.Pdg.direct_uses) pdg node in(*all_uses.if nodes are too many it will be stack overflow*)
-			Printf.printf "use nodes.len=%d\n" (List.length nodes);
-			Printf.printf "llist.len=%d\n" len_llist;
 			
 			let len_nodes = List.length nodes in
 			for j=0 to (len_nodes-1) do
@@ -500,10 +547,8 @@ let extract_step kf vars stmt =
 					begin match s with
 					| Some(s1)->
 						let tmp = ref [] in
-						Printf.printf "steps.len1=%d\n" (List.length !steps);
 						extract_const_from_stmt tmp s1;
 						steps := !tmp@(!steps);
-						Printf.printf "steps.len2=%d\n" (List.length !steps);
 					| None->();
 					end;
 				end;
@@ -537,15 +582,12 @@ let extract_step kf vars stmt =
 	res;;
 
 let rec extract_coeff_from_exp coeffs e varo =
-	let ltype = Cil_types.Ctype(Cil.intType) in(*temporary*)
-	let fmt = Format.std_formatter in
 	let strfmt = Format.str_formatter in
 	
 	begin match varo with
 	| Some(e1)->
 		Cil.d_exp strfmt e1;
 		let name = Format.flush_str_formatter () in
-		Printf.printf "extract:%s" name;
 		let res = Hashtbl.find coeffs name in
 		begin match e.enode with
 		| Const(c)->
@@ -559,7 +601,7 @@ let rec extract_coeff_from_exp coeffs e varo =
 				res := (Apron.Coeff.s_of_float f)::(!res);
 			| _->();(*or 1?*)
 			end;
-		| Lval((host,offset))->();
+		| Lval((_,_))->();
 		| BinOp(op,e1,e2,_)->
 			begin match op with
 			| Mult->
@@ -568,7 +610,7 @@ let rec extract_coeff_from_exp coeffs e varo =
 				(extract_coeff_from_exp coeffs e1 None);(extract_coeff_from_exp coeffs e2 None);
 			| _->();
 			end;
-		| UnOp(op,e1,_)->
+		| UnOp(_,e1,_)->
 			extract_coeff_from_exp coeffs e1 None;
 		| _->();
 		end;
@@ -582,7 +624,7 @@ let rec extract_coeff_from_exp coeffs e varo =
 				(extract_coeff_from_exp coeffs e1 None);(extract_coeff_from_exp coeffs e2 None);
 			| _->();
 			end;
-		| UnOp(op,e1,_)->
+		| UnOp(_,e1,_)->
 			extract_coeff_from_exp coeffs e1 None;
 		| _->();
 		end;		
@@ -607,8 +649,7 @@ let extract_coeff_from_loop coeffs stmt =
 		begin match s.skind with
 		| Instr(ins)->
 			begin match ins with
-			| Set(lv,e,_)->
-				Printf.printf "analysis_exp\n";Cil.d_exp Format.std_formatter e;Format.print_flush ();Printf.printf "\n";
+			| Set(_,e,_)->
 				analysis_exp e;
 			| _->();
 			end;
@@ -632,7 +673,7 @@ let extract_coeff_from_loop coeffs stmt =
 		| UnspecifiedSequence(seq)->
 			let b = Cil.block_from_unspecified_sequence seq in
 			List.iter(fun s1->
-				analysis s;
+				analysis s1;
 			)b.bstmts;
 		| TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
 			List.iter(fun s->
@@ -673,8 +714,8 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 					| LiType.CSize(size)->
 						begin match size.scache with
 						| Not_Computed->Printf.printf "Not_Computed\n";
-						| Not_Computable(exn)->Printf.printf "Not_Computable\n";
-						| Computed(i)->Printf.printf "Computed\n";
+						| Not_Computable(_)->Printf.printf "Not_Computable\n";
+						| Computed(_)->Printf.printf "Computed\n";
 						end;
 					| LiType.CTerm(t1)->
 						let t = !Db.Properties.Interp.force_exp_to_term index in
@@ -693,17 +734,17 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 			begin match (host,offset) with
 			| (Mem(e1),NoOffset)->
 				begin match e1.enode with
-				| BinOp(op,e2,e3,_)->
+				| BinOp(_,e2,e3,_)->
 					apply_index fmt e2 e3;
 				| _->();
 				end;
 			| _->();
 			end;
-		| BinOp(op,e1,e2,ty)->
+		| BinOp(_,e1,e2,_)->
 			analysis_exp fmt e1;analysis_exp fmt e2;
-		| UnOp(op,e,ty)->
+		| UnOp(_,e,_)->
 			analysis_exp fmt e;
-		| CastE(ty,e)->
+		| CastE(_,e)->
 			analysis_exp fmt e;
 		| _->();
 		end
@@ -713,7 +754,7 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 		begin match s.skind with
 		| Instr(instr)->
 			begin match instr with
-			| Set(lval,e,_)->
+			| Set(_,e,_)->
 				analysis_exp fmt e;
 			| _->();
 			end;
@@ -732,7 +773,7 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 			List.iter(fun s1->
 				analysis_stmt s1;
 			)b.bstmts;
-		| If(exp,b1,b2,l)->
+		| If(exp,b1,b2,_)->
 			analysis_exp fmt exp;
 			List.iter(fun s1->
 				analysis_stmt s1;
@@ -745,19 +786,17 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 	in
 	analysis_stmt stmt;;
 
-let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_types.stmt * Cil_types.exp) list) stmt loc env (ipl:Property.identified_property list ref) wp_compute : Equation.transfer list =	
+let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Cil_types.stmt * Cil_types.exp) list) stmt loc env (ipl:Property.identified_property list ref) wp_compute unknownout: Equation.transfer list =
+	let kf = procinfo.Equation.kf in
 	let cond = force_exp2tcons loop.con env in  
 	let transfers = ref [] in
-	let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int 0),Cil_types.IInt,None)) in
-	let term_vars = ref (Logic_const.term tnode (Cil_types.Ctype(Cil.intType))) in
 	let zero_term = Cil.lzero () in
-	let mone_term = Cil.lconstant (My_bigint.of_int (-1)) in(*-1*)
 	let ltype = Cil_types.Ctype(Cil.intType) in
 	let strfmt = Format.str_formatter in
 	
 	(*get all valEles in conl*)
 	let vars = ref [] in
-	List.iter(fun (s,e)->
+	List.iter(fun (_,e)->
 		let evars = !(LiUtils.extract_valEle_from_exp e) in
 		List.iter(fun v->
 			LiType.print_valEle fmt v;
@@ -785,7 +824,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		begin match value with
 		| Cvalue.V.Top(_,_)->
 			Printf.printf "Top\n";
-		| Cvalue.V.Map(m)->
+		| Cvalue.V.Map(_)->
 			Printf.printf "Map\n";
 			Cvalue.V.pretty fmt value;Format.print_flush ();Printf.printf "\n";
 			try
@@ -798,8 +837,8 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 						if (My_bigint.gt i (!max))==true then max := i;
 					)set;
 					most := (v,!min,!max)::!most;
-				| Ival.Float(f)->Printf.printf "Float\n";
-				| Ival.Top(to1,to2,t1,t2)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)
+				| Ival.Float(_)->Printf.printf "Float\n";
+				| Ival.Top(to1,to2,_,_)->Printf.printf "Top\n";(*interval;to1--min,to2--max*)
 					try
 					begin match to1,to2 with
 					| Some(i1),Some(i2)->
@@ -822,17 +861,18 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 	(*get step of potential step vars in loop body*)
 	let steps = extract_step kf !vars stmt in
 	(*get coeff of var in Mult op,both in loop body and conds*)
-	let coeffs = Hashtbl.create 3 in
+	let coeffs = procinfo.Equation.var2coeff in (*Hashtbl.create 3 in*)
 	Printf.printf "lvars.len=%d\n" (List.length lvars);
 	List.iter(fun v->
 		let name = LiUtils.get_vname v in
-		Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);
-		(Apron.Coeff.s_of_int 0);
-		(Apron.Coeff.s_of_int (-1))]);
+		try
+			Hashtbl.find coeffs name;();
+		with Not_found->
+			Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);
+			(Apron.Coeff.s_of_int 0);
+			(Apron.Coeff.s_of_int (-1))]);
 	)lvars;
-	Printf.printf "coeffs.len1=%d\n" (Hashtbl.length coeffs);
 	extract_coeff_from_loop coeffs stmt;
-	Printf.printf "coeffs.len2=%d\n" (Hashtbl.length coeffs);
 	
 	List.iter(fun (_,e)->
 		let tcons = force_exp2tcons e env in
@@ -857,10 +897,10 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 		Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 		let root_code_annot_ba = Cil_types.User(code_annotation) in
 		Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-		(*if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+		if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
 		begin(*wp cannot prove*)
 			transfers := Tcons(cond,tcons,code_annotation,ref true)::!transfers; 
-		end;*)
+		end;
 	)conl;
 	
 	
@@ -929,7 +969,7 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 					indexi := 0;
 					let rec inc j =
 						if j<len then begin
-							let (indexj,name,lj) = List.nth !coeffl j in
+							let (indexj,_,lj) = List.nth !coeffl j in
 							indexj := !indexj+1;
 							if !indexj==(List.length lj) then
 							begin indexj := 0;inc (j+1);end;
@@ -964,13 +1004,15 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 				
 				if (cof_to_int c)!=0 then
 				begin
-					let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (cof_to_int c)),Cil_types.IInt,None)) in
-					let tcof = Logic_const.term tnode ltype in				
+					if (cof_to_int c)!=1 then
+					begin
+						let tnode = Cil_types.TConst(Cil_types.CInt64((My_bigint.of_int (cof_to_int c)),Cil_types.IInt,None)) in
+						let tcof = Logic_const.term tnode ltype in				
 				
-					let tnode = TBinOp(Mult,tcof,tvar) in
-					lterm := !lterm@[Logic_const.term tnode ltype];
-				
-					let lval = Cil.var v in
+						let tnode = TBinOp(Mult,tcof,tvar) in
+						lterm := !lterm@[Logic_const.term tnode ltype];
+					end else begin lterm := !lterm@[tvar]; end;
+					
 			
 					(*sum of steps of var v.vname??*)
 					try
@@ -982,14 +1024,14 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 					with Not_found->Printf.printf "Not_found:";Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
 			
 					let mostv = 
-						List.find_all (fun (v1,min,max)->
+						List.find_all (fun (v1,_,_)->
 						begin match v1 with
 						| LiType.Var(v2)->v2==v
 						| LiType.Lval(_)->false
 						end;) !most
 					in
 			
-					List.iter(fun (v,min,max)->
+					List.iter(fun (_,min,max)->
 						const_min := Big_int.add_big_int !const_min min;
 						const_max := Big_int.add_big_int !const_max max;
 						Printf.printf ",min=%s,max=%s\n" (My_bigint.to_string min) (My_bigint.to_string max);
@@ -1018,191 +1060,197 @@ let generate_template fmt kf loop (lvars:Cil_types.varinfo list) (conl:(Cil_type
 			(*make sum to get the last term being the form above.we can create [code_annotation] with this term*)
 			if (List.length !lterm)>0 then
 			begin
-			term_vars := List.nth !lterm 0;(*remove zero_term*)
-			for i=1 to ((List.length !lterm)-1) do
-				let t = List.nth !lterm i in
-				term_vars := Logic_const.term (TBinOp(PlusA,!term_vars,t)) ltype;
-			done;(*(!lterm@[tcon_max]);*)
-			Printf.printf "term_vars:";Cil.d_term fmt (!term_vars);Format.print_flush ();Printf.printf "\n";
+				term_vars := List.nth !lterm 0;(*remove zero_term*)
+				for i=1 to ((List.length !lterm)-1) do
+					let t = List.nth !lterm i in
+					term_vars := Logic_const.term (TBinOp(PlusA,!term_vars,t)) ltype;
+				done;(*(!lterm@[tcon_max]);*)
+				Printf.printf "term_vars:";Cil.d_term fmt (!term_vars);Format.print_flush ();Printf.printf "\n";
 			
-			Printf.printf "len=%d\n" len;
-			let new_env = Apron.Environment.make (!vars) (!cofs) in
-			let tab = Apron.Lincons1.array_make new_env len in
-			let expr = Apron.Linexpr1.make new_env in
+				Printf.printf "len=%d\n" len;
+				let new_env = Apron.Environment.make (!vars) (!cofs) in
+				let tab = Apron.Lincons1.array_make new_env len in
+				let expr = Apron.Linexpr1.make new_env in
 			
 			
-			let mk_lincons =
-				if (Big_int.ge_big_int !const_max (Big_int.big_int_of_int max_int))==false then
-				begin
-					let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_max)) ltype in
-					let pred = Prel(Rgt,term,zero_term) in(**>*)
-					Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-					(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_max)))(*constant part*)
-					;
-					let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
-					Apron.Lincons1.array_set tab 0 cons;
-			
-					let pnamed = Logic_const.unamed pred in
-					let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-					Printf.printf "annota5:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-					let root_code_annot_ba = Cil_types.User(code_annotation) in
-					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-					begin(*wp cannot prove*)
-						Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-						transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+				let mk_lincons =
+					if (Big_int.ge_big_int !const_max (Big_int.big_int_of_int max_int))==false then
+					begin
+						let tmax =
+							if (Big_int.eq_big_int !const_max Big_int.zero_big_int)==false then
+								Logic_const.term (TBinOp(PlusA,!term_vars,tcon_max)) ltype
+							else
+								!term_vars
+						in
 						
-						let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_max)) ltype in
-						let pred = Prel(Rge,term,zero_term) in(**>=*)
+						let pred = Prel(Rgt,tmax,zero_term) in(**>*)
 						Apron.Linexpr1.set_array expr (Array.of_list !cofl)
 						(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_max)))(*constant part*)
 						;
-						let cons = Apron.Lincons1.make expr Apron.Lincons1.SUPEQ in
+						let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
 						Apron.Lincons1.array_set tab 0 cons;
-					
+			
 						let pnamed = Logic_const.unamed pred in
 						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-					Printf.printf "annota6:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+						Printf.printf "annota5:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 						let root_code_annot_ba = Cil_types.User(code_annotation) in
 						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-						if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+						if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
 						begin(*wp cannot prove*)
 							Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 							transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-							
-							let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_max)) ltype in
-							let pred = Prel(Rneq,term,zero_term) in(**!=*)
+						
+							let pred = Prel(Rge,tmax,zero_term) in(**>=*)
 							Apron.Linexpr1.set_array expr (Array.of_list !cofl)
 							(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_max)))(*constant part*)
 							;
-							let cons = Apron.Lincons1.make expr Apron.Lincons1.DISEQ in
+							let cons = Apron.Lincons1.make expr Apron.Lincons1.SUPEQ in
 							Apron.Lincons1.array_set tab 0 cons;
-						
+					
 							let pnamed = Logic_const.unamed pred in
 							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-						Printf.printf "annota2:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+						Printf.printf "annota6:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 							let root_code_annot_ba = Cil_types.User(code_annotation) in
 							Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-							if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+							if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
 							begin(*wp cannot prove*)
 								Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 								transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-								
-								let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_max)) ltype in
-								let pred = Prel(Req,term,zero_term) in(**==*)
+							
+								let pred = Prel(Rneq,tmax,zero_term) in(**!=*)
 								Apron.Linexpr1.set_array expr (Array.of_list !cofl)
 								(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_max)))(*constant part*)
-								;
-								let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
-								Apron.Lincons1.array_set tab 0 cons;
-
-								let pnamed = Logic_const.unamed pred in
-								let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-								Printf.printf "annota1:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-								let root_code_annot_ba = Cil_types.User(code_annotation) in
-								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-								if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-								begin(*wp cannot prove*)
-									Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-									transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-								end;
-							end;
-						end;
-					end;
-				end;
-					
-				if (Big_int.eq_big_int !const_min !const_max)==false then
-				begin		
-					if (Big_int.gt_big_int !const_min (Big_int.big_int_of_int min_int))==true then
-					begin
-					let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_min)) ltype in
-					let pred = Prel(Rgt,term,zero_term) in(**>*)
-					Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-					(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
-					;
-					let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
-					Apron.Lincons1.array_set tab 0 cons;
-					
-					let pnamed = Logic_const.unamed pred in
-					let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-					Printf.printf "annota7:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-					let root_code_annot_ba = Cil_types.User(code_annotation) in
-					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-					begin(*wp cannot prove*)
-						Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-						transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-					
-						let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_min)) ltype in
-						let pred = Prel(Rge,term,zero_term) in(**>=*)
-						Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-						(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
-						;
-						let cons = Apron.Lincons1.make expr Apron.Lincons1.SUPEQ in
-						Apron.Lincons1.array_set tab 0 cons;
-					
-						let pnamed = Logic_const.unamed pred in
-						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-					Printf.printf "annota8:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-						let root_code_annot_ba = Cil_types.User(code_annotation) in
-						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-						if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-						begin(*wp cannot prove*)
-							Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-							transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-							
-							let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_min)) ltype in
-							let pred = Prel(Rneq,term,zero_term) in(*!=*)
-							Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-							(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
-							;
-							let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
-							Apron.Lincons1.array_set tab 0 cons;
-					
-							let pnamed = Logic_const.unamed pred in
-							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-							Printf.printf "annota3:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
-							let root_code_annot_ba = Cil_types.User(code_annotation) in
-							Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-							if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
-							begin(*wp cannot prove*)
-								Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-								transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-						
-								(*Rneq*)
-								let term = Logic_const.term (TBinOp(PlusA,!term_vars,tcon_min)) ltype in
-								let pred = Prel(Req,term,zero_term) in(*==*)
-								Apron.Linexpr1.set_array expr (Array.of_list !cofl)
-								(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
 								;
 								let cons = Apron.Lincons1.make expr Apron.Lincons1.DISEQ in
 								Apron.Lincons1.array_set tab 0 cons;
 						
 								let pnamed = Logic_const.unamed pred in
 								let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
-							Printf.printf "annota4:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+							Printf.printf "annota2:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 								let root_code_annot_ba = Cil_types.User(code_annotation) in
 								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-								if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute)==0 then
+								if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
 								begin(*wp cannot prove*)
 									Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 									transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+								
+									let pred = Prel(Req,tmax,zero_term) in(**==*)
+									Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+									(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_max)))(*constant part*)
+									;
+									let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
+									Apron.Lincons1.array_set tab 0 cons;
+
+									let pnamed = Logic_const.unamed pred in
+									let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+									Printf.printf "annota1:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+									let root_code_annot_ba = Cil_types.User(code_annotation) in
+									Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+									if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
+									begin(*wp cannot prove*)
+										Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+										transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+									end;
+								end;
+							end;
+						end;
+					end;
+					
+					if (Big_int.eq_big_int !const_min !const_max)==false then
+					begin		
+						if (Big_int.gt_big_int !const_min (Big_int.big_int_of_int min_int))==true then
+						begin
+						let tmin =
+							if (Big_int.eq_big_int !const_min Big_int.zero_big_int)==false then
+								Logic_const.term (TBinOp(PlusA,!term_vars,tcon_min)) ltype
+							else
+								!term_vars
+						in
+						
+						let pred = Prel(Rgt,tmin,zero_term) in(**>*)
+						Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+						(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
+						;
+						let cons = Apron.Lincons1.make expr Apron.Lincons1.SUP in
+						Apron.Lincons1.array_set tab 0 cons;
+					
+						let pnamed = Logic_const.unamed pred in
+						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						Printf.printf "annota7:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+						let root_code_annot_ba = Cil_types.User(code_annotation) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+						if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
+						begin(*wp cannot prove*)
+							Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+							transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+					
+							let pred = Prel(Rge,tmin,zero_term) in(**>=*)
+							Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+							(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
+							;
+							let cons = Apron.Lincons1.make expr Apron.Lincons1.SUPEQ in
+							Apron.Lincons1.array_set tab 0 cons;
+					
+							let pnamed = Logic_const.unamed pred in
+							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						Printf.printf "annota8:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+							let root_code_annot_ba = Cil_types.User(code_annotation) in
+							Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+							if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
+							begin(*wp cannot prove*)
+								Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+								transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+							
+								let pred = Prel(Rneq,tmin,zero_term) in(*!=*)
+								Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+								(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
+								;
+								let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in
+								Apron.Lincons1.array_set tab 0 cons;
+					
+								let pnamed = Logic_const.unamed pred in
+								let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+								Printf.printf "annota3:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+								let root_code_annot_ba = Cil_types.User(code_annotation) in
+								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+								if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
+								begin(*wp cannot prove*)
+									Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+									transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+						
+									(*Rneq*)
+									let pred = Prel(Req,tmin,zero_term) in(*==*)
+									Apron.Linexpr1.set_array expr (Array.of_list !cofl)
+									(Some (Apron.Coeff.s_of_int (Big_int.int_of_big_int !const_min)))(*constant part*)
+									;
+									let cons = Apron.Lincons1.make expr Apron.Lincons1.DISEQ in
+									Apron.Lincons1.array_set tab 0 cons;
+						
+									let pnamed = Logic_const.unamed pred in
+									let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+								Printf.printf "annota4:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+									let root_code_annot_ba = Cil_types.User(code_annotation) in
+									Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+									if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
+									begin(*wp cannot prove*)
+										Apron.Lincons1.array_set tab 0 cons;(*0-index*)
+										transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
+									end;
 								end;
 							end;
 						end;
 					end;
 				end;
-			end;
 			(*| Apron.Lincons1.EQMOD(_)->
 					let rterm = Logic_const.term (TBinOp(Mod,!term,zero_term)) (Cil_types.Ctype(Cil.intType)) in
 					let pred = Prel(Req,!term,rterm) in(*%=*)
 					let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in(*EQMOD*)
 					Apron.Lincons1.array_set tab 0 cons;(pred,cons);*)
-			in
+				in
 			
 			
-			(*apply typ*)				
-			mk_lincons;
+				(*apply typ*)				
+				mk_lincons;
 			
 			end;
 			end;

@@ -5,10 +5,9 @@ let find_vnodes vars pdg =
 	let l = ref [] in
 	List.iter(fun v->
 		begin match v with
-		| LiType.Lval(li)->();
+		| LiType.Lval(_)->();
 		| LiType.Var(v)->
 			try
-				Printf.printf "v:%s,vgenerated=%b\n" v.vname v.vgenerated;
 				if v.vgenerated==false then
 				begin
 					let node = (!Db.Pdg.find_decl_var_node) pdg v in

@@ -363,7 +363,7 @@ let process_vertex
   	let transfer = (PSHGraph.attrhedge graph edge).arc in
   	(*Equation.print_transfer manager.print_fmt transfer;Format.print_flush ();Printf.printf "\nedge%d\n" edge;*)
   	match transfer with
-  	| Equation.Lcons(cond,cons,code_annotation,sat)->
+  	| Equation.Lcons(cond,cons,_,sat)->
  			Printf.printf "in Lcons process_vertex\n";
   		Apron.Lincons1.print manager.print_fmt cons;Format.print_flush ();Printf.printf "\n";
   		if !sat==true then
@@ -382,7 +382,7 @@ let process_vertex
  			Printf.printf "sat_lincons=%b\n" !sat;
  			oldreach.Apron.Abstract1.env <- env0;
  			);
- 		| Equation.Tcons(cond,tcons,code_annotation,sat)->
+ 		| Equation.Tcons(cond,tcons,_,sat)->
  			Printf.printf "in Tcons process_vertex\n";
  			Apron.Tcons1.print manager.print_fmt tcons;Format.print_flush ();Printf.printf "\n";
  			if !sat==true then
@@ -492,7 +492,7 @@ let descend_strategy
     incr counter;
     incr info.idescendings;
     (* Linear iteration on vertices of a strongly connected component *)
-    Ilist.iter(fun flag svertex ->
+    Ilist.iter(fun _ svertex ->
 			let reducing2 = process_svertex svertex in
 			reducing := !reducing || reducing2
     )strategy;
@@ -523,21 +523,6 @@ let descend
     Ilist.iter(fun _ svertex ->
 			let vertex = svertex.vertex in
 			let attrvertex = PSHGraph.attrvertex graph vertex in 
-			
-			let spredhedges = PSHGraph.succhedge graph vertex in
-			let cons = ref (Hashhe.create 3) in
-			PSette.iter(fun edge->
-				let attr = PSHGraph.attrvertex graph vertex in
-				let transfer = (PSHGraph.attrhedge graph edge).arc in
-				match transfer with
-				| Equation.Lcons(cond,cons,code_annotation,sat)->
-				 	Printf.printf "attrhedge,oldreach in descend\n";
-					Equation.print_transfer Format.std_formatter transfer;
-					Format.print_flush ();Printf.printf "\n";
-					let oldreach = attr.reach in
-				 	Apron.Abstract1.print Format.std_formatter oldreach;Format.print_flush ();Printf.printf "\n";
-				| _->();
-			)spredhedges; 
 			
 			if not attrvertex.empty then
 				PHashhe.replace info.iworkvertex vertex ()
@@ -754,8 +739,8 @@ let rec process_toplevel_strategy
 
 let output_of_graph graph =
     PSHGraph.copy
-      (fun vertex attrvertex -> attrvertex.reach)
-      (fun hedge attrhedge -> attrhedge.arc)
+      (fun _ attrvertex -> attrvertex.reach)
+      (fun _ attrhedge -> attrhedge.arc)
       (fun info -> {
 	time = !(info.itime);
 	iterations = !(info.iiterations);

@@ -4,9 +4,9 @@ open Template
 open Cil_types
 open Loop_parameters
   
-let build_graphs (fmt:Format.formatter) (prog:Equation.info) arrayvars ipl wp_compute :graph * graph =
+let build_graphs (fmt:Format.formatter) (prog:Equation.info) arrayvars ipl wp_compute unknownout :graph * graph =
   (* Converting prog into a forward equation system *)
-  let (fgraph:graph) = C2equation.Forward.make prog arrayvars fmt ipl wp_compute in
+  let (fgraph:graph) = C2equation.Forward.make prog arrayvars fmt ipl wp_compute unknownout in
 	(*fprintf fmt "print fgraph after ok 1\n";
   Equation.print_graph fmt fgraph;
 	fprintf fmt "print fgraph after ok 2\n";
@@ -18,7 +18,7 @@ let build_graphs (fmt:Format.formatter) (prog:Equation.info) arrayvars ipl wp_co
 	let bgraph = fgraph in
   (fgraph,bgraph)
 		
-let compute_and_display (fmt:Format.formatter) (prog:Equation.info) (fgraph:Equation.graph) (bgraph:Equation.graph) (manager:'a Apron.Manager.t) (ipl:Property.identified_property list ref) wp_compute : unit =
+let compute_and_display (fmt:Format.formatter) (prog:Equation.info) (fgraph:Equation.graph) (bgraph:Equation.graph) (manager:'a Apron.Manager.t) : unit =
   let (previous:(Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option ref) =
     ref None
   in
@@ -35,14 +35,14 @@ let compute_and_display (fmt:Format.formatter) (prog:Equation.info) (fgraph:Equa
 			| Loop_parameters.Backward ->
 				Printf.printf "Backward\n";
 				let fp =
-					Template.Backward.compute ~fmt prog bgraph ~output:(!previous) manager ~debug:1
+					Template.Backward.compute ~fmt bgraph ~output:(!previous) manager ~debug:1
 				in
 				fp
 			end
     in
       (* Apply and Display *)
     previous := Some fp;
-    Apply.apply_result prog fmt fp ipl wp_compute;
+    Apply.apply_result prog fmt fp;
     (*Template.print_output prog fmt fp;
     match !previous with
     | Some(out)->
