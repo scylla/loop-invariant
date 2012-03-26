@@ -6,8 +6,7 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 	let total_lt = ref [] in
 	
 	let rec generate_block_predicate (b:block) =
-		List.iter(fun s->
-	
+		List.iter(fun s->	
 		match s.skind with
 		| Instr(instr)->
 			(
@@ -48,6 +47,7 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 			
 				total_lt := (!levars,[],con_named,!t_named)::!total_lt;
 				
+				(*array*)
 				let (host,offset) = lval in
 				begin match (host,offset) with
 				| (Mem(e1),NoOffset)->
@@ -86,7 +86,6 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 				end;
 			(*Set End*)
 			| Call(_,e1,el,_)->
-				Printf.printf "Call in loop\n";
 				let name = LiUtils.get_exp_name e1 in
 				(try
 					let (fsig:Loop_parameters.procsignature) = Hashtbl.find funsigs name in
@@ -113,28 +112,22 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 			| _->
 				();(*match instr End*)
 			);
-			(*total_lt := !lt::!total_lt;
-			lt := [];*)
 		(*Instr End*)
 		| If(exp_temp,b1,b2,l)->
 			let b1_break = ref false in
 			let b2_break = ref false in
 			List.iter(fun bs->(
 				match bs.skind with
-				| Break(_)->(
+				| Break(_)->
 					b1_break := true;
-				)
-				| _->(
-				);
+				| _->();
 			)
 			)b1.bstmts;
 			List.iter(fun bs->(
 				match bs.skind with
-				| Break(_)->(
+				| Break(_)->
 					b2_break := true;
-				)
-				| _->(
-				);
+				| _->();
 			)
 			)b2.bstmts;
 		
@@ -157,20 +150,36 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 		
 			(*Logic_const.unamed (Pforall (!v_vars,con_named))*)
 			begin match texp_temp.enode with
-			| Lval _ | CastE _ | AddrOf _ | StartOf _ | UnOp _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ ->();
+			| Lval _ | CastE _ | AddrOf _ | StartOf _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ ->Printf.printf "cannot update con\n";TypePrinter.print_exp_type Format.std_formatter texp_temp;Format.print_flush ();
+			| UnOp(op,e,tp)->
+				begin match op with
+				| LNot->					
+					let e = Cil.new_exp ~loc:l (BinOp(Ne,e,(Cil.zero ~loc:l),tp)) in
+					let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate e in
+					let cp_named_temp = Logic_const.pnot ~loc:l cp_named_temp in
+					
+					List.iter(fun succs->Printf.printf "add If con3\n";Cil.d_stmt Format.std_formatter succs;Format.print_flush ();Printf.printf "\n";
+						succs.predicate_list <- cp_named_temp::s.predicate_list;
+						succs.free_lv_list <- !f_lv@s.free_lv_list;
+					)b1.bstmts;
+		
+					List.iter(fun succs->Printf.printf "add If con4\n";Cil.d_stmt Format.std_formatter succs;Format.print_flush ();Printf.printf "\n";
+						succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
+						succs.free_lv_list <- !f_lv@s.free_lv_list;
+					)b2.bstmts;
+				| _->();
+				end;
 			| _->
 				let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate texp_temp in(*condition predicate named*)
 				(*let cp_named_temp = Logic_const.unamed (Pforall (!f_lv,cp_named_temp)) in*)
-				List.iter(fun succs->(
+				List.iter(fun succs->
 					succs.predicate_list <- cp_named_temp::s.predicate_list;
 					succs.free_lv_list <- !f_lv@s.free_lv_list;
-				)
 				)b1.bstmts;
 		
-				List.iter(fun succs->(
+				List.iter(fun succs->
 					succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
 					succs.free_lv_list <- !f_lv@s.free_lv_list;
-				)
 				)b2.bstmts;
 		
 				(*succs of If? not in b1,b2*)
@@ -212,11 +221,10 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 			();
 		(*Break End*)
 		| Block(b2)->
-			(*if (List.length s.predicate_list)>0 then*)	
-			List.iter(fun bs->(
+			(*if (List.length s.predicate_list)>0 then*)
+			List.iter(fun bs->
 				bs.predicate_list <- s.predicate_list;
 				bs.free_lv_list <- s.free_lv_list;
-			)
 			)b2.bstmts;
 		
 			generate_block_predicate b2;
@@ -225,17 +233,15 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 		| UnspecifiedSequence(seq)->
 			let seq_block = Cil.block_from_unspecified_sequence seq in
 			(*if (List.length s.predicate_list)>0 then*)
-			List.iter(fun bs->(
+			List.iter(fun bs->
 				bs.predicate_list <- s.predicate_list;
 				bs.free_lv_list <- s.free_lv_list;
-			)
 			)seq_block.bstmts;
 		
 			generate_block_predicate seq_block;
 			();
 		(*UnspecifiedSequence End*)
-		| _->
-			();
+		| _->()
 		(*match s.skind End*)
 		)b.bstmts;(*List.iter End*)
 	in
@@ -246,7 +252,7 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) visitor (ipl:Property.identified_property list ref) wp_compute unknownout =
 	try
 	let fundec = Kernel_function.get_definition kf in
-	List.iter( fun stmt ->
+	List.iter(fun stmt ->
 		match stmt.skind with
 		| Loop(_,block,location,_,_) ->
 			let loop = Translate.extract_loop stmt in
@@ -276,7 +282,6 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 				| Cvalue.V.Top(_,_)->
 					Printf.printf "Top\n";
 				| Cvalue.V.Map(_)->
-					Printf.printf "Map\n";
 					try
 						let iv = Cvalue.V.project_ival value in(*Ival.t*)
 						begin match iv with
@@ -312,6 +317,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 			Printf.printf "Analysis loop body now.\n";
 			let total_lt = generate_loop_annotations kf stmt block linfo_list funsigs in
 			total_lt := List.rev !total_lt;
+			
 			List.iter(fun (vars,freevar,conds,t_named)->
 				let oriConds = ref [] and negoriConds = ref [] in
 				(*assert*)
@@ -323,7 +329,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 					negoriConds := negnamed::(!negoriConds);
 					with Not_found->();
 				)vars;
-					
+				
 				(*condition transition*)
 				let trans = Logic_const.unamed ~loc:location (Pimplies(conds,t_named)) in
 				if (List.length freevar)==0 then
@@ -333,25 +339,25 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 					
 					
 					let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
+					Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 					LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();
-					end else
-					begin
+				end else
+				begin
 						let trans = Logic_const.unamed (Pforall(freevar,trans)) in
 						let es = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!oriConds),(Logic_const.pnot ~loc:location trans))) in
 						let prev = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!negoriConds),trans)) in
 						
 						let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
-						let root_code_annot_ba = Cil_types.User(annot) in
+				Printf.printf "analysis2\n";	let root_code_annot_ba = Cil_types.User(annot) in
 						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 						LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();
 				end;
 			)!total_lt;
 			Printf.printf "Analysis loop body over.\n";
 			Printf.printf "Leave Loop Now.\n";
-		| _ ->
-		  	Printf.printf "\n";
+		| _ ->();
 	)fundec.sallstmts(*List.iter end*)
 	with Kernel_function.No_Definition->Printf.printf "The given function [%s] is not a definition.\n" (Kernel_function.get_name kf)
 

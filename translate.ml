@@ -385,19 +385,20 @@ let extract_loop stmt :Equation.loop =
 	let fmt = Format.std_formatter in
 	(match stmt.skind with
 	| Loop(_,b,loc,_,_)->
-		let con_stmt = List.nth b.bstmts 1 in
+		Printf.printf "b.bstmts.len=%d\n" (List.length b.bstmts);
+		let con_stmt = List.nth b.bstmts 2 in
 		let body_stmt = ref [] in
-		for i=2 to ((List.length b.bstmts)-1) do
+		for i=3 to ((List.length b.bstmts)-1) do
 			body_stmt := !body_stmt@[List.nth b.bstmts i];
 		done;
 		begin match con_stmt.skind with
 		| If(con,_,_,_)->
 			{Equation.con=con;Equation.body=(!body_stmt)};
 		| _->(*while(1){},so the con should be true*)
-			Printf.printf "con_stmt:";TypePrinter.print_stmtkind fmt con_stmt.skind;
+			Printf.printf "con_stmt:";Cil.d_stmt fmt con_stmt;Format.print_flush ();Printf.printf "\n";
+			TypePrinter.print_stmtkind fmt con_stmt.skind;Format.print_flush ();Printf.printf "\n";
 			let con = Cil.one ~loc:loc in
-			let body_stmt = Cil.dummyStmt in
-			{Equation.con=con;Equation.body = [body_stmt]};
+			{Equation.con=con;Equation.body = !body_stmt};
 		end;
 	| _->
 		let con = Cil.dummy_exp (Cil_types.Const(Cil_types.CStr("dummy_con2"))) in
