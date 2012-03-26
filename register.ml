@@ -246,7 +246,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
     if fname="assert" then
     (
       Self.result "This is an Assert clause.\n";
-      Function_analysis.analysis_assert kf;
     )else
     (
       Self.result "Enter function [%s].\n" fname;
@@ -262,7 +261,6 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   
   
 	let info = C2equation.make_info cil in
-	Printf.printf "info.Equation.procinfo.len2=%d\n" (Hashhe.length info.Equation.procinfo);
 	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute unknownout in
 	(*Printf.printf "Frontend.compute_and_display begin\n";
 	Frontend.compute_and_display fmt info fgraph bgraph manbox;

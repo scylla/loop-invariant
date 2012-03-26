@@ -148,9 +148,6 @@ let rec force_exp2bexp (exp:Cil_types.exp) : bexpr =
 		(match op with
 		| LNot->
 			let fmt = Format.std_formatter in
-			Printf.printf "force_exp2bexp\n";
-			TypePrinter.print_exp_type fmt e;
-			Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
 			NOT(force_exp2bexp e);
 		| Neg->assert false;(*-*)
 		| BNot->assert false;
@@ -337,7 +334,7 @@ let make_info (prog:Cil_types.file): Equation.info =
 			let info = make_procinfo kf in
 			Hashhe.add procinfo info.pname info
 	);
-	Printf.printf "info.Equation.procinfo.len3=%d\n" (Hashhe.length procinfo);
+
   let callret = DHashhe.create 3 in
   Globals.Functions.iter(fun kf ->
   	let name = Kernel_function.get_name kf in
@@ -454,7 +451,6 @@ module Forward = struct
       
       if (Equation.compare_point bpoint Equation.vertex_dummy)!=0 then(
       List.fold_left(fun point stmt->
-      	TypePrinter.print_stmtkind fmt stmt.skind;Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
       	let spoint = {fname=name;sid=stmt.Cil_types.sid} in
 				if (Equation.compare_point spoint Equation.vertex_dummy)!=0 then
       	(
@@ -462,7 +458,6 @@ module Forward = struct
       	| Instr(instr)->
       		(match instr with
       		| Set(lval,e,_)->
-      			Printf.printf "Instr Set\n";
       			let (host,_) = lval in
       			(match host with
       			| Var(v)->
@@ -475,7 +470,7 @@ module Forward = struct
 							let transfer = Equation.Assign(var,ass) in
 							
 							Equation.add_equation graph [|point|] transfer spoint;
-						| Mem(e1)->Cil.d_exp fmt e1;Format.print_flush ();Printf.printf "\n";
+						| Mem(e1)->
 							let strfmt = Format.str_formatter in
 							Cil.d_lval strfmt lval;
 							let name = Format.flush_str_formatter () in
@@ -534,9 +529,8 @@ module Forward = struct
 							let callee = Hashhe.find info.Equation.procinfo fname in
 							let pin = ref [] in
 							List.iter(fun e->
-								(*Printf.printf "pin=\n";Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";*)
 								let arg = Translate.force_exp_to_arg env e in
-								LiType.print_arg fmt arg;Printf.printf "\n";
+								(*Printf.printf "pin arg:";LiType.print_arg fmt arg;Printf.printf "\n";*)
 								pin := !pin@[arg];
 							)el;
 							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),None) in
@@ -546,7 +540,6 @@ module Forward = struct
 							);
 						end;
       		| _->
-      			Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
       			let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
@@ -626,17 +619,18 @@ module Forward = struct
       		let vars = LiUtils.extract_varinfos_from_stmt stmt in
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
 					(*remove ptr var*)
-					let nvars = ref [] in
+					let fundec = Kernel_function.get_definition procinfo.Equation.kf in
+					let nvars = ref (fundec.sformals@fundec.slocals) in
 					List.iter(fun v->
 						begin match v.vtype with
 						| TPtr _| TFun _| TNamed _|TComp _| TEnum _| TBuiltin_va_list _->();
-						| _->Printf.printf "nvars:%s:" (LiUtils.get_vname v);Cil.d_type fmt v.vtype;Format.print_flush ();Printf.printf "\n";
-						if v.vgenerated==false then
-						begin nvars := v::(!nvars); end;
+						| _->
+							if v.vgenerated==false then
+							begin nvars := v::(!nvars); end;
 						end;
 					)lvars;
 					Printf.printf "precess fun [%s] in formake\n" name;
-					Printf.printf "loop stmt:\n";Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";
+					(*Printf.printf "loop stmt:\n";Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";*)
 					let transfers = Translate.generate_template fmt procinfo loop !nvars !conl stmt loc env ipl wp_compute unknownout in
 					List.iter(fun constransfer->
 						Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
@@ -723,11 +717,11 @@ module Forward = struct
 						let transfer = Equation.Condition(Boolexpr.make_cst true) in
 						Equation.add_equation graph [|spoint|] transfer {fname=name;sid=(!sr).Cil_types.sid};
 				| Cil_types.Return(_,_)->(*wonder whether it is right*)
-					Printf.printf "Return transfer\n";
+					();
 					(*let transfer = Equation.Condition(Boolexpr.make_cst true) in
 					let transfer = Equation.Condition(Boolexpr.DISJ([])) in
 					Equation.add_equation graph [|point|] transfer spoint;*)
-      	| _->Printf.printf "other stmt\n";TypePrinter.print_stmtkind fmt stmt.skind;Format.print_flush ();Printf.printf "\n";
+      	| _->
       		let transfer = Equation.Condition(Boolexpr.make_cst true) in
 					Equation.add_equation graph [|point|] transfer spoint;
 				);
@@ -738,7 +732,6 @@ module Forward = struct
       );
    	in
 
-		Printf.printf "info.Equation.procinfo.len1=%d\n" (Hashhe.length info.Equation.procinfo);
 		Globals.Functions.iter(fun kf ->
 			let name = Kernel_function.get_name kf in
 			begin match kf.fundec with
