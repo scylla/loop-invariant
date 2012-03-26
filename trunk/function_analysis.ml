@@ -150,7 +150,27 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 		
 			(*Logic_const.unamed (Pforall (!v_vars,con_named))*)
 			begin match texp_temp.enode with
-			| Lval _ | CastE _ | AddrOf _ | StartOf _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ ->Printf.printf "cannot update con\n";TypePrinter.print_exp_type Format.std_formatter texp_temp;Format.print_flush ();
+			| CastE _ | AddrOf _ | StartOf _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ ->Printf.printf "cannot update con\n";TypePrinter.print_exp_type Format.std_formatter texp_temp;Format.print_flush ();
+			Cil.d_exp Format.std_formatter texp_temp;Format.print_flush ();Printf.printf "\n";
+			| Lval(lv)->
+				let (host,_) = lv in
+				begin match host with
+				| Mem(_)->
+					let e = Cil.new_exp ~loc:l (BinOp(Ne,texp_temp,(Cil.zero ~loc:l),(Cil.typeOfLval lv))) in
+					let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate e in
+					let cp_named_temp = Logic_const.pnot ~loc:l cp_named_temp in
+					
+					List.iter(fun succs->
+						succs.predicate_list <- cp_named_temp::s.predicate_list;
+						succs.free_lv_list <- !f_lv@s.free_lv_list;
+					)b1.bstmts;
+		
+					List.iter(fun succs->
+						succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
+						succs.free_lv_list <- !f_lv@s.free_lv_list;
+					)b2.bstmts;
+				| _->();
+				end;
 			| UnOp(op,e,tp)->
 				begin match op with
 				| LNot->					
@@ -158,12 +178,12 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 					let cp_named_temp = !Db.Properties.Interp.force_exp_to_predicate e in
 					let cp_named_temp = Logic_const.pnot ~loc:l cp_named_temp in
 					
-					List.iter(fun succs->Printf.printf "add If con3\n";Cil.d_stmt Format.std_formatter succs;Format.print_flush ();Printf.printf "\n";
+					List.iter(fun succs->
 						succs.predicate_list <- cp_named_temp::s.predicate_list;
 						succs.free_lv_list <- !f_lv@s.free_lv_list;
 					)b1.bstmts;
 		
-					List.iter(fun succs->Printf.printf "add If con4\n";Cil.d_stmt Format.std_formatter succs;Format.print_flush ();Printf.printf "\n";
+					List.iter(fun succs->
 						succs.predicate_list <- (Logic_const.pnot ~loc:l cp_named_temp)::s.predicate_list;
 						succs.free_lv_list <- !f_lv@s.free_lv_list;
 					)b2.bstmts;
@@ -342,7 +362,7 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 					Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
 					let root_code_annot_ba = Cil_types.User(annot) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();
+					(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();*)
 				end else
 				begin
 						let trans = Logic_const.unamed (Pforall(freevar,trans)) in
@@ -360,18 +380,3 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 		| _ ->();
 	)fundec.sallstmts(*List.iter end*)
 	with Kernel_function.No_Definition->Printf.printf "The given function [%s] is not a definition.\n" (Kernel_function.get_name kf)
-
-let analysis_assert (kf:Cil_types.kernel_function) =
-	match kf.fundec with
-	| Declaration(spec,var,varl,_)->
-		Cil.d_funspec Format.std_formatter spec;Format.print_flush ();Printf.printf "\n";
-		Cil.d_var Format.std_formatter var;Format.print_flush ();Printf.printf "\n";
-		(match varl with
-		| Some(l)->
-			List.iter(fun v->
-				Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf ",";
-			)l;
-			Printf.printf "\n";
-		| None->();
-		)
-	| _->()
