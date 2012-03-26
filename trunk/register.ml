@@ -250,22 +250,23 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
     )else
     (
       Self.result "Enter function [%s].\n" fname;
-      Printf.printf "the funspec is as follow:\n";
 		  begin match kf.fundec with
 		  | Definition(_,_)->
 	    	Function_analysis.analysis_kf kf !linfo_list funsigs visitor ipl wp_compute unknownout;
       | Declaration(_,_,_,_)->
       	();
       end;
+      Self.result "Leave function [%s].\n" fname;
     );
   );
   
   
-	let info = C2equation.make_info in
+	let info = C2equation.make_info cil in
+	Printf.printf "info.Equation.procinfo.len2=%d\n" (Hashhe.length info.Equation.procinfo);
 	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute unknownout in
-	Printf.printf "Frontend.compute_and_display begin\n";
+	(*Printf.printf "Frontend.compute_and_display begin\n";
 	Frontend.compute_and_display fmt info fgraph bgraph manbox;
-	(*Printf.printf "Frontend.compute_and_display over\n";*)
+	Printf.printf "Frontend.compute_and_display over\n";*)
 	
 	
   let logic_info_list = Logic_env.find_all_logic_functions cil.fileName in
@@ -306,10 +307,8 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	flush out_file;
 	close_out out_file
   
-let theMain () = 
-	
-	Ast.get ();
-	
+let theMain () =	
+	Ast.get ();	
 	Self.result "Begin to execute Value Analysis.\n"; 
 	(*Printf.printf "Db.Value.is_computed=%b\n" (Db.Value.is_computed ());
 	if not (Db.Value.is_computed ()) then !Db.Value.compute ();

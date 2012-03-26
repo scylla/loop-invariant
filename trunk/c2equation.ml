@@ -326,7 +326,7 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
   	}
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
-let make_info : Equation.info =
+let make_info (prog:Cil_types.file): Equation.info =
   let procinfo = Hashhe.create 3 in
   Globals.Functions.iter(fun kf ->
   	match kf.fundec with
@@ -337,7 +337,7 @@ let make_info : Equation.info =
 			let info = make_procinfo kf in
 			Hashhe.add procinfo info.pname info
 	);
-
+	Printf.printf "info.Equation.procinfo.len3=%d\n" (Hashhe.length procinfo);
   let callret = DHashhe.create 3 in
   Globals.Functions.iter(fun kf ->
   	let name = Kernel_function.get_name kf in
@@ -642,11 +642,6 @@ module Forward = struct
 						Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 						Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
 					)transfers;
-					
-      		(*let code_annotation = Apply.apply_lincons1 fmt procinfo.kf stmt cons in
-          let root_code_annot_ba = Cil_types.User(code_annotation) in
-          Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
-          LiAnnot.prove_code_annot procinfo.kf stmt code_annotation;*)
           
           Printf.printf "loop.con1:";Cil.d_exp fmt loop.con;Format.print_flush ();Printf.printf "\n";
       		let bexpr = force_exp2bexp loop.con in
@@ -743,6 +738,7 @@ module Forward = struct
       );
    	in
 
+		Printf.printf "info.Equation.procinfo.len1=%d\n" (Hashhe.length info.Equation.procinfo);
 		Globals.Functions.iter(fun kf ->
 			let name = Kernel_function.get_name kf in
 			begin match kf.fundec with
