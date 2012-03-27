@@ -14,6 +14,30 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 			| Set(lval,exp,location)->(*An assignment.i=i+1;lval:i;exp:i+1*)
 				(*let texp = constFold true (stripCasts exp) in*)
 				let tlval = !Db.Properties.Interp.force_lval_to_term_lval lval in
+				
+				(*let rec trans e =
+					begin match e.enode with
+					| Lval((host,offset))->
+						begin match host with
+						| Var(v)->
+							begin match v.vtype with
+							| TArray(tp,_,_,attrs)->
+								begin match offset with
+								| Index(ie,_)->
+									let e = Cil.new_exp ~loc:location (BinOp(PlusA,(Cil.new_exp ~loc:location (Lval(Cil.var v))),ie,TPtr(tp,attrs))) in
+									Cil.new_exp ~loc:location (Lval(Mem(e),NoOffset));
+								| _->e
+								end;
+							| _->e
+							end;
+						| _->e
+						end;
+					| BinOp(op,e1,e2,tp)->
+						Cil.new_exp ~loc:location (BinOp(op,(trans e1),(trans e2),tp));
+					| _->e;
+					end;
+				in*)
+				
 				let tr = !Db.Properties.Interp.force_exp_to_term exp in
 				let tnode = TLval(tlval) in
 			
@@ -34,12 +58,33 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 					if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) s.free_lv_list)==true then	lelvars := lv::!lelvars;
 				)!levars;
 			
-				let tl = Logic_utils.mk_dummy_term tnode (Cil.typeOfLval lval) in
-		
+				let tl = Logic_const.term ~loc:location tnode (Cil.typeOfTermLval tlval) in
+				
+				(*let arrayterm =
+					begin match lval with
+					| (Var(v),offset)->
+						begin match v.vtype with
+						| TArray(tp,_,_,attrs)->
+							begin match offset with
+							| Index(ie,_)->
+								let e = Cil.new_exp ~loc:location (BinOp(PlusA,(Cil.new_exp ~loc:location (Lval(Cil.var v))),ie,(TPtr(tp,attrs)))) in
+								let tl = !Db.Properties.Interp.force_exp_to_term e in
+								let tl = Logic_const.term ~loc:location (TLval(TMem(tl),TNoOffset)) (Cil.typeOfTermLval tlval) in
+								tl
+							| _->tl
+							end;
+						| _->tl
+						end;
+					| _->tl
+					end;
+				in*)
+				
 				(*List.iter(fun linfo->
 					visitor#add_pn kf linfo loop_stmt (List.append (Varinfo.Set.elements evars) (Varinfo.Set.elements evars));
 				)linfo_list;*)
-		
+				(*
+				TypePrinter.print_tnode_type Format.std_formatter tl.term_node;Format.print_flush ();
+				TypePrinter.print_tnode_type Format.std_formatter tr.term_node;Format.print_flush ();*)
 				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
 				let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
 			
@@ -47,7 +92,7 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 			
 				total_lt := (!levars,[],con_named,!t_named)::!total_lt;
 				
-				(*array*)
+				(*array.wrong*)
 				let (host,offset) = lval in
 				begin match (host,offset) with
 				| (Mem(e1),NoOffset)->
@@ -370,9 +415,9 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 						let prev = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!negoriConds),trans)) in
 						
 						let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
-				Printf.printf "analysis2\n";	let root_code_annot_ba = Cil_types.User(annot) in
+						let root_code_annot_ba = Cil_types.User(annot) in
 						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-						LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();
+						(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();*)
 				end;
 			)!total_lt;
 			Printf.printf "Analysis loop body over.\n";

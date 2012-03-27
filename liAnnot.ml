@@ -102,23 +102,23 @@ let remove_code_annot (stmt:Cil_types.stmt) (kf:Cil_types.kernel_function) (rann
 	List.iter(fun rannot->
 		match rannot with
 		| User(annot)|AI(_,annot)->
-		if annot.annot_id==rannot_bf.annot_id then begin
+			if annot.annot_id==rannot_bf.annot_id then begin
 			();end
-		else begin
+			else begin
 			(Annotations.add kf stmt [Ast.self] rannot;)end
 	)rannot_bf_list;;
 	
-let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation) (ipl:Property.identified_property list ref) wp_compute unknownout =
+let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_annot:Cil_types.code_annotation)  wp_compute =
 	let flag = ref 1 and fmt = Format.std_formatter in
 	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
 	
 	let strfmt = Format.str_formatter in	
 	
-	flag := Prove.prove_predicate kf [] ip wp_compute;ipl := ip::!ipl;
-	if !flag==0 then
-	(Printf.printf "remove invalid annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";remove_code_annot stmt kf code_annot;)
+	flag := Prove.prove_predicate kf [] ip wp_compute;
+	(*if !flag==0 then
+	(Printf.printf "remove invalid annot\n";)
 	else if !flag==1 then
-	(Printf.printf "keep the annot\n";Cil.d_code_annotation fmt code_annot;Format.print_flush ();Printf.printf "\n";)
+	(Printf.printf "keep the annot\n";)
 	else if !flag==2 then
 	(Cil.d_code_annotation strfmt code_annot;
 	output_string unknownout (Format.flush_str_formatter ());
@@ -126,34 +126,78 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	Cil.d_stmt strfmt stmt;
 	output_string unknownout (Format.flush_str_formatter ());	
 	output_string unknownout "\n\n\n";
-	flush unknownout;);
+	flush unknownout;
+	);*)
 	!flag;;
 	
+
+let load fpath =
+	let file = File.from_filename fpath in
+	Printf.printf "fpath:%s\n" (File.get_name file);
+	File.init_from_c_files [file];
+	file;;
 	
-let prove_kf (kf:Cil_types.kernel_function) = 
-	Printf.printf "prove_kf\n";
-	List.iter(fun bhv->
-		Printf.printf "%s\n" bhv;
-	)(Kernel_function.all_function_behaviors kf);
+let prove_fundec kf wp_compute unknownout=
+	let fundec = Kernel_function.get_definition kf in
+	let strfmt = Format.str_formatter in
 	
+	let rec prove s =
+		begin match s.skind with
+		| Loop(_,b,_,_,_)->
+			let roots = Annotations.get_all_annotations s in
+			let res = ref [] in
+			
+			List.iter(fun root->Printf.printf "roots.len=%d\n" (List.length roots);
+				begin match root with
+				| User(code)->
+					Cil.d_code_annotation Format.std_formatter code;Format.print_flush ();Printf.printf "\n";
+					let flag = prove_code_annot kf s code wp_compute in
+					res := (flag,root)::!res;
+				| AI(_,_)->();
+				end;
+			)roots;
+			
+			Annotations.reset_stmt false kf s;
+			List.iter(fun (flag,root)->
+				if flag==1 then
+				begin Annotations.add kf s [Ast.self] root;end
+				else if flag==2 then
+				begin
+					begin match root with
+					| User(code)|AI(_,code)->
+					Cil.d_code_annotation strfmt code;
+					output_string unknownout (Format.flush_str_formatter ());
+					output_string unknownout "\n====>>\n";
+					Cil.d_stmt strfmt s;
+					output_string unknownout (Format.flush_str_formatter ());	
+					output_string unknownout "\n\n\n";
+					flush unknownout;
+					end;
+				end;
+			)!res;
+			List.iter(fun s1->
+				prove s1;
+			)b.bstmts;
+		| If(_,b1,b2,_)|TryFinally(b1,b2,_)|TryExcept(b1,_,b2,_)->
+			List.iter(fun s1->
+				prove s1;
+			)b1.bstmts;
+			List.iter(fun s1->
+				prove s1;
+			)b2.bstmts;
+		| Switch(_,b,_,_)|Block(b)->
+			List.iter(fun s1->
+				prove s1;
+			)b.bstmts;
+		| UnspecifiedSequence(seq)->
+			let b = Cil.block_from_unspecified_sequence seq in
+			List.iter(fun s1->
+				prove s1;
+			)b.bstmts;
+		| _->();
+		end;
+	in
 	
-	let annot_list = Kernel_function.code_annotations kf in
-	List.iter(fun (stmt,root_code_annot_ba) ->
-	match root_code_annot_ba with
-		| User(code_annot)|AI(_,code_annot) ->
-			let ip_list = Property.ip_of_code_annot kf stmt code_annot in
-			List.iter(fun ip->
-				Prove.prove_predicate kf (Kernel_function.all_function_behaviors kf) ip;
-				Format.print_flush ();
-				(*let status = Property_status.get ip in
-				(match status with
-				| Never_tried->
-					Printf.printf "result Never_tried\n";
-				| Best(e_status,erl)->
-					Printf.printf "result Best\n";
-				| Inconsistent(inc)->
-					Printf.printf "result InConsistent\n";
-				);*)
-			)ip_list;
-	)annot_list;
-	();;
+	List.iter(fun s->
+		prove s
+	)fundec.sbody.bstmts;;

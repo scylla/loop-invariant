@@ -116,6 +116,12 @@ let add_env (env:Apron.Environment.t) (lvar:varinfo list) avar2cvar :Apron.Envir
 			names := var.vname::(!names);
 			Hashhe.add avar2cvar avar var;
 		| TPtr(_,_)->(*pointer,how to?*)
+			let name = "*"^var.vname in
+			let avar = (Apron.Var.of_string name) in
+			lint := avar::!lint;
+			names := name::(!names);
+			Hashhe.add avar2cvar avar var;
+			
 			let avar = (Apron.Var.of_string var.vname) in
 			lint := avar::!lint;
 			names := var.vname::(!names);
@@ -230,7 +236,9 @@ let rec force_exp_to_texp (exp:Cil_types.exp) : Apron.Texpr1.expr =
 	| Const(cons)->
 		(match cons with
 		| CInt64(i,_,_)->
-			Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));
+			if (Big_int.lt_big_int i (Big_int.big_int_of_int max_int))==true then
+			begin Apron.Texpr1.Cst(Apron.Coeff.s_of_int (My_bigint.to_int i));end
+			else begin Apron.Texpr1.Cst(Apron.Coeff.s_of_int 0);end
 		| CReal(f,_,_)->
 			Apron.Texpr1.Cst(Apron.Coeff.s_of_float f);
 		| _->
@@ -265,7 +273,9 @@ let rec force_exp_to_arg (env:Apron.Environment.t) (exp:Cil_types.exp) : LiType.
 	| Const(cons)->
 		begin match cons with
 		|	CInt64(big,_,_)->
-			LiType.APScalar(Apron.Scalar.of_int (My_bigint.to_int big));
+			if (Big_int.lt_big_int big (Big_int.big_int_of_int max_int))==true then
+			begin	LiType.APScalar(Apron.Scalar.of_int (My_bigint.to_int big));end
+			else begin LiType.APScalar(Apron.Scalar.of_int 0);end;
 		| CReal(f,_,_)->
 			LiType.APScalar(Apron.Scalar.of_float f);
 		| _->
@@ -387,17 +397,25 @@ let extract_loop stmt :Equation.loop =
 		let index = ref 0 and flag = ref false in
 		for i=0 to (List.length b.bstmts)-1 do
 			let s = List.nth b.bstmts i in
+			Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
 			if (List.length s.labels)==0 then
 			begin if !flag==false then begin index := i; flag := true; end;end;
-			List.iter(fun label->
-				begin match label with
-				| Label(_,_,b)->
-					if b==true && !flag==false then begin index := i; flag := true; end;
-				| _->if !flag==false then begin index := i; flag := true; end;
-				end;
-			)s.labels;
+			if (List.length s.labels)>0 then
+			begin
+				List.iter(fun label->
+					begin match label with
+					| Label(_,_,b)->
+						if b==true && !flag==false then begin index := i; flag := true; end;
+					| _->if !flag==false then begin index := i; flag := true; end;
+					end;
+				)s.labels;
+			end else
+			begin
+				if !flag==false then begin index := i; flag := true; end;
+			end;
 		done;
-		
+		Printf.printf "len=%d\n" (List.length b.bstmts);
+		Printf.printf "index=%d\n" !index;
 		let con_stmt = List.nth b.bstmts !index in
 		let body_stmt = ref [] in
 		for i=(!index+1) to ((List.length b.bstmts)-1) do
@@ -871,13 +889,17 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 	(*get coeff of var in Mult op,both in loop body and conds*)
 	let coeffs = procinfo.Equation.var2coeff in (*Hashtbl.create 3 in*)
 	List.iter(fun v->
-		let name = LiUtils.get_vname v in
-		try
-			Hashtbl.find coeffs name;();
-		with Not_found->
-			Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);
-			(Apron.Coeff.s_of_int 0);
-			(Apron.Coeff.s_of_int (-1))]);
+		begin match v.vtype with
+		| TPtr _|TArray _|TFun _|TNamed _|TComp _|TEnum _|TBuiltin_va_list _->();
+		| _ ->
+			let name = LiUtils.get_vname v in
+			try
+				Hashtbl.find coeffs name;();
+			with Not_found->
+				Hashtbl.add coeffs name (ref [(Apron.Coeff.s_of_int 1);
+				(Apron.Coeff.s_of_int 0);
+				(Apron.Coeff.s_of_int (-1))]);
+		end;
 	)lvars;
 	extract_coeff_from_loop coeffs stmt;
 	
@@ -938,9 +960,9 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 		end;
 	)(!vars);
 		
-	List.iter(fun v->
+	List.iter(fun v->Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
 		begin match v.vtype with
-		| TPtr(_,_)->
+		| TPtr(_,_)->Printf.printf "TPtr\n";
 			let lv = Cil.new_exp ~loc:loc (Lval(Mem((Cil.evar ~loc:loc v)),NoOffset)) in
 			Cil.d_exp strfmt lv;
 			let name = Format.flush_str_formatter () in
@@ -998,7 +1020,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 			List.iter(fun (_,_,l)->
 				total := !total*(List.length l); 
 			)!r;
-			Printf.printf "total=%d\n" !total;
 			
 			let cof_to_int c =(*maybe exist problem*)
 				Apron.Coeff.print strfmt c;
@@ -1045,7 +1066,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 				if (List.length !com)<=template_size then(*no need?*)
 				begin
 				List.iter(fun (name,c)->
-					Printf.printf "name:%s\n" name;
 					let v = Hashtbl.find varhash name in
 					let get_tvar =
 						begin match v.vtype with
@@ -1083,7 +1103,7 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 								const_min := Big_int.add_big_int !const_min (Big_int.big_int_of_int c);
 								const_max := Big_int.add_big_int !const_max (Big_int.big_int_of_int c);
 							)(!step);
-						with Not_found->Printf.printf "Not_found:";Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
+						with Not_found->Format.print_flush ();
 			
 						let mostv = 
 							List.find_all (fun (v1,_,_)->
@@ -1096,11 +1116,9 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 						List.iter(fun (_,min,max)->
 							const_min := Big_int.add_big_int !const_min min;
 							const_max := Big_int.add_big_int !const_max max;
-							Printf.printf ",min=%s,max=%s\n" (My_bigint.to_string min) (My_bigint.to_string max);
 						)mostv;
 					
 				
-						Printf.printf "env var name:%s\n" name;
 						let av = Apron.Var.of_string name in
 						vars := Array.append !vars [|av|];
 						cofs := Array.append !cofs [|Apron.Var.of_string (name^"cof")|];
@@ -1108,7 +1126,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 						cofl := (c,av)::!cofl;
 					end;			
 				)(!com);
-				Printf.printf "\n";
 			
 				(*constant part*)
 				let tnode_min = Cil_types.TConst(Cil_types.CInt64(!const_min,Cil_types.IInt,None)) in
@@ -1124,14 +1141,12 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 						let t = List.nth !lterm i in
 						term_vars := Logic_const.term (TBinOp(PlusA,!term_vars,t)) ltype;
 					done;(*(!lterm@[tcon_max]);*)
-					Printf.printf "term_vars:";Cil.d_term fmt (!term_vars);Format.print_flush ();Printf.printf "\n";
-			
-					Printf.printf "len=%d\n" len;
+					
 					let new_env = Apron.Environment.make (!vars) (!cofs) in
 					let tab = Apron.Lincons1.array_make new_env len in
-					let expr = Apron.Linexpr1.make new_env in
+					let expr = Apron.Linexpr1.make new_env in			
 			
-			
+					
 					let mk_lincons =
 						if (Big_int.ge_big_int !const_max (Big_int.big_int_of_int max_int))==false then
 						begin
@@ -1154,8 +1169,8 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 							Printf.printf "annota5:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 							let root_code_annot_ba = Cil_types.User(code_annotation) in
 							Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-							if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-							begin(*wp cannot prove*)
+							(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+							beginwp cannot prove*)
 								Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 								transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 						
@@ -1171,8 +1186,8 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 							Printf.printf "annota6:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 								let root_code_annot_ba = Cil_types.User(code_annotation) in
 								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-								if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-								begin(*wp cannot prove*)
+								(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+								beginwp cannot prove*)
 									Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 									transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 							
@@ -1188,8 +1203,8 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 								Printf.printf "annota2:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 									let root_code_annot_ba = Cil_types.User(code_annotation) in
 									Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-									if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-									begin(*wp cannot prove*)
+									(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+									beginwp cannot prove*)
 										Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 										transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 								
@@ -1205,14 +1220,14 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 										Printf.printf "annota1:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 										let root_code_annot_ba = Cil_types.User(code_annotation) in
 										Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-										if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-										begin(*wp cannot prove*)
+										(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+										beginwp cannot prove*)
 											Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 											transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-										end;
+										(*end;
 									end;
 								end;
-							end;
+							end;*)
 						end;
 					
 						if (Big_int.eq_big_int !const_min !const_max)==false then
@@ -1238,8 +1253,8 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 							Printf.printf "annota7:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 							let root_code_annot_ba = Cil_types.User(code_annotation) in
 							Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-							if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-							begin(*wp cannot prove*)
+							(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+							beginwp cannot prove*)
 								Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 								transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 					
@@ -1255,8 +1270,8 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 							Printf.printf "annota8:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 								let root_code_annot_ba = Cil_types.User(code_annotation) in
 								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-								if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-								begin(*wp cannot prove*)
+								(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+								beginwp cannot prove*)
 									Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 									transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 							
@@ -1272,8 +1287,8 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 									Printf.printf "annota3:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 									let root_code_annot_ba = Cil_types.User(code_annotation) in
 									Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-									if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-									begin(*wp cannot prove*)
+									(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+									beginwp cannot prove*)
 										Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 										transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 						
@@ -1290,14 +1305,14 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 									Printf.printf "annota4:";Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 										let root_code_annot_ba = Cil_types.User(code_annotation) in
 										Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-										if (LiAnnot.prove_code_annot kf stmt code_annotation ipl wp_compute unknownout)==0 then
-										begin(*wp cannot prove*)
+										(*if (LiAnnot.prove_code_annot kf stmt code_annotation wp_compute)!=1 then
+										beginwp cannot prove*)
 											Apron.Lincons1.array_set tab 0 cons;(*0-index*)
 											transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
-										end;
+										(*end;
 									end;
 								end;
-							end;
+							end;*)
 						end;
 					end;
 				(*| Apron.Lincons1.EQMOD(_)->
@@ -1305,10 +1320,10 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 						let pred = Prel(Req,!term,rterm) in(*%=*)
 						let cons = Apron.Lincons1.make expr Apron.Lincons1.EQ in(*EQMOD*)
 						Apron.Lincons1.array_set tab 0 cons;(pred,cons);*)
-					in		
-						
-					mk_lincons;
+					in
+					();
 			
+					(*mk_lincons;*)
 				end;
 				end;
 			

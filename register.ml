@@ -1,6 +1,7 @@
 open Cil_types
 open Cil_datatype
 open Cil
+open File
 open LiVisitor
 open Translate
 
@@ -298,12 +299,26 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let graph = Callgraph.computeGraph cil in
 	Callgraph.printGraph Pervasives.stdout graph;
 	
-	close_out unknownout;
 	
-	let out_file = open_out "/home/lzh/result.c" in
-	Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" cil;
-	flush out_file;
-	close_out out_file
+	let fpath = "/home/lzh/tmp.c" in
+	LiUtils.save fpath cil;
+	Project.clear_all ();
+	
+	LiAnnot.load fpath;
+	let cil = Ast.get () in
+	Ast.set_file cil;
+	
+	Globals.Functions.iter(fun kf->
+		begin match kf.fundec with
+		| Definition(_,_)->
+			LiAnnot.prove_fundec kf wp_compute unknownout;
+		| Declaration _->();
+		end;
+  );
+  
+  let fpath = "/home/lzh/result.c" in
+  LiUtils.save fpath cil;
+	close_out unknownout
   
 let theMain () =	
 	Ast.get ();	
@@ -327,11 +342,6 @@ let compute_loop_invariant () =
 		| _->();
 	);
   );
-  let fpath = "/home/lzh/preprocess.c" in
-  let out_file = open_out fpath in
-  Cil.dumpFile Cil.defaultCilPrinter out_file "/home/lzh/new.c" (Ast.get ());
-	flush out_file;
-	close_out out_file;
 	ignore (Visitor.visitFramacFile (new loopInvariant) (Ast.get ()));
 	theMain ()
 	
