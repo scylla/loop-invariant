@@ -1,5 +1,5 @@
 let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip wp_compute :int =
-	try	
+	try
 		wp_compute (Some(kf)) bhv (Some(ip));(*(Some(kf))*)
 		let status = Property_status.Consolidation.get ip in
 		(match status with
@@ -9,5 +9,5 @@ let prove_predicate (kf:Cil_types.kernel_function) (bhv:string list) ip wp_compu
 			Printf.printf "Unkonwn\n";2;
 		|_->
 			Printf.printf "Invalid\n";0;
-		);	
+		);
 	with Stack_overflow|Exit->Printf.printf "Exit\n";0;

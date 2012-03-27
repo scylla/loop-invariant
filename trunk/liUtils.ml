@@ -3,6 +3,14 @@ open Cil_types
 open Cil_datatype
 open TypePrinter
 
+let save fpath cil =
+	let out_file = open_out_gen [Open_wronly;Open_append;Open_creat;Open_trunc] 766 fpath in
+	let formatter = Format.formatter_of_out_channel out_file in
+	!Ast_printer.d_file formatter cil;
+	flush out_file;
+	close_out out_file
+
+	
 let compareValele (e1:LiType.valEle) (e2:LiType.valEle) :bool =
 	let res =
 		begin match e1,e2 with

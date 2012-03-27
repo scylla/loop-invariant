@@ -1,3 +1,21 @@
+2012.03.27
+程序中的while(1)改为while(1==1)
+wp有不能处理的情况：
+while(1==1)
+	{
+			m=m+1;			
+			if(m>10)
+			continue;
+			m=m+2;
+			if(m>20)
+			continue;
+	}
+这样转换后会出现
+while (1) {
+    while_0_continue_0: /* internal */ ;
+    while_0_continue: /* internal */ ;
+的情形，处理不了。
+
 2012.03.24
 对于会overflow的地方，改用迭代而非递归如iter的实现。
 去除最初的0
