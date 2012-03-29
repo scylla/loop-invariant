@@ -4,7 +4,7 @@ open Cil_datatype
 open TypePrinter
 
 let save fpath cil =
-	let out_file = open_out_gen [Open_wronly;Open_append;Open_creat;Open_trunc] 766 fpath in
+	let out_file = open_out_gen [Open_wronly;Open_rdonly;Open_append;Open_creat;Open_trunc] 766 fpath in
 	let formatter = Format.formatter_of_out_channel out_file in
 	!Ast_printer.d_file formatter cil;
 	flush out_file;

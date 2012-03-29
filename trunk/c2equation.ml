@@ -620,10 +620,10 @@ module Forward = struct
 			 		let lvars = Cil_datatype.Varinfo.Set.elements vars in
 					(*remove ptr var*)
 					let fundec = Kernel_function.get_definition procinfo.Equation.kf in
-					let nvars = ref (fundec.sformals@fundec.slocals) in
-					List.iter(fun v->
+					let nvars = ref [] in (*(fundec.sformals@fundec.slocals) in*)
+					List.iter(fun v->Printf.printf "nvar:";Cil.d_var fmt v;Format.print_flush ();Printf.printf "\n";
 						begin match v.vtype with
-						| TPtr _| TFun _| TNamed _|TComp _| TEnum _| TBuiltin_va_list _->();
+						| TFun _| TNamed _|TComp _| TEnum _| TBuiltin_va_list _->();
 						| _->
 							if v.vgenerated==false then
 							begin nvars := v::(!nvars); end;
