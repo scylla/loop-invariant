@@ -1,3 +1,6 @@
+2012.03.29
+CIL本身没有加入那么多的标签，Frama-C改动的，不知道能不能禁用掉，但CIL本身会把原来的ACSL注释去掉。
+
 2012.03.27
 程序中的while(1)改为while(1==1)
 wp有不能处理的情况：
@@ -30,10 +33,10 @@ cilly没有展开数组，先用它合并，直接用frama-c合并一则没有�
 2012.03.23
 如何不展开数组？变量太多时会有Stack_overflow的错误。
 能不能将多个式子一次验证？
-sudo time frama-c -plevel 3 -simplify-cfg -print -main main -loop-invariant call-realpath-bad.c call-realpath-ok.c realpath-2.4.2-bad.c realpath-2.4.2-ok.c -ocode f3.c > log
+time frama-c -plevel 3 -no-simplify-cfg -print -main main -loop-invariant call-realpath-bad.c call-realpath-ok.c realpath-2.4.2-bad.c realpath-2.4.2-ok.c -ocode f3.c > log
 
 2012.03.21
-使用CIL合并源代码：cilly --save-temps --merge create_msg_file.c nxt-bad.c nxt-ok.c -o b1
+使用CIL合并源代码：cilly --save-temps --noPrintLn --stats --printCilAsIs --printComments --merge create_msg_file.c nxt-bad.c nxt-ok.c -o b1
 检查：time frama-c -plevel 100 -simplify-cfg -print -main main -loop-invariant b1.cil.c -ocode b2.c > log
 
 2012.03.11
