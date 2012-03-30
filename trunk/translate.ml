@@ -719,23 +719,34 @@ let extract_coeff_from_loop coeffs stmt =
 (*stmt is a [loop] stmt. this deals with array access operations in loop body*)
 let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 	let exps = ref [] in
+	List.iter(fun info->
+		Printf.printf "arrv:";Cil.d_var fmt info.LiType.v;Format.print_flush ();Printf.printf "\n";
+	)arrayvars;
 	
 	let rec analysis_exp fmt e =
 		(*when access an array element,these should be held*)
-		let apply_index fmt base index =
+		let apply_index fmt base index = Printf.printf "apply_index\n";
 			try
+				Printf.printf "base:%s\n" (LiUtils.get_exp_name base);
 				let info = List.find (fun info->(String.compare info.LiType.v.vname (LiUtils.get_exp_name base))==0) arrayvars in
-				if (List.for_all (fun e->(Cil.compareExp e index)==false) !exps)==true then
-				begin
+				Printf.printf "index.eid=%d\n" index.eid;
+				List.iter(fun e->
+					Printf.printf "e.eid=%d\n" e.eid;
+				)!exps;
+				
+				
+				if (List.length !exps)==0 || (List.for_all (fun e->e.eid!=index.eid) !exps)==true then
+				begin Printf.printf "get index\n";
 					exps := index::(!exps);
 					(*i>=0*)
 					let zero_term = Cil.lzero () in
 					let t = !Db.Properties.Interp.force_exp_to_term index in
-					let pnamed = Logic_const.unamed (Prel(Rge,t,zero_term)) in
-					let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+					let lnamed = Logic_const.unamed (Prel(Rge,t,zero_term)) in
+					
+					(*let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 					let root_code_annot_ba = Cil_types.User(code_annotation) in
 					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					(*i<=n-1*)
+					i<=n-1*)
 					begin match info.LiType.size with
 					| LiType.CSize(size)->
 						begin match size.scache with
@@ -745,20 +756,47 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) stmt =
 						end;
 					| LiType.CTerm(t1)->
 						let t = !Db.Properties.Interp.force_exp_to_term index in
-						let pnamed = Logic_const.unamed (Prel(Rle,t,t1)) in
+						let rnamed = Logic_const.unamed (Prel(Rle,t,t1)) in
+						
+						let pnamed = Logic_const.pands [lnamed;rnamed] in
 						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
 						Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
 						let root_code_annot_ba = Cil_types.User(code_annotation) in
 						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 					end;
 				end;
-			with Not_found->();
+			with Not_found->Printf.printf "not find arrv\n";
 		in
 		
 		begin match e.enode with
 		| Lval((host,offset))->
 			begin match (host,offset) with
-			| (Mem(e1),NoOffset)->
+			| (Var(v),Index(ie,_))->
+				begin match v.vtype with
+				| TArray _->
+					let info = List.find (fun info->(String.compare info.LiType.v.vname v.vname)==0) arrayvars in
+					let tindex = !Db.Properties.Interp.force_exp_to_term ie in
+					let lnamed = Logic_const.unamed (Prel(Rge,tindex,(Cil.lzero ()))) in
+					
+					begin match info.LiType.size with
+					| LiType.CSize(size)->
+						begin match size.scache with
+						| Not_Computed->Printf.printf "Not_Computed\n";
+						| Not_Computable(_)->Printf.printf "Not_Computable\n";
+						| Computed(_)->Printf.printf "Computed\n";
+						end;
+					| LiType.CTerm(t1)->
+						let rnamed = Logic_const.unamed (Prel(Rlt,tindex,t1)) in
+						let pnamed = Logic_const.pands [lnamed;rnamed] in
+						let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						Cil.d_code_annotation fmt code_annotation;Format.print_flush ();Printf.printf "\n";
+						let root_code_annot_ba = Cil_types.User(code_annotation) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+					end;
+				| _->();
+				end;
+			| (Mem(e1),Index(ie,_))->Printf.printf "mem,index\n";
+			| (Mem(e1),NoOffset)->Printf.printf "mem,NoOffset\n";
 				begin match e1.enode with
 				| BinOp(_,e2,e3,_)->
 					apply_index fmt e2 e3;

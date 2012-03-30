@@ -182,7 +182,7 @@ let get_exp_name (e:Cil_types.exp) =
 		let (host,_) = l in
 		(match host with
 		| Var(v)->
-			get_vname v;
+			v.vname;(*get_vname v;*)
 		| Mem(_)->Printf.printf "Mem";assert false;
 		);
 	| SizeOf(_)->Printf.printf "SizeOf\n";assert false
