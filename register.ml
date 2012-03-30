@@ -97,26 +97,96 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 				(*get from function specification*)
 				let funspec = Kernel_function.get_spec kf in
 				List.iter(fun b->
-					List.iter(fun ip->
-						begin match ip.ip_content with
-						| Pvalid_range(t1,_,t3)->
-							begin match t1.term_node with
-							| TLval((thost,_))->
-								begin match thost with
-								| TMem(_)->();
-								| TVar(lv)->
-									begin match lv.lv_origin with
-									| Some(v1)->
-										let v = {LiType.v=v1;typ=v1.vtype;size=LiType.CTerm(t3);} in
-										vars := v::!vars;
-									| None->();
+					List.iter(fun ip->TypePrinter.print_predicate_type fmt ip.ip_content;Format.print_flush ();
+						let rec get predicate =
+							begin match predicate with
+							| Pvalid_range(t1,_,t3)->
+								begin match t1.term_node with
+								| TLval((thost,_))->
+									begin match thost with
+									| TMem(_)->Printf.printf "Pvalid_range:TMem\n";
+									| TVar(lv)->Printf.printf "Pvalid_range:TVar\n";
+										begin match lv.lv_origin with
+										| Some(v1)->Printf.printf "add arrv:%s" v1.vname;
+											let v = {LiType.v=v1;typ=v1.vtype;size=LiType.CTerm(t3);} in
+											vars := v::!vars;
+										| None->();
+										end;
+									| TResult(_)->Printf.printf "Pvalid_range:TResult\n";
 									end;
-								| TResult(_)->();
+								| _->();
+								end;
+							| Pand(pn1,pn2)->
+								get pn1.content;get pn2.content;
+							| Papp(linfo,labels,tl)->
+								begin match linfo.l_body with
+								| LBreads(itl)->();
+								| LBpred(pn)->
+									Printf.printf "pn1:";Cil.d_predicate_named fmt pn;Format.print_flush ();Printf.printf "\n";
+									let var2exp v =
+										Cil.new_exp (Lval(Var(v),NoOffset))
+									in
+									
+									let term2exp t =
+										begin match t.term_node with
+										| TLval((host,_))->
+											begin match host with
+											| TVar(lv)->
+												begin match lv.lv_origin with
+												| Some v->
+													Some (var2exp v)
+												| None->None
+												end;
+											| _->None
+											end;
+										| _->None
+										end
+									in
+									
+									let term2lv t =
+										begin match t.term_node with
+										| TLval((host,_))->
+											begin match host with
+											| TVar(lv)->Some lv
+											| _->None
+											end;
+										| _->None
+										end
+									in
+									
+									List.iter(fun lv->
+										Printf.printf "profile:";Cil.d_logic_var fmt lv;Format.print_flush ();Printf.printf "\n";
+									)linfo.l_profile;
+									let nprofile = ref [] in
+									List.iter(fun t->
+										begin match term2lv t with
+										| Some lv->
+											nprofile := lv::(!nprofile);
+										| None->();
+										end;
+										Printf.printf "tl:";Cil.d_term fmt t;TypePrinter.print_tnode_type fmt t.term_node;Format.print_flush ();Printf.printf "\n";
+									)tl;
+									nprofile := List.rev !nprofile;
+									List.iter(fun lv->
+										Printf.printf "nprofile:";Cil.d_logic_var fmt lv;Format.print_flush ();Printf.printf "\n";
+									)(!nprofile);
+									let p = Copy.copy_predicate pn.content in
+									let linfo = Copy.copy_logic_info linfo in
+									linfo.l_profile <- !nprofile;
+									begin match linfo.l_body with
+									| LBreads(itl)->();
+									| LBpred(pn)->
+										Printf.printf "pn2:";Cil.d_predicate_named fmt pn;Format.print_flush ();Printf.printf "\n";
+										get pn.content;
+									| _->();
+									end;
+								| _->();
 								end;
 							| _->();
 							end;
-						| _->();
-						end;
+						in
+						
+						get ip.ip_content;
 					)b.b_requires;
 				)funspec.spec_behavior;
 				(*get from vars directly*)

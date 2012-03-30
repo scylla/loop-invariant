@@ -51,10 +51,10 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 				);
 				done;
 				List.iter(fun label->
-				match label with
-				| LogicLabel(_,s)->
-					Printf.printf "before sbu;label:%s" s;
-				| _->();
+					match label with
+					| LogicLabel(_,s)->
+						Printf.printf "before sbu;label:%s" s;
+					| _->();
 				)linfo.l_labels;
 				Printf.printf "\n";
 				linfo.l_labels <- !labels2;
@@ -126,8 +126,6 @@ class liVisitor prj = object (self)
 		let ltype = Ctype(var.vtype) in
 		let logic_var = Cil.make_temp_logic_var ltype in
 		logic_var.lv_name <- var.vorig_name;
-		Cil.d_logic_var Format.std_formatter logic_var;
-		Format.print_flush ();
 		logic_var;
 			
 	method add_pn (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list)= 

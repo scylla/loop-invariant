@@ -134,7 +134,7 @@ let rec copy_logic_var (lv:Cil_types.logic_var) :Cil_types.logic_var =
 			lv_type = lv.lv_type;
 			lv_origin = None;
 		}
-
+	
 let rec copy_term (t:Cil_types.term) :Cil_types.term =
 	let copy_identified_term (it:Cil_types.identified_term) :Cil_types.identified_term =
 		{it_id=it.it_id;it_content=copy_term it.it_content;}
@@ -450,7 +450,7 @@ let rec copy_term (t:Cil_types.term) :Cil_types.term =
 		term_type = t.term_type;
 		term_name = t.term_name;
 	}
-	
+
 let rec copy_predicate (p:Cil_types.predicate) :Cil_types.predicate =
 	match p with
 	| Psubtype(t1,t2)->
@@ -592,3 +592,55 @@ let rec copy_predicate (p:Cil_types.predicate) :Cil_types.predicate =
 		Pif((copy_term t),npn1,npn2)
 	| Pfalse->Pfalse
 	| Ptrue->Ptrue
+	
+let rec copy_logic_info (linfo:Cil_types.logic_info) :Cil_types.logic_info =
+	let copy_identified_term (it:Cil_types.identified_term) :Cil_types.identified_term =
+		{it_id=it.it_id;it_content=copy_term it.it_content;}
+	in
+	
+		let copy_logic_body (body:Cil_types.logic_body) :Cil_types.logic_body =
+			match body with
+			| LBnone->
+				LBnone
+			| LBreads(itl)->
+				let nitl = ref [] in
+				List.iter(fun it->
+					nitl := !nitl@[copy_identified_term it];
+				)itl;
+				LBreads(!nitl)
+			| LBterm(t)->
+				LBterm(copy_term t)
+			| LBpred(pn)->
+				LBpred({name=pn.name;loc=pn.loc;content=copy_predicate pn.content;})
+			| LBinductive(l)->
+				let nl = ref [] in
+				List.iter(fun (s,llabell,sl,pn)->
+					let nllabell = ref [] in
+					let nsl = ref [] in
+					List.iter(fun llabel->
+						nllabell := !nllabell@[copy_logic_label llabel];
+					)llabell;
+					List.iter(fun s->
+						nsl := !nsl@[s];
+					)sl;
+					nl := !nl@[(s,!nllabell,!nsl,{name=pn.name;loc=pn.loc;content=copy_predicate pn.content;})];
+				)l;
+				LBinductive(!nl)
+			in
+		let nllabell = ref [] in
+		List.iter(fun llabel->
+			nllabell := !nllabell@[copy_logic_label llabel];
+		)linfo.l_labels;
+		let nprofilel = ref [] in
+		List.iter(fun lv->
+			nprofilel := !nprofilel@[copy_logic_var lv];
+		)linfo.l_profile;
+		{
+			l_var_info = copy_logic_var linfo.l_var_info;
+			l_labels = !nllabell;
+			l_tparams = linfo.l_tparams;
+			l_type = linfo.l_type;
+			l_profile = !nprofilel;
+			l_body = copy_logic_body linfo.l_body;
+		}
+		
