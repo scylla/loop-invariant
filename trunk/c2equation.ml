@@ -324,15 +324,15 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 
 (** Build a [Equation.info] object from [Spl_syn.program]. *)
 let make_info (prog:Cil_types.file): Equation.info =
-  let procinfo = Hashhe.create 3 in
+  let procinfo = Hashtbl.create 3 in
   Globals.Functions.iter(fun kf ->
   	match kf.fundec with
   	| Definition(_,_)->
 			let info = make_procinfo kf in
-			Hashhe.add procinfo info.pname info
+			Hashtbl.add procinfo info.pname info
 		| Declaration _->
-			let info = make_procinfo kf in
-			Hashhe.add procinfo info.pname info
+			()(*let info = make_procinfo kf in
+			Hashtbl.add procinfo info.pname info*)
 	);
 
   let callret = DHashhe.create 3 in
@@ -384,7 +384,7 @@ let make_info (prog:Cil_types.file): Equation.info =
   	| Definition(_,_)->
 			let fundec = Kernel_function.get_definition kf in
 			let (pcode:block) = fundec.sbody in
-			let pinfo = Hashhe.find procinfo (Kernel_function.get_name kf) in
+			let pinfo = Hashtbl.find procinfo (Kernel_function.get_name kf) in
 		  let env = pinfo.Equation.penv in
 		  
   		let fpoint = {fname=pcode.kf_name;sid = pcode.bid} in
@@ -440,7 +440,7 @@ let make_info (prog:Cil_types.file): Equation.info =
 (*  ********************************************************************** *)
 	
 module Forward = struct
-  let make (info:Equation.info) arrayvars (fmt:Format.formatter) ipl wp_compute unknownout: Equation.graph =
+  let make (info:Equation.info) arrayvars (fmt:Format.formatter) ipl wp_compute annots unknownout: Equation.graph =
   	
     let graph = Equation.create 3 info in
 		
@@ -495,28 +495,34 @@ module Forward = struct
 							| Var(v)->
 								if v.vgenerated==false then
 								begin
-								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
-								let pin = ref [] in
-								List.iter(fun e->
-									pin := !pin@[Translate.force_exp_to_arg env e];
-								)el;
-								let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname))) in
-								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some([|LiType.APTexpr(pout)|])) in
-								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
-								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
-								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+								let fname = LiUtils.get_exp_name e in
+								try
+									let callee = Hashtbl.find info.Equation.procinfo fname in
+									let pin = ref [] in
+									List.iter(fun e->
+										pin := !pin@[Translate.force_exp_to_arg env e];
+									)el;
+									let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string v.vname))) in
+									let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some([|LiType.APTexpr(pout)|])) in
+									let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
+									Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
+									Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+								with Not_found->Printf.printf "not find definition of [%s].\n" fname;
 								end;
 							| Mem(e)->
-								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
-								let pin = ref [] in
-								List.iter(fun e->
-									pin := !pin@[Translate.force_exp_to_arg env e];
-								)el;
-								let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (LiUtils.get_exp_name e)))) in
-								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some([|LiType.APTexpr(pout)|])) in
-								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
-								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
-								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+								let fname = LiUtils.get_exp_name e in
+								try
+									let callee = Hashtbl.find info.Equation.procinfo fname in
+									let pin = ref [] in
+									List.iter(fun e->
+										pin := !pin@[Translate.force_exp_to_arg env e];
+									)el;
+									let pout = Apron.Texpr1.of_expr env (Apron.Texpr1.Var((Apron.Var.of_string (LiUtils.get_exp_name e)))) in
+									let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),Some([|LiType.APTexpr(pout)|])) in
+									let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[|LiType.APTexpr(pout)|]) in
+									Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
+									Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+								with Not_found->Printf.printf "not find definition of [%s].\n" fname;
 							end;
 						| None->
       				let fname = LiUtils.get_exp_name e in
@@ -526,17 +532,19 @@ module Forward = struct
 		    				Cil.d_stmt fmt last;Format.print_flush ();Printf.printf "\n";
       				)else
       				(
-							let callee = Hashhe.find info.Equation.procinfo fname in
-							let pin = ref [] in
-							List.iter(fun e->
-								let arg = Translate.force_exp_to_arg env e in
-								(*Printf.printf "pin arg:";LiType.print_arg fmt arg;Printf.printf "\n";*)
-								pin := !pin@[arg];
-							)el;
-							let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),None) in
-							let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[||]) in
-							Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
-							Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+							try
+								let callee = Hashtbl.find info.Equation.procinfo fname in
+								let pin = ref [] in
+								List.iter(fun e->
+									let arg = Translate.force_exp_to_arg env e in
+									(*Printf.printf "pin arg:";LiType.print_arg fmt arg;Printf.printf "\n";*)
+									pin := !pin@[arg];
+								)el;
+								let calltransfer = Equation.Calle(procinfo,callee,(Array.of_list !pin),None) in
+								let returntransfer = Equation.Return(procinfo,callee,(Array.of_list !pin),[||]) in
+								Equation.add_equation graph [|point|] calltransfer callee.Equation.pstart;
+								Equation.add_equation graph [|point;callee.Equation.pexit|] returntransfer spoint;
+							with Not_found->Printf.printf "not find definition of [%s].\n" fname;
 							);
 						end;
       		| _->
@@ -544,7 +552,7 @@ module Forward = struct
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
       	| Loop(_,_,loc,_,_)->
-      		Translate.generate_array fmt procinfo.kf (Hashtbl.find arrayvars (Kernel_function.get_id procinfo.kf)) stmt;
+      		Translate.generate_array fmt procinfo.kf (Hashtbl.find arrayvars (Kernel_function.get_id procinfo.kf)) annots stmt;
       		let loop = Translate.extract_loop stmt in
       		let rec find_con s conl =
       			match s.skind with
@@ -604,13 +612,7 @@ module Forward = struct
       		in
       		
       		let conl = ref [] in
-      		find_con stmt conl;
-      		Printf.printf "cons after loop1\n";
-      		List.iter(fun (_,e)->
-      			Cil.d_exp fmt e;Format.print_flush ();Printf.printf "\n";
-      		)!conl;
-      		Printf.printf "cons after loop2\n";
-      		
+      		find_con stmt conl;      		
       		
       		let first_stmt = List.nth loop.body 0 in
       		let first_id = LiUtils.get_stmt_id first_stmt in
@@ -631,7 +633,7 @@ module Forward = struct
 					)lvars;
 					Printf.printf "precess fun [%s] in formake\n" name;
 					(*Printf.printf "loop stmt:\n";Cil.d_stmt fmt stmt;Format.print_flush ();Printf.printf "\n";*)
-					let transfers = Translate.generate_template fmt procinfo loop !nvars !conl stmt loc env ipl wp_compute unknownout in
+					let transfers = Translate.generate_template fmt procinfo loop !nvars !conl stmt loc env ipl wp_compute annots unknownout in
 					List.iter(fun constransfer->
 						Equation.add_equation graph [|point|] constransfer {fname=name;sid=first_stmt.Cil_types.sid};
 						Equation.add_equation graph [|{fname=name;sid=end_stmt.Cil_types.sid}|] constransfer point;
@@ -737,7 +739,7 @@ module Forward = struct
 			begin match kf.fundec with
 			| Definition(_,(_,_))->
 				let fundec = Kernel_function.get_definition kf in
-				let procinfo = Hashhe.find info.Equation.procinfo name in
+				let procinfo = Hashtbl.find info.Equation.procinfo name in
 				(*let transfer = Equation.Condition(Boolexpr.make_cst true) in*)
 				iter_block name procinfo fundec.sbody;
 			| Declaration _->();
@@ -808,7 +810,7 @@ module Backward = struct
 							let (host,_) = lv in
 							(match host with
 							| Var(v)->
-								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
+								let callee = Hashtbl.find info.Equation.procinfo (LiUtils.get_exp_name e) in
 								let pin = callee.pinput in
 								let ain = ref [] in
 								Array.iter(fun v->
@@ -821,7 +823,7 @@ module Backward = struct
 								Equation.add_equation graph [|callee.Equation.pstart|] calltransfer point;
 								Equation.add_equation graph [|spoint|] returntransfer callee.Equation.pexit;
 							| Mem(e)->
-								let callee = Hashhe.find info.Equation.procinfo (LiUtils.get_exp_name e) in
+								let callee = Hashtbl.find info.Equation.procinfo (LiUtils.get_exp_name e) in
 								let pin = callee.pinput in
 								let ain = ref [] in
 								Array.iter(fun v->
@@ -842,7 +844,7 @@ module Backward = struct
 		    				Cil.d_stmt fmt last;Format.print_flush ();Printf.printf "\n";
       				)else
       				(
-							let callee = Hashhe.find info.Equation.procinfo fname in
+							let callee = Hashtbl.find info.Equation.procinfo fname in
 							let ain = ref [] in
 							
 							List.iter(fun e->
@@ -931,7 +933,7 @@ module Backward = struct
 			match kf.fundec with
 			| Definition(_,_)->
 				let fundec = Kernel_function.get_definition kf in
-				let procinfo = Hashhe.find info.Equation.procinfo fundec.svar.vname in
+				let procinfo = Hashtbl.find info.Equation.procinfo fundec.svar.vname in
 				iter_block name procinfo fundec.sbody;
 			| Declaration _->()
 		);

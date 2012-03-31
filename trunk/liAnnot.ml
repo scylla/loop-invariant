@@ -83,7 +83,6 @@ let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Ci
 	| _->false;;
 	
 let isExistCodeAnnot (code_annot:Cil_types.code_annotation) (s:stmt) : bool =
-	Printf.printf "isExistCodeAnnot\n";Cil.d_code_annotation Format.std_formatter code_annot;Format.print_flush ();Printf.printf "\n";
 	let flag = ref 0 in
 	let sl = Some([Ast.self]) in
 	let rannot_bf_list = Annotations.get_all_annotations ?who:sl s in
@@ -112,23 +111,7 @@ let prove_code_annot (kf:Cil_types.kernel_function) (stmt:Cil_types.stmt) (code_
 	let flag = ref 1 and fmt = Format.std_formatter in
 	let ip = Property.ip_of_code_annot_single kf stmt code_annot in
 	
-	let strfmt = Format.str_formatter in	
-	
-	flag := Prove.prove_predicate kf [] ip wp_compute;
-	(*if !flag==0 then
-	(Printf.printf "remove invalid annot\n";)
-	else if !flag==1 then
-	(Printf.printf "keep the annot\n";)
-	else if !flag==2 then
-	(Cil.d_code_annotation strfmt code_annot;
-	output_string unknownout (Format.flush_str_formatter ());
-	output_string unknownout "\n====>>\n";
-	Cil.d_stmt strfmt stmt;
-	output_string unknownout (Format.flush_str_formatter ());	
-	output_string unknownout "\n\n\n";
-	flush unknownout;
-	);*)
-	!flag;;
+	Prove.prove_predicate kf [] ip wp_compute;;
 	
 
 let load fpath =
@@ -150,7 +133,6 @@ let prove_fundec kf wp_compute unknownout=
 			List.iter(fun root->Printf.printf "roots.len=%d\n" (List.length roots);
 				begin match root with
 				| User(code)->
-					Cil.d_code_annotation Format.std_formatter code;Format.print_flush ();Printf.printf "\n";
 					let flag = prove_code_annot kf s code wp_compute in
 					res := (flag,root)::!res;
 				| AI(_,_)->();
@@ -165,13 +147,13 @@ let prove_fundec kf wp_compute unknownout=
 				begin
 					begin match root with
 					| User(code)|AI(_,code)->
-					Cil.d_code_annotation strfmt code;
-					output_string unknownout (Format.flush_str_formatter ());
-					output_string unknownout "\n====>>\n";
-					Cil.d_stmt strfmt s;
-					output_string unknownout (Format.flush_str_formatter ());	
-					output_string unknownout "\n\n\n";
-					flush unknownout;
+						Cil.d_code_annotation strfmt code;
+						output_string unknownout (Format.flush_str_formatter ());
+						output_string unknownout "\n====>>\n";
+						Cil.d_stmt strfmt s;
+						output_string unknownout (Format.flush_str_formatter ());	
+						output_string unknownout "\n\n\n";
+						flush unknownout;
 					end;
 				end;
 			)!res;

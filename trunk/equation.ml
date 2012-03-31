@@ -89,7 +89,7 @@ let dummy_procinfo =
 	}
 (** Useful information for the program *)
 type info = {
-  procinfo : (string, procinfo) Hashhe.t;
+  procinfo : (string, procinfo) Hashtbl.t;
     (** Hashtable [procedure name -> procinfo].
 	Main procedure has empty name *)
   callret : (point,point) DHashhe.t;
@@ -103,7 +103,7 @@ type info = {
 
 let dummy_info =
 	{
-		procinfo = Hashhe.create 0;
+		procinfo = Hashtbl.create 0;
 		callret = DHashhe.create 0;
 		pointenv = Hashhe.create 0;
 		counter = -1;
@@ -211,18 +211,19 @@ let print_procinfo fmt procinfo =
     (fun fmt e -> Apron.Environment.print fmt e) procinfo.penv
 
 let print_info fmt info =
-  fprintf fmt "{ @[<v>procinfo = %a;@ callret = %a;@ pointenv = %a;@ counter = %i;@] }"
-    (Hashhe.print pp_print_string print_procinfo) info.procinfo
+  fprintf fmt "{ @[<v>procinfo = ;@ callret = %a;@ pointenv = %a;@ counter = %i;@] }"(*%a
+    (Hashtbl.print pp_print_string print_procinfo) info.procinfo*)
     (DHashhe.print print_point print_point) info.callret
     (Hashhe.print print_point Apron.Environment.print) info.pointenv
     info.counter
 
+
 let print_transfer fmt transfer = 
 	match transfer with
 	| Lcons(_,cons1,_,_)->
-		Apron.Lincons1.print fmt cons1
+		Printf.printf "Lcons:";Format.print_flush ();Apron.Lincons1.print fmt cons1
 	| Tcons(_,tcons,_,_)->
-		Apron.Tcons1.print fmt tcons
+		Printf.printf "Tcons:";Format.print_flush ();Apron.Tcons1.print fmt tcons
   | Assign(v,ass)->
     fprintf fmt "%a = %a"
     Apron.Var.print v

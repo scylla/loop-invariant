@@ -505,9 +505,9 @@ module Forward = struct
 
   let compute
     ~(fmt : Format.formatter)
-    (graph:Equation.graph)
+    (graph:Equation.graph) pname
     ~(output : (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output option)
-    (manager:'a Apron.Manager.t)
+    (manager:'a Apron.Manager.t) annots
     ~(debug:int)
     :
     (Equation.point, int, 'a Apron.Abstract1.t, Equation.transfer) Fixpoint.output
@@ -516,18 +516,18 @@ module Forward = struct
     let dummy_sstart = PSette.singleton Equation.compare_point Equation.vertex_dummy in
     let sstart =
       try
-      let maininfo = Hashhe.find info.Equation.procinfo "main" in
-      let start = maininfo.Equation.pstart in
-      begin match output with
-      | None ->
-	 		 	PSette.singleton Equation.compare_point start
-      | Some output ->
-				let abstract = PSHGraph.attrvertex output start in
-				if Apron.Abstract1.is_bottom manager abstract then
-	   		(PSette.empty Equation.compare_point)
-	 			else
-	   		(PSette.singleton Equation.compare_point start)
-      end
+		    let maininfo = Hashtbl.find info.Equation.procinfo pname in
+		    let start = maininfo.Equation.pstart in
+		    begin match output with
+		    | None ->
+		 		 	PSette.singleton Equation.compare_point start
+		    | Some output ->
+					let abstract = PSHGraph.attrvertex output start in
+					if Apron.Abstract1.is_bottom manager abstract then
+			 		(PSette.empty Equation.compare_point)
+		 			else
+			 		(PSette.singleton Equation.compare_point start)
+		    end
       with Not_found->Printf.printf "Not_found when get sstart\n";dummy_sstart
     in
     

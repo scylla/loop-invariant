@@ -152,7 +152,77 @@ let rec replace_term (t:Cil_types.term) (p:Cil_types.predicate) (formals:Cil_typ
 		| None->();
 		)
 	| TConst(_)|TSizeOf(_)|TSizeOfStr(_)|TAlignOf(_)|Tnull|Ttype(_)|Tempty_set->()
-		
+
+let rec apply_predicate p lvtbl =
+	let rec apply_term t =
+		begin match t.term_node with
+		| TLval((host,offset))|TAddrOf((host,offset))|TStartOf((host,offset))->
+			begin match host with
+			| TVar(lv)->
+				let nlv = Hashtbl.find lvtbl lv in
+				lv.lv_name <- nlv.lv_name;
+			| _->();
+			end;
+		| TSizeOfE(t1)|TAlignOfE(t1)|TUnOp(_,t1)|TCastE(_,t1)|Tlambda(_,t1)|Tat(t1,_)|Tbase_addr(t1)|Tblock_length(t1)|TCoerce(t1,_)|Ttypeof(t1)->
+			apply_term t1;
+		| TBinOp(_,t1,t2)|TCoerceE(t1,t2)->
+			apply_term t1;
+			apply_term t2;
+		| Tif(t1,t2,t3)->
+			apply_term t1;
+			apply_term t2;
+			apply_term t3;
+		| Tapp(linfo,_,tl)->();
+		| TDataCons(_,tl)->();
+		| TUpdate(t1,offset,t2)->
+			apply_term t1;
+			apply_term t2;
+		| Tunion(tl)|Tinter(tl)->
+			List.iter(fun t->
+				apply_term t;
+			)tl;
+		| Tcomprehension(t1,_,pno)->
+			apply_term t1;
+		| Trange(to1,to2)->();
+		| Tlet(linfo,t1)->
+			apply_term t1;
+		| TConst _|TSizeOf _|TSizeOfStr _|TAlignOf _|Tnull|Ttype _|Tempty_set->();
+		end;
+	in
+	
+	begin match p with
+	| Pfalse|Ptrue->();
+	| Papp(linfo,_,tl)->
+		begin match linfo.l_body with
+		| LBreads(itl)->();
+		| LBpred(pn)->
+			apply_predicate pn.content lvtbl;
+		| _->();
+		end;
+	| Pseparated(tl)->
+		List.iter(fun t->
+			apply_term t;
+		)tl;
+	| Prel(_,t1,t2)|Pvalid_index(t1,t2)|Psubtype(t1,t2)->
+		apply_term t1;
+		apply_term t2;
+	| Pand(pn1,pn2)|Por(pn1,pn2)|Pxor(pn1,pn2)|Pimplies(pn1,pn2)|Piff(pn1,pn2)->
+		apply_predicate pn1.content lvtbl;
+		apply_predicate pn2.content lvtbl;
+	| Pif(t,pn1,pn2)->
+		apply_term t;
+		apply_predicate pn1.content lvtbl;
+		apply_predicate pn2.content lvtbl;
+	| Pnot(pn1)|Plet(_,pn1)|Pforall(_,pn1)|Pexists(_,pn1)|Pat(pn1,_)->
+		apply_predicate pn1.content lvtbl;
+	| Pvalid(t)|Pinitialized(t)|Pfresh(t)->
+		apply_term t;
+	| Pvalid_range(t1,t2,t3)->
+		apply_term t1;
+		apply_term t2;
+		apply_term t3;
+	end
+
 let rec replace_predicate_var (p:Cil_types.predicate) (formals:Cil_types.varinfo list) (args:Cil_types.exp list) =
 	match p with
 	| Psubtype(t1,t2)|Pvalid_index(t1,t2)|Prel(_,t1,t2)->

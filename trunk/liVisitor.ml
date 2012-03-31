@@ -25,7 +25,8 @@ let is_type_consistent (linfo:logic_info) (vars:varinfo list) =
 	done;
 	!flag;;
 	
-let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list) (result:varinfo list) (len:int) (tlen:int)=
+let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list) (result:varinfo list) (len:int) (tlen:int) annots=
+	let strfmt = Format.str_formatter in
 	if len>=tlen then
 	(
 		if (is_type_consistent linfo vars)=1 then 
@@ -35,8 +36,6 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 				tl := (LiUtils.mk_term_from_vi v)::!tl;
 			)result;
 			List.rev !tl;
-			Printf.printf "tl.len=%d\n" (List.length !tl);
-			Printf.printf "lables.len=%d\n" (List.length linfo.l_labels);
 			if (List.length linfo.l_labels)>0 then
 			(
 				let len = List.length linfo.l_labels in
@@ -50,71 +49,47 @@ let rec get_all_combine (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stm
 					labels2 := List.append !labels2 [LogicLabel(None,"Here")];
 				);
 				done;
-				List.iter(fun label->
-					match label with
-					| LogicLabel(_,s)->
-						Printf.printf "before sbu;label:%s" s;
-					| _->();
-				)linfo.l_labels;
-				Printf.printf "\n";
 				linfo.l_labels <- !labels2;
-				List.iter(fun label->
-				match label with
-				| LogicLabel(_,s)->
-					Printf.printf "after sub;label:%s" s;
-				| _->();
-				)linfo.l_labels;
-				Printf.printf "\n";
-				let newpn = Logic_const.unamed (Papp(linfo,
-				!labels1,!tl)) in
+				let newpn = Logic_const.unamed (Papp(linfo,!labels1,!tl)) in
 			
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
-				let root_code_annot_ba = Cil_types.User(annot) in
-				if (isExistCodeAnnot annot s)=false then
-				(
-				Annotations.add kf s [Ast.self] root_code_annot_ba;
-				Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-				Printf.printf "logic_var,len>0:\n";Cil.d_logic_var Format.std_formatter linfo.l_var_info;Format.print_flush ();Printf.printf "\n";
-				Cil.d_predicate_named Format.std_formatter newpn;Format.print_flush ();Printf.printf "\n";
-				prove_code_annot kf s annot;
-				Printf.printf "after annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-				);
-				(*linfo.l_labels <- !oldlabels;*)
-				List.iter(fun label->
-				match label with
-				| LogicLabel(_,s)->
-					Printf.printf "sub back;label:%s" s;
-				| _->();
-				)linfo.l_labels;
-				Printf.printf "\n";
+				Cil.d_code_annotation strfmt annot;
+				let strannot = Format.flush_str_formatter () in
+				if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+				begin					
+					let root_code_annot_ba = Cil_types.User(annot) in
+					if (isExistCodeAnnot annot s)==false then
+					(
+						Annotations.add kf s [Ast.self] root_code_annot_ba;
+						prove_code_annot kf s annot;
+						annots := strannot::!annots;
+					);
+				end;
 			)else
 			(
 				let newpn = Logic_const.unamed (Papp(linfo,	[],!tl)) in			
 				let annot = Logic_const.new_code_annotation(AInvariant([],true,newpn)) in
-				let root_code_annot_ba = Cil_types.User(annot) in
-				if (isExistCodeAnnot annot s)=false then 
-				(
-				Annotations.add kf s [Ast.self] root_code_annot_ba;
-				Printf.printf "just new annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-				
-				prove_code_annot kf s annot;
-				Printf.printf "after annot\n";Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf"\n";
-				);
+				Cil.d_code_annotation strfmt annot;
+				let strannot = Format.flush_str_formatter () in
+				if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+				begin	
+					let root_code_annot_ba = Cil_types.User(annot) in
+					if (isExistCodeAnnot annot s)==false then 
+					(
+						Annotations.add kf s [Ast.self] root_code_annot_ba;				
+						prove_code_annot kf s annot;
+						annots := strannot::!annots;
+					);
+				end;
 			)
-		)else
-		(();
-			(*Printf.printf "type inconsistent\n";
-			List.iter(fun v->
-				Cil.d_var Format.std_formatter v;Format.print_flush ();Printf.printf "\n";
-			)vars;*)
-		)
+		);
 	)else
 	(
 		for i=len to (List.length vars)-1 do
 			let li = List.nth vars i in
 			let new_result = li::result in
 			let nvars = (LiUtils.swap vars i len) in
-			get_all_combine kf linfo s nvars new_result (len+1) tlen;
+			get_all_combine kf linfo s nvars new_result (len+1) tlen annots;
 		done;
 	)
 
@@ -128,14 +103,14 @@ class liVisitor prj = object (self)
 		logic_var.lv_name <- var.vorig_name;
 		logic_var;
 			
-	method add_pn (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list)= 
+	method add_pn (kf:Cil_types.kernel_function) (linfo:logic_info) (s:stmt) (vars:varinfo list) annots= 
 		match linfo.l_body with
 		| LBpred(_)->(
 			let flen = (List.length linfo.l_profile) in
 			let alen = List.length vars in
 			if alen>=flen then
 			(
-				get_all_combine kf linfo s vars [] 0 flen;
+				get_all_combine kf linfo s vars [] 0 flen annots;
 				();
 			);
 		);

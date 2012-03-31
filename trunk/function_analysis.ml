@@ -2,8 +2,9 @@ open Cil
 open Cil_types
 open Cil_datatype
 	
-let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) =	
-	let total_lt = ref [] in
+let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (loop_block:Cil_types.block) (linfo_list:logic_info list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) annots =	
+	let total_lt = ref [] in	
+	let strfmt = Format.str_formatter in
 	
 	let rec generate_block_predicate (b:block) =
 		List.iter(fun s->	
@@ -101,8 +102,15 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 								let np = Logic_const.unamed np in
 								(*total_lt := [np]::!total_lt;*)
 								let annot = Logic_const.new_code_annotation(AInvariant([],true,np)) in
-								let root_code_annot_ba = Cil_types.User(annot) in
-								Annotations.add kf loop_stmt [Ast.self] root_code_annot_ba;
+								Cil.d_code_annotation strfmt annot;
+								let strannot = Format.flush_str_formatter () in
+								
+								if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+								begin
+									let root_code_annot_ba = Cil_types.User(annot) in
+									Annotations.add kf loop_stmt [Ast.self] root_code_annot_ba;
+									annots := strannot::!annots;
+								end;
 							)b.b_post_cond;
 						)behave;
 					| None->();
@@ -269,7 +277,9 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 	generate_block_predicate loop_block;
 	total_lt
 	
-let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) visitor (ipl:Property.identified_property list ref) wp_compute unknownout =
+let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (funsigs:(string,Loop_parameters.procsignature) Hashtbl.t) annots visitor (ipl:Property.identified_property list ref) wp_computeannots unknownout =
+	let strfmt = Format.str_formatter in
+	
 	try
 	let fundec = Kernel_function.get_definition kf in
 	List.iter(fun stmt ->
@@ -331,11 +341,11 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 			)lvars;
 		
 		 	List.iter(fun linfo->
-				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars);
+				visitor#add_pn kf linfo stmt (Varinfo.Set.elements vars) annots;
 			)linfo_list;
 			
 			Printf.printf "Analysis loop body now.\n";
-			let total_lt = generate_loop_annotations kf stmt block linfo_list funsigs in
+			let total_lt = generate_loop_annotations kf stmt block linfo_list funsigs annots in
 			total_lt := List.rev !total_lt;
 			
 			List.iter(fun (vars,freevar,conds,t_named)->
@@ -359,10 +369,16 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 					
 					
 					let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
-					Cil.d_code_annotation Format.std_formatter annot;Format.print_flush ();Printf.printf "\n";
-					let root_code_annot_ba = Cil_types.User(annot) in
-					Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-					(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();*)
+					
+					Cil.d_code_annotation strfmt annot;
+					let strannot = Format.flush_str_formatter () in
+					if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+					begin
+						let root_code_annot_ba = Cil_types.User(annot) in
+						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+						(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();*)
+						annots := strannot::!annots;
+					end;
 				end else
 				begin
 						let trans = Logic_const.unamed (Pforall(freevar,trans)) in
@@ -370,9 +386,15 @@ let analysis_kf (kf:Cil_types.kernel_function) (linfo_list:logic_info list) (fun
 						let prev = Logic_const.unamed ~loc:location (Pimplies(Logic_const.pands (!negoriConds),trans)) in
 						
 						let annot = Logic_const.new_code_annotation(AInvariant([],true,(Logic_const.pors [es;prev]))) in
-						let root_code_annot_ba = Cil_types.User(annot) in
-						Annotations.add kf stmt [Ast.self] root_code_annot_ba;
-						(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();*)
+						Cil.d_code_annotation strfmt annot;
+						let strannot = Format.flush_str_formatter () in
+						if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+						begin
+							let root_code_annot_ba = Cil_types.User(annot) in
+							Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+							(*LiAnnot.prove_code_annot kf stmt annot ipl wp_compute unknownout;();*)
+							annots := strannot::!annots;
+						end;
 				end;
 			)!total_lt;
 			Printf.printf "Analysis loop body over.\n";

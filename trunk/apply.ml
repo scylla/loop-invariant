@@ -91,101 +91,127 @@ let apply_cons fmt procinfo stmt cons ipl wp_compute =
 	Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
 	LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute
 *)	
-let apply_abstract1 fmt procinfo stmt abs =
+let apply_abstract1 fmt procinfo stmt abs annots =
 	let man = Apron.Abstract1.manager abs in
+	let strfmt = Format.str_formatter in
+	
 	if (Apron.Abstract1.is_bottom man abs)==false then
 	begin
 		let lconsarray = Apron.Abstract1.to_lincons_array man abs in
 		Array.iter(fun cons->
 			let lincons1 = {Apron.Lincons1.lincons0=cons;Apron.Lincons1.env=lconsarray.Apron.Lincons1.array_env} in
 			let code_annotation = apply_lincons1 fmt procinfo lincons1 in
-			let root_code_annot_ba = Cil_types.User(code_annotation) in
-			Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
+			Cil.d_code_annotation strfmt code_annotation;
+			let strannot = Format.flush_str_formatter () in
+			if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+			begin
+				let root_code_annot_ba = Cil_types.User(code_annotation) in
+				Annotations.add procinfo.kf stmt [Ast.self] root_code_annot_ba;
+				annots := strannot::!annots;
+			end;
 			(*LiAnnot.prove_code_annot procinfo.kf stmt code_annotation ipl wp_compute;*)
 		)lconsarray.Apron.Lincons1.lincons0_array;
 	end
 	
 
-let apply_result (prog:Equation.info) fmt fp =
+let apply_result (prog:Equation.info) fmt fp annots =
+	let strfmt = Format.str_formatter in
 	Globals.Functions.iter(fun kf ->
-		try
-			let name = Kernel_function.get_name kf in
-			let procinfo = Hashhe.find prog.Equation.procinfo name in
-			let fundec = Kernel_function.get_definition kf in
-			List.iter(fun stmt->
-				try
-					let rec apply_stmt s =
-						match s.skind with
-						| Instr(_)|Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
-						| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b1.bstmts;
-							List.iter(fun s->
-								apply_stmt s;
-							)b2.bstmts;
-						| Switch(_,b,_,_)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| Loop(_,_,_,_,_)->
-							let loop = Translate.extract_loop s in
-      				let first_stmt = List.nth loop.Equation.body 0 in
-							let end_stmt = LiUtils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
+		begin match kf.fundec with
+		| Definition _->
+			begin try
+				let name = Kernel_function.get_name kf in
+				let procinfo = Hashtbl.find prog.Equation.procinfo name in
+				let fundec = Kernel_function.get_definition kf in
+				List.iter(fun stmt->
+					try
+						let rec apply_stmt s =
+							match s.skind with
+							| Instr(_)|Cil_types.Return(_,_)|Goto(_,_)|Break(_)|Continue(_)->();
+							| If(_,b1,b2,_)|TryFinally(b1,b2,_)->
+								List.iter(fun s->
+									apply_stmt s;
+								)b1.bstmts;
+								List.iter(fun s->
+									apply_stmt s;
+								)b2.bstmts;
+							| Switch(_,b,_,_)->
+								List.iter(fun s->
+									apply_stmt s;
+								)b.bstmts;
+							| Loop(_,_,_,_,_)->
+								let loop = Translate.extract_loop s in
+		    				let first_stmt = List.nth loop.Equation.body 0 in
+								let end_stmt = LiUtils.get_stmt_end (List.nth loop.Equation.body ((List.length loop.Equation.body)-1)) in
 							
-							let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-							apply_abstract1 fmt procinfo s abs;
+								let abs = PSHGraph.attrvertex fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
+								apply_abstract1 fmt procinfo s abs annots;
 							
-							let edges1 = PSHGraph.predhedge fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
-							let edges2 = PSHGraph.succhedge fp {Equation.fname=name;Equation.sid=end_stmt.Cil_types.sid} in
-							let edges = ref [] in
-							PSette.iter(fun edge->
-								edges := edge::!edges;
-							)edges1;
-							PSette.iter(fun edge->
-								if (PSette.for_all (fun e->e==edge) edges1)==true then edges := edge::!edges;
-							)edges2;
+								let edges1 = PSHGraph.predhedge fp {Equation.fname=name;Equation.sid=first_stmt.Cil_types.sid} in
+								let edges2 = PSHGraph.succhedge fp {Equation.fname=name;Equation.sid=end_stmt.Cil_types.sid} in
+								let edges = ref [] in
+								PSette.iter(fun edge->
+									edges := edge::!edges;
+								)edges1;
+								PSette.iter(fun edge->
+									if (PSette.for_all (fun e->e==edge) edges1)==true then edges := edge::!edges;
+								)edges2;
 							
-							List.iter(fun edge->
-								let transfer = PSHGraph.attrhedge fp edge in
-								match transfer with
-								| Equation.Lcons(_,_,code_annotation,sat)->
-									if !sat==true then
-									(
-										let root_code_annot_ba = Cil_types.User(code_annotation) in										
-										Annotations.add kf s [Ast.self] root_code_annot_ba;
-									)
-								| Equation.Tcons(_,_,code_annotation,sat)->
-									if !sat==true then
-									(
-										let root_code_annot_ba = Cil_types.User(code_annotation) in										
-										Annotations.add kf s [Ast.self] root_code_annot_ba;
-									);
-								| _->()
-							)!edges;
+								List.iter(fun edge->
+									let transfer = PSHGraph.attrhedge fp edge in
+									match transfer with
+									| Equation.Lcons(_,_,code_annotation,sat)->
+										if !sat==true then
+										(
+											Cil.d_code_annotation strfmt code_annotation;
+											let strannot = Format.flush_str_formatter () in
+											if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+											begin
+												let root_code_annot_ba = Cil_types.User(code_annotation) in										
+												Annotations.add kf s [Ast.self] root_code_annot_ba;
+												annots := strannot::!annots;
+											end;
+										)
+									| Equation.Tcons(_,_,code_annotation,sat)->
+										if !sat==true then
+										(
+											Cil.d_code_annotation strfmt code_annotation;
+											let strannot = Format.flush_str_formatter () in
+											if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+											begin
+												let root_code_annot_ba = Cil_types.User(code_annotation) in										
+												Annotations.add kf s [Ast.self] root_code_annot_ba;
+												annots := strannot::!annots;
+											end;
+										);
+									| _->()
+								)!edges;
 									
-							List.iter(fun s->
-								apply_stmt s;
-							)loop.Equation.body;
-						| Block(b)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| UnspecifiedSequence(seq)->
-							let b = Cil.block_from_unspecified_sequence seq in
-							List.iter(fun s->
-								apply_stmt s;
-							)b.bstmts;
-						| TryExcept(b1,_,b2,_)->
-							List.iter(fun s->
-								apply_stmt s;
-							)b1.bstmts;
-							List.iter(fun s->
-								apply_stmt s;
-							)b2.bstmts;
-					in
-				apply_stmt stmt;
-				with Not_found->Printf.printf "Not_found\n";
-			)fundec.sallstmts;
-		with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
+								List.iter(fun s->
+									apply_stmt s;
+								)loop.Equation.body;
+							| Block(b)->
+								List.iter(fun s->
+									apply_stmt s;
+								)b.bstmts;
+							| UnspecifiedSequence(seq)->
+								let b = Cil.block_from_unspecified_sequence seq in
+								List.iter(fun s->
+									apply_stmt s;
+								)b.bstmts;
+							| TryExcept(b1,_,b2,_)->
+								List.iter(fun s->
+									apply_stmt s;
+								)b1.bstmts;
+								List.iter(fun s->
+									apply_stmt s;
+								)b2.bstmts;
+						in
+					apply_stmt stmt;
+					with Not_found->Printf.printf "Not_found\n";
+				)fundec.sallstmts;
+			with Kernel_function.No_Definition -> Printf.printf "exception No_Definition\n";
+			end;
+		| Declaration _->();
+		end;
 	)

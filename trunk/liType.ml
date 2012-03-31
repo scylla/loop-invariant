@@ -40,7 +40,8 @@ type array_size =
 
 type array_info =
 	{
-		v:varinfo;
-		typ:typ;
+		v:varinfo option;
+		vname:string;
+		typ:logic_type;
 		size:array_size;
 	}
