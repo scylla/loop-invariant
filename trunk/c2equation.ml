@@ -285,7 +285,6 @@ let make_procinfo (proc:Cil_types.kernel_function) : Equation.procinfo =
 		
 		add_env_block fundec.sbody;
 		let penv = Translate.add_vars penv !lvals in
-		Printf.printf "env of %s\n" name;Apron.Environment.print fmt penv;Format.print_flush ();Printf.printf "\n";
 		{
 			Equation.kf = proc;
 		  Equation.pname = Kernel_function.get_name proc;
@@ -440,7 +439,7 @@ let make_info (prog:Cil_types.file): Equation.info =
 (*  ********************************************************************** *)
 	
 module Forward = struct
-  let make (info:Equation.info) arrayvars (fmt:Format.formatter) ipl wp_compute annots unknownout: Equation.graph =
+  let make (info:Equation.info) globalarray arrayvars (fmt:Format.formatter) ipl wp_compute annots unknownout: Equation.graph =
   	
     let graph = Equation.create 3 info in
 		
@@ -552,7 +551,8 @@ module Forward = struct
 						Equation.add_equation graph [|point|] transfer spoint;
       		);
       	| Loop(_,_,loc,_,_)->
-      		Translate.generate_array fmt procinfo.kf (Hashtbl.find arrayvars (Kernel_function.get_id procinfo.kf)) annots stmt;
+      		Translate.generate_array fmt procinfo.kf (globalarray@(Hashtbl.find arrayvars (Kernel_function.get_id procinfo.kf))) annots stmt;
+      		
       		let loop = Translate.extract_loop stmt in
       		let rec find_con s conl =
       			match s.skind with
@@ -566,13 +566,13 @@ module Forward = struct
 				  				match last.skind with
 				  				| If(e,_,_,_)->
 				  					if (List.exists(fun (_,e1)->e1==e) !conl)==false then
-				  					begin conl := (last,e)::(!conl); end;
+				  					begin conl := (last,e)::(!conl);end;
 				  				| _->();
 		    				);
-		    			| Skip(_)->
-				  			List.iter(fun su->
+		    			| Skip(_)->Printf.printf "Skip\n";
+				  			(*List.iter(fun su->
 				  				find_con su conl;
-				  			)s.succs;
+				  			)s.succs;*)
 		    			| _->(); 
 		    			end;
       			| If(e,b1,b2,_)->
@@ -597,7 +597,14 @@ module Forward = struct
       				List.iter(fun s->
       					find_con s conl;
       				)b.bstmts;
-      			|Loop(_,b,_,_,_)|Block(b)->
+      			|Loop(_,b,_,_,_)->
+      				let lp = Translate.extract_loop s in
+      				if (List.exists(fun (_,e1)->e1==(lp.Equation.con)) !conl)==false then
+      				begin conl := (s,lp.Equation.con)::!conl; end;
+      				List.iter(fun s->
+      					find_con s conl;
+      				)lp.body;
+      			|Block(b)->
       				List.iter(fun s->
       					find_con s conl;
       				)b.bstmts;
@@ -612,7 +619,7 @@ module Forward = struct
       		in
       		
       		let conl = ref [] in
-      		find_con stmt conl;      		
+      		find_con stmt conl; Printf.printf "after gene array2\n";
       		
       		let first_stmt = List.nth loop.body 0 in
       		let first_id = LiUtils.get_stmt_id first_stmt in

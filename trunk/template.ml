@@ -73,9 +73,6 @@ let make_fpmanager
     (* Lattice operation *)
     Fixpoint.bottom = begin fun vtx ->
     	try
-    	Printf.printf "find bottom\n";
-    	Apron.Environment.print fmt (Hashhe.find info.Equation.pointenv vtx);Format.print_flush ();Printf.printf "\n";
-    	Equation.print_point fmt vtx;Format.print_flush ();Printf.printf "\n";
       Apron.Abstract1.bottom man (Hashhe.find info.Equation.pointenv vtx);
       (*Apron.Abstract1.bottom man (Apron.Environment.make [||] [||]);*)
       with Not_found->Printf.printf "Not_found in make_fpmanager\n";
@@ -90,9 +87,6 @@ let make_fpmanager
       Apron.Abstract1.is_bottom man abs
     end;
     Fixpoint.is_leq = begin fun vtx abs1 abs2 ->
-    	Printf.printf "is_leq\n";
-    	Apron.Abstract1.print fmt abs1;Format.print_flush ();Printf.printf "\n";
-    	Apron.Abstract1.print fmt abs2;Format.print_flush ();Printf.printf "\n";
       try
       Apron.Abstract1.is_leq man abs1 abs2
       with Apron.Manager.Error(_)->false(*they are not compatible*)
@@ -267,9 +261,6 @@ module Forward = struct
   let apply_assign (manager:'a Apron.Manager.t) (abstract:'a Apron.Abstract1.t) (var: Apron.Var.t) (expr:LiType.arg) (dest:'a Apron.Abstract1.t option)
     =
     let fmt = Format.std_formatter in
-    Printf.printf "tassign:\n";
-    Apron.Var.print fmt var;Format.print_flush ();Printf.printf "\n";
-    LiType.print_arg fmt expr;Format.print_flush ();Printf.printf "\n";
     let res =
     	begin match expr with
     	| LiType.APTexpr(expr)->
@@ -531,19 +522,15 @@ module Forward = struct
       with Not_found->Printf.printf "Not_found when get sstart\n";dummy_sstart
     in
     
-		Printf.printf "fore sstart:\n";
 		PSette.print ~first:"@[" ~sep:" ||@ " ~last:"@]" (fun fmt a->Equation.print_point fmt a;) fmt sstart;
 		Format.print_flush ();Printf.printf "\n";
 		
     if PSette.is_empty sstart then begin
-    	Printf.printf "PSette.is_empty sstart yes\n";
       make_emptyoutput graph manager
     end
     else(
-    	Printf.printf "PSette.is_empty sstart no\n";
       let abstract_init = (*how to specify the value of vertex?pstart*)
       	begin fun vertex ->
-      		Printf.printf "in abstract_init\n";Equation.print_point fmt vertex;Format.print_flush ();Printf.printf "\n";
 					begin match output with
 					| None ->
 						Apron.Abstract1.top manager (Hashhe.find info.Equation.pointenv vertex)
@@ -556,11 +543,9 @@ module Forward = struct
 				make_fpmanager ~fmt graph ~output	apply abstract_init	manager ~debug
       in
       let fp =
-      	Printf.printf "start fore analysis in Template.ml\n";
 				
     		if sstart!=dummy_sstart then
 					begin
-					Printf.printf "sstart!=dummy_sstart\n";
 					let result = Fixpoint.analysis_std
 						fpmanager graph sstart
 						(Fixpoint.make_strategy_default
@@ -574,19 +559,19 @@ module Forward = struct
 					~vertex_dummy:Equation.vertex_dummy
 					~hedge_dummy:Equation.hedge_dummy
 					~priority:(PSHGraph.Filter filter)
-					graph sstart) in*)
+					graph sstart) in
 					Printf.printf "fore analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;
-					Printf.printf "\n";
+					Printf.printf "\n";*)
 					result
 					end
 				else
 					begin
 					let sta = {Fixpoint.time=0.0;Fixpoint.iterations=0;Fixpoint.descendings=0;Fixpoint.stable=true} in
 					let result = PSHGraph.create Equation.compare 0 sta in
-					Printf.printf "fore analysis_std result2\n";
+					(*Printf.printf "fore analysis_std result2\n";
 					Fixpoint.print_output fpmanager fmt result;
-					Printf.printf "\n";
+					Printf.printf "\n";*)
 					result
 					end
 			in

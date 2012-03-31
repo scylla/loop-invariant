@@ -4,13 +4,13 @@ open Template
 open Cil_types
 open Loop_parameters
   
-let build_graphs (fmt:Format.formatter) (prog:Equation.info) arrayvars ipl wp_compute annots unknownout :graph * graph =
+let build_graphs (fmt:Format.formatter) (prog:Equation.info) globalarray arrayvars ipl wp_compute annots unknownout :graph * graph =
   (* Converting prog into a forward equation system *)
-  let (fgraph:graph) = C2equation.Forward.make prog arrayvars fmt ipl wp_compute annots unknownout in
-	fprintf fmt "print fgraph after ok 1\n";
+  let (fgraph:graph) = C2equation.Forward.make prog globalarray arrayvars fmt ipl wp_compute annots unknownout in
+	(*fprintf fmt "print fgraph after ok 1\n";
   Equation.print_graph fmt fgraph;
 	fprintf fmt "print fgraph after ok 2\n";
- (* Converting prog into a backward equation system *)
+  Converting prog into a backward equation system *)
   (*let (bgraph:graph) = C2equation.Backward.make prog in
   fprintf fmt "print bgraph after ok 1\n";
   Equation.print_graph fmt bgraph;
