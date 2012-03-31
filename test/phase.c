@@ -1,15 +1,14 @@
 #include<assert.h>
 
-int phase()
+void phase()
 {
-	int m=0;int a=10;
-	while(1==1)
+	int x=0,y=50;
+	while(x<100)
 	{
-			m=m+1;			
-			if(m>10)
-				continue;
+		x=x+1;
+		if(x>50)
+			y=y+1;
 	}
-	assert(m==156);
-	return m;
+	assert(y==100);
 }
 

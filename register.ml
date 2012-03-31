@@ -89,6 +89,19 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	
 	(*get array vars in every function*)
 	let arrayvars = Hashtbl.create 2 in
+	let globalarray = ref [] in
+	Globals.Vars.iter(fun v init->
+		begin match v.vtype with
+		| TArray(tp,_,size,_)->
+			if (List.for_all(fun v1->(String.compare v.vname v1.LiType.vname)!=0) !globalarray)==true then
+			begin
+				let v = {LiType.v=Some v;LiType.vname=v.vname;typ=Ctype(tp);size=LiType.CSize(size);} in
+				globalarray := v::!globalarray;
+			end;
+		| _->();
+		end;
+	);
+	
 	Globals.Functions.iter(fun kf ->
 		let name = Kernel_function.get_name kf in
 		match kf.fundec with
@@ -157,7 +170,7 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
   
   
 	let info = C2equation.make_info cil in
-	let (fgraph,bgraph) = Frontend.build_graphs fmt info arrayvars ipl wp_compute annots unknownout in
+	let (fgraph,bgraph) = Frontend.build_graphs fmt info !globalarray arrayvars ipl wp_compute annots unknownout in
 	Printf.printf "Frontend.compute_and_display begin\n";
 	Frontend.compute_and_display fmt info fgraph bgraph manbox annots;
 	(*Printf.printf "Frontend.compute_and_display over\n";*)

@@ -123,6 +123,7 @@ let load fpath =
 let prove_fundec kf wp_compute unknownout=
 	let fundec = Kernel_function.get_definition kf in
 	let strfmt = Format.str_formatter in
+	let count = ref 1 and total = ref 0 and right = ref 0 in
 	
 	let rec prove s =
 		begin match s.skind with
@@ -130,19 +131,26 @@ let prove_fundec kf wp_compute unknownout=
 			let roots = Annotations.get_all_annotations s in
 			let res = ref [] in
 			
-			List.iter(fun root->Printf.printf "roots.len=%d\n" (List.length roots);
+			let len = List.length roots in
+			total := !total+len;
+			count := 1;
+			List.iter(fun root->
+				Printf.printf "roots.len=%d,current=%d\n" len !count;
 				begin match root with
 				| User(code)->
 					let flag = prove_code_annot kf s code wp_compute in
 					res := (flag,root)::!res;
+					if flag==1 then
+					begin Cil.d_code_annotation Format.std_formatter code;Format.print_flush ();Printf.printf "\n";end;
 				| AI(_,_)->();
 				end;
+				count := !count+1;
 			)roots;
 			
 			Annotations.reset_stmt false kf s;
 			List.iter(fun (flag,root)->
 				if flag==1 then
-				begin Annotations.add kf s [Ast.self] root;end
+				begin Annotations.add kf s [Ast.self] root;right := !right+1;end
 				else if flag==2 then
 				begin
 					begin match root with
@@ -182,4 +190,5 @@ let prove_fundec kf wp_compute unknownout=
 	
 	List.iter(fun s->
 		prove s
-	)fundec.sbody.bstmts;;
+	)fundec.sbody.bstmts;
+	Printf.printf "total=%d,right=%d\n" !total !right;;

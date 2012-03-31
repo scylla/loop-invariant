@@ -919,7 +919,39 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) annots stmt =
 						begin match size.scache with
 						| Not_Computed->Printf.printf "Not_Computed\n";
 						| Not_Computable(_)->Printf.printf "Not_Computable\n";
-						| Computed(_)->Printf.printf "Computed\n";
+						| Computed(size)->Printf.printf "Computed:%d\n" (size/32);(*int*)
+							let one = Cil.one ~loc:Cil_datatype.Location.unknown in
+							let tone = !Db.Properties.Interp.force_exp_to_term one in
+							let tlen = Cil.integer ~loc:Cil_datatype.Location.unknown (size/32) in
+							let tlen = !Db.Properties.Interp.force_exp_to_term tlen in
+							let tlen1 = Logic_const.term (TBinOp(MinusA,tlen,tone)) (Ctype(Cil.intType)) in
+							let tindex = !Db.Properties.Interp.force_exp_to_term index in
+							
+							let rnamed = Logic_const.unamed (Prel(Rle,tindex,tlen1)) in
+							let pnamed = Logic_const.pands [lnamed;rnamed] in
+							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						
+							Cil.d_code_annotation strfmt code_annotation;
+							let strannot = Format.flush_str_formatter () in
+							if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+							begin
+								let root_code_annot_ba = Cil_types.User(code_annotation) in
+								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+								annots := strannot::!annots;
+							end;
+						
+							let rnamed = Logic_const.unamed (Prel(Rle,tindex,tlen)) in
+							let pnamed = Logic_const.pands [lnamed;rnamed] in
+							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						
+							Cil.d_code_annotation strfmt code_annotation;
+							let strannot = Format.flush_str_formatter () in
+							if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+							begin
+								let root_code_annot_ba = Cil_types.User(code_annotation) in
+								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+								annots := strannot::!annots;
+							end;
 						end;
 					| LiType.CTerm(t1)->Printf.printf "LiType.CTerm\n";
 						let one = Cil.one ~loc:Cil_datatype.Location.unknown in
@@ -962,7 +994,7 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) annots stmt =
 			begin match (host,offset) with
 			| (Var(v),Index(ie,_))->
 				begin match v.vtype with
-				| TArray _->
+				| TArray _->Printf.printf "v.vname=%s\n" v.vname;
 					let info = List.find (fun info->(String.compare info.LiType.vname v.vname)==0) arrayvars in
 					let tindex = !Db.Properties.Interp.force_exp_to_term ie in
 					let lnamed = Logic_const.unamed (Prel(Rge,tindex,(Cil.lzero ()))) in
@@ -972,7 +1004,38 @@ let generate_array fmt kf (arrayvars:LiType.array_info list) annots stmt =
 						begin match size.scache with
 						| Not_Computed->Printf.printf "Not_Computed\n";
 						| Not_Computable(_)->Printf.printf "Not_Computable\n";
-						| Computed(_)->Printf.printf "Computed\n";
+						| Computed(size)->Printf.printf "Computed:%d\n" (size/32);
+							let one = Cil.one ~loc:Cil_datatype.Location.unknown in
+							let tone = !Db.Properties.Interp.force_exp_to_term one in
+							let tlen = Cil.integer ~loc:Cil_datatype.Location.unknown (size/32) in
+							let tlen = !Db.Properties.Interp.force_exp_to_term tlen in
+							let tlen1 = Logic_const.term (TBinOp(MinusA,tlen,tone)) (Ctype(Cil.intType)) in
+							
+							let rnamed = Logic_const.unamed (Prel(Rle,tindex,tlen1)) in
+							let pnamed = Logic_const.pands [lnamed;rnamed] in
+							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						
+							Cil.d_code_annotation strfmt code_annotation;
+							let strannot = Format.flush_str_formatter () in
+							if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+							begin
+								let root_code_annot_ba = Cil_types.User(code_annotation) in
+								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+								annots := strannot::!annots;
+							end;
+						
+							let rnamed = Logic_const.unamed (Prel(Rle,tindex,tlen)) in
+							let pnamed = Logic_const.pands [lnamed;rnamed] in
+							let code_annotation = Logic_const.new_code_annotation(AInvariant([],true,pnamed)) in
+						
+							Cil.d_code_annotation strfmt code_annotation;
+							let strannot = Format.flush_str_formatter () in
+							if (List.for_all(fun annot1->(String.compare annot1 strannot)!=0) !annots)==true then
+							begin
+								let root_code_annot_ba = Cil_types.User(code_annotation) in
+								Annotations.add kf stmt [Ast.self] root_code_annot_ba;
+								annots := strannot::!annots;
+							end;
 						end;
 					| LiType.CTerm(t1)->
 						let one = Cil.one ~loc:Cil_datatype.Location.unknown in
@@ -1460,7 +1523,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 									let root_code_annot_ba = Cil_types.User(code_annotation) in
 									Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 									Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-									Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
 									transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 									annots := strannot::!annots;
 								end;
@@ -1481,7 +1543,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 										let root_code_annot_ba = Cil_types.User(code_annotation) in
 										Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 										Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-									Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
 										transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 										annots := strannot::!annots;
 									end;
@@ -1502,7 +1563,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 											let root_code_annot_ba = Cil_types.User(code_annotation) in
 											Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 											Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-									Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
 											transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 											annots := strannot::!annots;
 										end;
@@ -1523,7 +1583,6 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 												let root_code_annot_ba = Cil_types.User(code_annotation) in
 												Annotations.add kf stmt [Ast.self] root_code_annot_ba;
 												Apron.Lincons1.array_set tab 0 cons;(*0-index*)
-									Apron.Lincons1.print fmt cons;Format.print_flush ();Printf.printf "\n";
 												transfers := Lcons(cond,cons,code_annotation,ref true)::!transfers;
 												annots := strannot::!annots;
 											end;

@@ -327,7 +327,6 @@ let process_vertex
     bool
     =
   let vertex = svertex.vertex in
-  manager.print_vertex manager.print_fmt vertex;Format.print_flush ();Printf.printf "\n";  
   let attr = PSHGraph.attrvertex graph vertex in
   
   
@@ -364,12 +363,9 @@ let process_vertex
   	(*Equation.print_transfer manager.print_fmt transfer;Format.print_flush ();Printf.printf "\nedge%d\n" edge;*)
   	match transfer with
   	| Equation.Lcons(cond,cons,_,sat)->
- 			Printf.printf "in Lcons process_vertex\n";
-  		Apron.Lincons1.print manager.print_fmt cons;Format.print_flush ();Printf.printf "\n";
   		if !sat==true then
   		(
   		let oldreach = attr.reach in(*abstract*)
- 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
  			
  			let env0 = Translate.copy_env oldreach.Apron.Abstract1.env in
  			let env = ref oldreach.Apron.Abstract1.env in
@@ -379,16 +375,12 @@ let process_vertex
  				Apron.Tcons1.array_env = oldreach.Apron.Abstract1.env;} in
  			sat := Apron.Abstract1.sat_lincons ap_manager 
  				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) cons;
- 			Printf.printf "sat_lincons=%b\n" !sat;
  			oldreach.Apron.Abstract1.env <- env0;
  			);
  		| Equation.Tcons(cond,tcons,_,sat)->
- 			Printf.printf "in Tcons process_vertex\n";
- 			Apron.Tcons1.print manager.print_fmt tcons;Format.print_flush ();Printf.printf "\n";
  			if !sat==true then
   		(
   		let oldreach = attr.reach in(*abstract*)
- 			manager.print_abstract manager.print_fmt oldreach;Format.print_flush ();Printf.printf "\n";
  			
  			let env0 = Translate.copy_env oldreach.Apron.Abstract1.env in
  			let env = ref oldreach.Apron.Abstract1.env in
@@ -398,7 +390,6 @@ let process_vertex
  				Apron.Tcons1.array_env = oldreach.Apron.Abstract1.env;} in
  			sat := Apron.Abstract1.sat_tcons ap_manager 
  				(Apron.Abstract1.meet_tcons_array ap_manager oldreach ea) tcons;
- 			Printf.printf "sat_tcons=%b\n" !sat;
  			oldreach.Apron.Abstract1.env <- env0;
  			);
   	| _->();
