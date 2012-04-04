@@ -63,10 +63,9 @@ let rec compareCodeAnnot (code_annot1:Cil_types.code_annotation) (code_annot2:Ci
 							(
 							match host1,host2 with
 							| TVar(lv1),TVar(lv2)->
-								if lv1.lv_id!=lv2.lv_id then (Printf.printf "lv1.lv_id!=lv2.lv_id\n";flag := 0;);
+								if lv1.lv_id!=lv2.lv_id then (flag := 0;);
 							| _,_->();
 							);
-							Printf.printf "term_node:TLval\n";
 						| TUnOp(_,_),TUnOp(_,_)->
 							Printf.printf "term_node:TUnOp\n";
 						| TBinOp(_,_,_),TBinOp(_,_,_)->
@@ -191,4 +190,5 @@ let prove_fundec kf wp_compute unknownout=
 	List.iter(fun s->
 		prove s
 	)fundec.sbody.bstmts;
-	Printf.printf "total=%d,right=%d\n" !total !right;;
+	Printf.printf "total=%d,right=%d\n" !total !right;
+	(!total,!right);;

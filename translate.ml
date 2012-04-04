@@ -396,25 +396,30 @@ let extract_loop stmt :Equation.loop =
 	(match stmt.skind with
 	| Loop(_,b,loc,_,_)->
 		let index = ref 0 and flag = ref false in
-		for i=0 to (List.length b.bstmts)-1 do
+		(*for i=0 to (List.length b.bstmts)-1 do
+			Printf.printf "i=%d,flag=%b\n" i !flag;
 			let s = List.nth b.bstmts i in
 			if (List.length s.labels)==0 then
-			begin if !flag==false then begin index := i; flag := true; end;end;
+			begin if !flag==false then begin index := i; flag := true;Printf.printf "up1\n"; end;end;
 			if (List.length s.labels)>0 then
 			begin
 				List.iter(fun label->
 					begin match label with
 					| Label(_,_,b)->
-						if b==true && !flag==false then begin index := i; flag := true; end;
-					| _->if !flag==false then begin index := i; flag := true; end;
+						if b==true && !flag==false then begin index := i; flag := true; Printf.printf "up2\n";end;
+					| _->if !flag==false then begin index := i; flag := true; Printf.printf "up3\n";end;
 					end;
 				)s.labels;
 			end else
 			begin
-				if !flag==false then begin index := i; flag := true; end;
+				if !flag==false then begin index := i; flag := true; Printf.printf "up4\n";end;
 			end;
 		done;
-		
+		Cil.d_stmt Format.std_formatter stmt;Format.print_flush ();Printf.printf "\n";
+		List.iter(fun s->
+			Cil.d_stmt Format.std_formatter s;Format.print_flush ();Printf.printf "\n";
+		)b.bstmts;
+		Printf.printf "%d,%d\n" !index (List.length b.bstmts);*)
 		let con_stmt = List.nth b.bstmts !index in
 		let body_stmt = ref [] in
 		for i=(!index+1) to ((List.length b.bstmts)-1) do
@@ -486,42 +491,44 @@ let get_array_vars kf dec fmt =
 							end
 						in
 									
-						let term2lv t =
+						let rec term2lv t =
 							begin match t.term_node with
 							| TLval((host,_))->
 								begin match host with
 								| TVar(lv)->Some lv
 								| _->None
 								end;
+							| TCastE(_,t1)->
+								term2lv t1;
 							| _->None
 								end
 						in
 									
 						let nprofile = ref [] in
-							List.iter(fun t->
-								begin match term2lv t with
-								| Some lv->
-									nprofile := lv::(!nprofile);
-								| None->();
-								end;
-							)tl;
-							nprofile := List.rev !nprofile;
-							let lvtbl = Hashtbl.create 3 in 
-							List.iter2(fun lv nlv->
-								Hashtbl.add lvtbl lv nlv; 
-							) linfo.l_profile (!nprofile);
+						List.iter(fun t->Cil.d_term Format.std_formatter t;Format.print_flush ();Printf.printf "\n";
+							begin match term2lv t with
+							| Some lv->
+								nprofile := lv::(!nprofile);
+							| None->();
+							end;
+						)tl;
+						nprofile := List.rev !nprofile;
+						let lvtbl = Hashtbl.create 3 in
+						List.iter2(fun lv nlv->
+							Hashtbl.add lvtbl lv nlv; 
+						) linfo.l_profile (!nprofile);
 									
-							let np = Copy.copy_predicate pn.content in
-							LiUtils.apply_predicate np lvtbl;
+						let np = Copy.copy_predicate pn.content in
+						LiUtils.apply_predicate np lvtbl;
 									
-							get np;									
-						| _->();
-						end;
+						get np;									
 					| _->();
 					end;
-				in
+				| _->();
+				end;
+			in
 						
-				get ip.ip_content;
+			get ip.ip_content;
 		)b.b_requires;
 	)funspec.spec_behavior;
 	
@@ -644,7 +651,9 @@ let rec extract_const_from_exp (lv:lval option) e =
 	| Const(c)->
 		begin match c with
 		| CInt64(big,_,_)->
-			[(lv,My_bigint.to_int big)];
+			if (My_bigint.le big (My_bigint.of_int max_int))==true then
+			[(lv,My_bigint.to_int big)]
+			else [];
 		| CReal(f,_,_)->[(lv,int_of_float f)];
 		| _->[];
 		end;
@@ -1340,7 +1349,7 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 		with Not_found->();
 	)coeffs;
 	
-	let template_size = ref 2 in
+	let template_size = ref 3 in
 	let len = List.length !coeffl in
 	if len<(!template_size) then template_size := len;
 	
