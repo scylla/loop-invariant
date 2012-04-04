@@ -37,7 +37,7 @@ let print_hedge fmt e =
 let vertex_dummy = 
 	{
 		fname = "";
-		sid = -2;
+		sid = -1;
 	}
 let hedge_dummy = -1
 

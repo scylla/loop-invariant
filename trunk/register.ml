@@ -194,13 +194,17 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
 	let cil = Ast.get () in
 	Ast.set_file cil;
 	
+	let total = ref 0 and right = ref 0 in
 	Globals.Functions.iter(fun kf->
 		begin match kf.fundec with
 		| Definition(_,_)->
-			LiAnnot.prove_fundec kf wp_compute unknownout;
+			let (t,r) = LiAnnot.prove_fundec kf wp_compute unknownout in
+			total := !total+t;
+			right := !right+r;
 		| Declaration _->();
 		end;
   );
+	Printf.printf "total=%d,right=%d\n" !total !right;
   
   let fpath = "/home/lzh/result.c" in
   LiUtils.save fpath cil;

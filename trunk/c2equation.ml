@@ -385,10 +385,12 @@ let make_info (prog:Cil_types.file): Equation.info =
 			let (pcode:block) = fundec.sbody in
 			let pinfo = Hashtbl.find procinfo (Kernel_function.get_name kf) in
 		  let env = pinfo.Equation.penv in
+		  let fpoint = {fname=pcode.kf_name;sid= -1;} in
+		  Hashhe.add pointenv fpoint env;
 		  
   		let fpoint = {fname=pcode.kf_name;sid = pcode.bid} in
 		  if not (Hashhe.mem pointenv fpoint) then
-				Hashhe.add pointenv fpoint env;
+			(Hashhe.add pointenv fpoint env;);
 		  
 		  let rec add_env b =
 		  	if (List.length b.bstmts)>0 then begin

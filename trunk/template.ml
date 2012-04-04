@@ -539,11 +539,12 @@ module Forward = struct
 					end
       	end
       in
+      
       let fpmanager =
 				make_fpmanager ~fmt graph ~output	apply abstract_init	manager ~debug
       in
-      let fp =
-				
+      
+      let fp =				
     		if sstart!=dummy_sstart then
 					begin
 					let result = Fixpoint.analysis_std
@@ -551,15 +552,9 @@ module Forward = struct
 						(Fixpoint.make_strategy_default
 							~vertex_dummy:Equation.vertex_dummy
 							~hedge_dummy:Equation.hedge_dummy
-							graph sstart) manager in
-					(*let result = Fixpoint.analysis_guided
-						fpmanager graph sstart
-						(fun filter  ->
-							Fixpoint.make_strategy_default
-					~vertex_dummy:Equation.vertex_dummy
-					~hedge_dummy:Equation.hedge_dummy
-					~priority:(PSHGraph.Filter filter)
-					graph sstart) in
+							graph sstart) manager 
+					in
+					(*
 					Printf.printf "fore analysis_std result1\n";
 					Fixpoint.print_output fpmanager fmt result;
 					Printf.printf "\n";*)

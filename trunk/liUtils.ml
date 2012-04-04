@@ -159,8 +159,10 @@ let rec apply_predicate p lvtbl =
 		| TLval((host,offset))|TAddrOf((host,offset))|TStartOf((host,offset))->
 			begin match host with
 			| TVar(lv)->
+				try
 				let nlv = Hashtbl.find lvtbl lv in
 				lv.lv_name <- nlv.lv_name;
+				with Not_found->();
 			| _->();
 			end;
 		| TSizeOfE(t1)|TAlignOfE(t1)|TUnOp(_,t1)|TCastE(_,t1)|Tlambda(_,t1)|Tat(t1,_)|Tbase_addr(t1)|Tblock_length(t1)|TCoerce(t1,_)|Ttypeof(t1)->
