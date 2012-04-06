@@ -1349,8 +1349,9 @@ let generate_template fmt procinfo loop (lvars:Cil_types.varinfo list) (conl:(Ci
 		with Not_found->();
 	)coeffs;
 	
-	let template_size = ref 3 in
+	let template_size = ref 2 in
 	let len = List.length !coeffl in
+	Printf.printf "tvar len=%d\n" len;
 	if len<(!template_size) then template_size := len;
 	
 	if len>0 then
