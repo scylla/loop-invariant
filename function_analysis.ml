@@ -28,62 +28,82 @@ let generate_loop_annotations (kf:Cil_types.kernel_function) (loop_stmt:stmt) (l
 					levars := v::(!levars);
 				)(Varinfo.Set.elements evars);
 				
-				let lelvars = ref [] in
-			
-			
-				List.iter(fun cv->
-					let lv = Cil.cvar_to_lvar cv in
-					if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) s.free_lv_list)==true then	lelvars := lv::!lelvars;
-				)!levars;
-			
-				let tl = Logic_const.term ~loc:location tnode (Cil.typeOfTermLval tlval) in
+				let flag = ref true in
 				
-				(*
-				TypePrinter.print_tnode_type Format.std_formatter tl.term_node;Format.print_flush ();
-				TypePrinter.print_tnode_type Format.std_formatter tr.term_node;Format.print_flush ();*)
-				let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
-				let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
-			
-				let con_named = Logic_const.pands (List.rev s.predicate_list) in
-			
-				total_lt := (!levars,[],con_named,!t_named)::!total_lt;
-				
-				(*array.wrong*)
-				let (host,offset) = lval in
-				begin match (host,offset) with
-				| (Mem(e1),NoOffset)->
-					begin match e1.enode with
-					| BinOp(op,e2,e3,tp)->						
-						let zero_term = Cil.lzero () in
-						let t1 = !Db.Properties.Interp.force_exp_to_term e3 in
-						let k = Cil.make_temp_logic_var Linteger in
-						let tk = Logic_const.term (TLval(TVar(k),TNoOffset)) Linteger in
-						let pnamed1 = Logic_const.unamed (Prel(Rge,tk,zero_term)) in(*>=0*)
-						let pnamed2 = Logic_const.unamed (Prel(Rle,tk,t1)) in(*<n*)
-						let p = Logic_const.pands [pnamed1;pnamed2] in
-						
-						let vars3 = Cil.extract_varinfos_from_exp e3 in
-						
-						let tk = Logic_const.term (TBinOp(op,(!Db.Properties.Interp.force_exp_to_term e2),tk)) (Ctype(Cil.typeOfLval lval)) in
-						let tl = Logic_const.term (TLval(TMem(tk),TNoOffset)) (Ctype(tp)) in
-						let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
-						let id_pre = Copy.copy_predicate id_pre.ip_content in
-						let t_named = ref (Logic_const.unamed ~loc:location id_pre) in
-						let lvars = Cil.extract_free_logicvars_from_predicate !t_named in
-						List.iter(fun lv->							
-							List.iter(fun v3->
-								if (String.compare lv.lv_name v3.vname)==0 then
-								begin
-								lv.lv_name <- k.lv_name;
-								end;
-							)(Varinfo.Set.elements vars3);
-							
-						)(Logic_var.Set.elements lvars);
-						
-						total_lt := (!levars,[k],p,!t_named)::!total_lt;
-					| _->();
+				let rec basic_tp tp =
+					begin match tp with
+					| TNamed _|TComp _|TEnum _|TBuiltin_va_list _->false
+					| TFun(tp1,_,_,_)|TPtr(tp1,_)|TArray(tp1,_,_,_)->basic_tp tp1
+					| TInt(kind,_)->
+						begin match kind with
+						| IChar|ISChar|IUChar->false
+						| _->true
+						end;
+					| _->true
 					end;
-				| _->();				
+				in
+				
+				if (List.exists(fun v->(basic_tp v.vtype)==false) !levars)==true then flag := false;
+				
+				if !flag==true then
+				begin
+					let lelvars = ref [] in
+			
+			
+					List.iter(fun cv->
+						let lv = Cil.cvar_to_lvar cv in
+						if (List.for_all (fun lv1->(lv.lv_name==lv1.lv_name)==false) s.free_lv_list)==true then	lelvars := lv::!lelvars;
+					)!levars;
+			
+					let tl = Logic_const.term ~loc:location tnode (Cil.typeOfTermLval tlval) in
+				
+					(*
+					TypePrinter.print_tnode_type Format.std_formatter tl.term_node;Format.print_flush ();
+					TypePrinter.print_tnode_type Format.std_formatter tr.term_node;Format.print_flush ();*)
+					let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in(*only Req now*)
+					let t_named = ref (Logic_const.unamed ~loc:location id_pre.ip_content) in			
+			
+					let con_named = Logic_const.pands (List.rev s.predicate_list) in
+			
+					total_lt := (!levars,[],con_named,!t_named)::!total_lt;
+				
+					(*array.wrong*)
+					let (host,offset) = lval in
+					begin match (host,offset) with
+					| (Mem(e1),NoOffset)->
+						begin match e1.enode with
+						| BinOp(op,e2,e3,tp)->						
+							let zero_term = Cil.lzero () in
+							let t1 = !Db.Properties.Interp.force_exp_to_term e3 in
+							let k = Cil.make_temp_logic_var Linteger in
+							let tk = Logic_const.term (TLval(TVar(k),TNoOffset)) Linteger in
+							let pnamed1 = Logic_const.unamed (Prel(Rge,tk,zero_term)) in(*>=0*)
+							let pnamed2 = Logic_const.unamed (Prel(Rle,tk,t1)) in(*<n*)
+							let p = Logic_const.pands [pnamed1;pnamed2] in
+						
+							let vars3 = Cil.extract_varinfos_from_exp e3 in
+						
+							let tk = Logic_const.term (TBinOp(op,(!Db.Properties.Interp.force_exp_to_term e2),tk)) (Ctype(Cil.typeOfLval lval)) in
+							let tl = Logic_const.term (TLval(TMem(tk),TNoOffset)) (Ctype(tp)) in
+							let id_pre = Logic_const.new_predicate (Logic_const.prel (Req,tl,tr)) in
+							let id_pre = Copy.copy_predicate id_pre.ip_content in
+							let t_named = ref (Logic_const.unamed ~loc:location id_pre) in
+							let lvars = Cil.extract_free_logicvars_from_predicate !t_named in
+							List.iter(fun lv->							
+								List.iter(fun v3->
+									if (String.compare lv.lv_name v3.vname)==0 then
+									begin
+									lv.lv_name <- k.lv_name;
+									end;
+								)(Varinfo.Set.elements vars3);
+							
+							)(Logic_var.Set.elements lvars);
+						
+							total_lt := (!levars,[k],p,!t_named)::!total_lt;
+						| _->();
+						end;
+					| _->();				
+					end;
 				end;
 			(*Set End*)
 			| Call(_,e1,el,_)->

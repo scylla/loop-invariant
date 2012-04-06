@@ -160,8 +160,12 @@ let loopInvariantAnalysis (cil: Cil_types.file) =
     (
       Self.result "Enter function [%s].\n" fname;
 		  begin match kf.fundec with
-		  | Definition(_,_)->
-	    	Function_analysis.analysis_kf kf !linfo_list funsigs annots visitor ipl wp_compute unknownout;
+		  | Definition(fundec,_)->
+		  	begin match fundec.svar.vstorage with
+		  	| Static->();
+		  	| _->
+	    		Function_analysis.analysis_kf kf !linfo_list funsigs annots visitor ipl wp_compute unknownout;
+	    	end;
       | Declaration(_,_,_,_)->();
       end;
       Self.result "Leave function [%s].\n" fname;
