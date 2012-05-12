@@ -9,7 +9,10 @@ double array_sum(double t[],int n){
 	  @ loop invariant n-i;
 	*/
 	for(i=0;i<n;i++)
+	{int y;
 		s+=t[i];
+		y=y+1;
+	}
 		
 	return s;
 }

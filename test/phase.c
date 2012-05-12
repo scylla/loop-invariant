@@ -1,5 +1,7 @@
 #include<assert.h>
 
+/*@
+ensures len
 void phase()
 {
 	int x=0,y=50;
