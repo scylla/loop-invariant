@@ -1,3 +1,6 @@
+2012.04.06
+使用CIL合并，但是碰到了错误./configure CC=cilly CFLAGS="--save-temps --noPrintLn --stats --printCilAsIs --printComments --merge" LDFLAGS="--keepmerged --merge" CXX=cilly CXXFLAGS="cilly --save-temps --noPrintLn --stats --printCilAsIs --printComments --merge" AR="cilly --mode=AR"
+
 2012.04.03
 CIL不能保留原有的注释；
 constant的判断不对，该怎么写？
